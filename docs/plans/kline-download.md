@@ -1,9 +1,9 @@
 # Kline download
 
-- **Status:** building
+- **Status:** review
 - **Branch:** `claude/kline-download-functionality-cc0cd7`
-- **PR:**
-- **Updated:** 2026-10-31T12:33Z
+- **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/6
+- **Updated:** 2026-10-31T12:37Z
 
 ## Goal
 
@@ -213,6 +213,9 @@ source is never modified.
 - 2026-10-31: M4 CLI lives in `data_cli.py` (sources injected via `make_source`), renderers in
   `progress.py`, tables in `cli_output.py`, status report in `data/status.py`. `-v` with `-q` is
   a usage error; `-q` only hides progress. Plain output is ASCII only.
+- 2026-10-31: First CI run failed: Typer forces terminal rendering when `GITHUB_ACTIONS` is set,
+  so usage errors in CI had colour codes and wrapped panel borders. Fixed in tests only
+  (006080c, autouse fixture in `tests/conftest.py`); CI green.
 
 ## Blocked on
 
