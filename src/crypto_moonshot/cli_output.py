@@ -203,8 +203,9 @@ def print_status(reports: Sequence[SeriesReport], *, tty: bool | None = None) ->
         label = f"{report.symbol} {report.interval.value}"
         for start, end in report.gaps:
             count = report.interval.count_open_times(start, end)
+            candles = "1 candle" if count == 1 else f"{format_count(count)} candles"
             print_notice(
-                f"{label} gap: {format_time(start)}{arrow}{format_time(end)} ({count} candles)",
+                f"{label} gap: {format_time(start)}{arrow}{format_time(end)} ({candles})",
                 tty=tty,
                 style="",
             )
