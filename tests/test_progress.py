@@ -314,7 +314,7 @@ def plain(buffer: io.StringIO) -> str:
     return ANSI.sub("", buffer.getvalue())
 
 
-@pytest.mark.parametrize("width", [120, 160])
+@pytest.mark.parametrize("width", [80, 120, 160])
 def test_bars_show_every_series_the_warning_and_the_overall_row(width: int) -> None:
     clock = FakeClock()
     renderer, buffer = bars(clock, width)
@@ -332,7 +332,7 @@ def test_bars_show_every_series_the_warning_and_the_overall_row(width: int) -> N
     assert "done \N{CHECK MARK}" in text
     assert "up to date" in text
     assert "failed \N{BALLOT X}" in text
-    assert "Invalid symbol." in text  # may wrap onto a second line at narrow widths
+    assert "symbol." in text  # the reason wraps inside the status cell at narrow widths
     assert "995/1,000" not in text  # BTC's settled figures are fetched + missing = 1,000
     assert "1,000/1,000" in text
     assert "2/2 mo" in text

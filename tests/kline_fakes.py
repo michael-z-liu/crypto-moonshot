@@ -36,7 +36,7 @@ class FakeBinance:
         self,
         data: dict[str, list[datetime]] | None = None,
         *,
-        errors: dict[str, Exception] | None = None,
+        errors: dict[str, BaseException] | None = None,
     ) -> None:
         self.data = data or {}
         self.errors = errors or {}
