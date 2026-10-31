@@ -160,7 +160,7 @@ source is never modified.
 - **Worker:** master
 - **Commits:** ffbe4c6, plus the README in f5da361 and a1f822b
 
-### M7: Real run, BTCUSDT 1h from 2020 (in progress)
+### M7: Real run, BTCUSDT 1h from 2020 (done)
 
 - **Delivers:** `moonshot data sync BTCUSDT -i 1h --start 2020-01-01 --concurrency 4` against the
   live public API (about 60 requests).
@@ -169,9 +169,9 @@ source is never modified.
   `data status` matches the files. **Stop** (blocked) on any 418, a second 429 across M7–M8, or
   used weight above 50% of the limit.
 - **Worker:** master
-- **Commits:**
+- **Commits:** 961e64f (cosmetic fix found during the run). Result: 59,860 candles + 32 recorded gap candles = 59,892 expected hours (2020-01-01 to 2026-10-31 11:00); unique, sorted, UTC, no nulls; 15 gaps on known Binance maintenance windows; 83 requests in 9.0 s, 0 rate-limit hits, max used weight 166/6000 (2.8%); second run 0 requests; status matches.
 
-### M8: Real run, top 5 in parallel at 1h, plus import check (todo)
+### M8: Real run, top 5 in parallel at 1h, plus import check (in progress)
 
 - **Delivers:** `moonshot data sync BTCUSDT ETHUSDT BNBUSDT SOLUSDT XRPUSDT -i 1h --start
   2020-01-01 --concurrency 4` (about 300 requests); then `data import ./data` into an empty scratch
