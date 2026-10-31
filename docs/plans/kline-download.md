@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `claude/kline-download-functionality-cc0cd7`
 - **PR:**
-- **Updated:** 2026-10-31T12:26Z
+- **Updated:** 2026-10-31T12:30Z
 
 ## Goal
 
@@ -142,7 +142,7 @@ source is never modified.
 - **Worker:** sonnet
 - **Commits:** daa7045, 966d338, 71043e7, c141193, d1509aa, a1f822b
 
-### M5: Import from another data folder (in progress)
+### M5: Import from another data folder (done)
 
 - **Delivers:** `data/importer.py` and `moonshot data import` with the checks above, `--dry-run`
   and `--json`.
@@ -150,9 +150,9 @@ source is never modified.
   merge with existing months (existing wins); dry run writes nothing; source untouched; JSON
   summary. Check command passes.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** 7124cbd, 0e2f510, 512a87b, f5da361
 
-### M6: Docs (todo)
+### M6: Docs (in progress)
 
 - **Delivers:** `docs/architecture.md` updated (endpoint, rate-limit safety, concurrency, progress,
   `_meta.json`, schema version and import), README usage for `moonshot data`.
