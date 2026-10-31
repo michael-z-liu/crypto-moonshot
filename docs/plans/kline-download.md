@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `claude/kline-download-functionality-cc0cd7`
 - **PR:**
-- **Updated:** 2026-10-31T12:30Z
+- **Updated:** 2026-10-31T12:31Z
 
 ## Goal
 
@@ -152,15 +152,15 @@ source is never modified.
 - **Worker:** sonnet
 - **Commits:** 7124cbd, 0e2f510, 512a87b, f5da361
 
-### M6: Docs (in progress)
+### M6: Docs (done)
 
 - **Delivers:** `docs/architecture.md` updated (endpoint, rate-limit safety, concurrency, progress,
   `_meta.json`, schema version and import), README usage for `moonshot data`.
 - **Done when:** docs match the code. Check command passes.
 - **Worker:** master
-- **Commits:**
+- **Commits:** ffbe4c6, plus the README in f5da361 and a1f822b
 
-### M7: Real run, BTCUSDT 1h from 2020 (todo)
+### M7: Real run, BTCUSDT 1h from 2020 (in progress)
 
 - **Delivers:** `moonshot data sync BTCUSDT -i 1h --start 2020-01-01 --concurrency 4` against the
   live public API (about 60 requests).
