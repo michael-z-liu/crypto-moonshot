@@ -1,0 +1,68 @@
+[project]
+name = "crypto-moonshot"
+version = "0.1.0"
+description = "Personal crypto research, backtesting and trading toolkit for Binance."
+readme = "README.md"
+authors = [
+    { name = "Michael Liu", email = "104720972+michael-z-liu@users.noreply.github.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "typer>=0.27.3",
+]
+
+[project.scripts]
+moonshot = "crypto_moonshot.cli:app"
+
+[build-system]
+requires = ["uv_build>=0.12.18,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.1",
+    "pre-commit>=4.7.0",
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.3",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # isort
+    "UP",       # pyupgrade
+    "B",        # bugbear
+    "SIM",      # simplify
+    "DTZ",      # naive datetimes are a classic trading bug
+    "PT",       # pytest style
+    "RUF",
+]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+
+[tool.coverage.run]
+source = ["crypto_moonshot"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

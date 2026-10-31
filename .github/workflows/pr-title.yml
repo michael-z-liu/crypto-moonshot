@@ -1,0 +1,23 @@
+name: PR title
+
+# PRs are squash-merged and the title becomes the commit on main, so it must follow
+# Conventional Commits (see CONTRIBUTING.md).
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  conventional:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|perf|refactor|test|docs|build|ci|chore|revert)(\([a-z0-9-]+\))?!?: [^A-Z].{0,70}[^.]$'
+          if [[ ! "$TITLE" =~ $pattern ]]; then
+            echo "::error::PR title must look like 'type(scope): summary' (lower-case summary, no trailing period, max 72 chars). Got: $TITLE"
+            exit 1
+          fi
