@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `claude/kline-download-functionality-cc0cd7`
 - **PR:**
-- **Updated:** 2026-10-31T12:12Z
+- **Updated:** 2026-10-31T12:26Z
 
 ## Goal
 
@@ -131,7 +131,7 @@ source is never modified.
 - **Worker:** opus
 - **Commits:** 3445d58, 63bbb81, 625f5dc, 6cf8ec5
 
-### M4: CLI and progress display (in progress)
+### M4: CLI and progress display (done)
 
 - **Delivers:** `moonshot data sync` and `moonshot data status` with rich progress (TTY), plain
   periodic lines (no TTY), `--json`, `-v`/`-q`, `--concurrency`, `--max-rate-limit-hits`,
@@ -140,9 +140,9 @@ source is never modified.
   the JSON summary format, status table and JSON, bad interval / bad date / bad symbol handling,
   exit codes for failure and abort. Check command passes.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** daa7045, 966d338, 71043e7, c141193, d1509aa, a1f822b
 
-### M5: Import from another data folder (todo)
+### M5: Import from another data folder (in progress)
 
 - **Delivers:** `data/importer.py` and `moonshot data import` with the checks above, `--dry-run`
   and `--json`.
@@ -210,6 +210,9 @@ source is never modified.
   Rate-limit abort / ban ends the run with `SyncSummary.aborted` set (no exception);
   `outcome` drives exit codes. A series failing at planning gets only `SeriesFinished`, so
   renderers create rows from `SyncStarted.series`.
+- 2026-10-31: M4 CLI lives in `data_cli.py` (sources injected via `make_source`), renderers in
+  `progress.py`, tables in `cli_output.py`, status report in `data/status.py`. `-v` with `-q` is
+  a usage error; `-q` only hides progress. Plain output is ASCII only.
 
 ## Blocked on
 
