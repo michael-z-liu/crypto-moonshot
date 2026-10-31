@@ -38,11 +38,11 @@ def as_utc(dt: datetime) -> datetime:
     return dt.astimezone(UTC)
 
 
-def _month_start(dt: datetime) -> datetime:
+def month_start(dt: datetime) -> datetime:
     return datetime(dt.year, dt.month, 1, tzinfo=UTC)
 
 
-def _next_month(dt: datetime) -> datetime:
+def next_month(dt: datetime) -> datetime:
     return datetime(dt.year + dt.month // 12, dt.month % 12 + 1, 1, tzinfo=UTC)
 
 
@@ -86,7 +86,7 @@ class Interval(StrEnum):
         """Open time of the latest candle that opens at or before `dt`."""
         dt = as_utc(dt)
         if self.is_monthly:
-            return _month_start(dt)
+            return month_start(dt)
         length = self.length
         anchor = _FIRST_MONDAY if self is Interval.W1 else EPOCH
         return anchor + (dt - anchor) // length * length
@@ -95,7 +95,7 @@ class Interval(StrEnum):
         """Open time of the candle after the one containing `dt` (after `dt` if aligned)."""
         open_time = self.floor(dt)
         if self.is_monthly:
-            return _next_month(open_time)
+            return next_month(open_time)
         return open_time + self.length
 
     def ceil(self, dt: datetime) -> datetime:
