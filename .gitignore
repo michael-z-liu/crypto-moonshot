@@ -25,8 +25,8 @@ htmlcov/
 !.env.example
 
 # Local market data, backtest output, logs
-data/
-logs/
+/data/
+/logs/
 
 # Editors / OS
 .vscode/
