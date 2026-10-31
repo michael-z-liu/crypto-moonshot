@@ -29,6 +29,8 @@ uv run pytest            # test
 
 Add dependencies with `uv add <pkg>` (or `uv add --dev <pkg>` for tooling) so `uv.lock` stays in sync.
 
+Commits follow Conventional Commits. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Safety
 
 This repository is public. API keys go in `.env`, which is gitignored. Use the Binance spot testnet until a strategy has been proven.

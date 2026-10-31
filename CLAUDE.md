@@ -16,3 +16,4 @@ Personal Binance research, backtesting and live-trading toolkit. Python 3.13, ma
 - Datetimes are always timezone-aware UTC (ruff `DTZ` rules enforce this).
 - Secrets come from environment variables or `.env` (gitignored). The repo is public: never commit keys, and never log them.
 - Default to the Binance spot testnet for anything that places orders.
+- Commits and PR titles use Conventional Commits (`type(scope): summary`); see `CONTRIBUTING.md` for types, scopes and branch naming. Squash-merge PRs.
