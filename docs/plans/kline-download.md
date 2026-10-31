@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `claude/kline-download-functionality-cc0cd7`
 - **PR:**
-- **Updated:** 2026-10-31T11:55Z
+- **Updated:** 2026-10-31T12:00Z
 
 ## Goal
 
@@ -106,7 +106,7 @@ source is never modified.
 - **Worker:** sonnet
 - **Commits:** 8022062, 84b8ed2, e7d76ba, 6fc68e2, 263f153
 
-### M2: Parquet store and gaps (in progress)
+### M2: Parquet store and gaps (done)
 
 - **Delivers:** `data/store.py`: read/write monthly files with schema v1 and version metadata,
   atomic writes, merge with de-duplication, stored open times / coverage for a series, `_meta.json`
@@ -115,9 +115,9 @@ source is never modified.
   (no partial file left on failure); idempotent merge; missing ranges with and without gaps and
   listing date; month grouping across year boundaries. Check command passes.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** 6ff5569, f0ef6ac, 3f1bb58
 
-### M3: Parallel sync engine (todo)
+### M3: Parallel sync engine (in progress)
 
 - **Delivers:** `data/sync.py`: plans missing months per (symbol, interval), runs them
   concurrently under a global limit and the shared rate limiter, writes each month on completion,
@@ -196,6 +196,14 @@ source is never modified.
 - 2026-10-31: M1 API: `Interval.open_times` / `count_open_times` / `ceil`; `KLINE_SCHEMA` and
   `SCHEMA_VERSION` live in `models.py`; one `BinanceClient` per run (rate-limit and ban state are
   per client); `fetch_klines(..., on_page=)` reports raw rows per page.
+- 2026-10-31: `docs/data-format.md` published early (23007a8) at the user's request, as the
+  contract for a separate visualisation agent. `_meta.json` shape is fixed by it.
+- 2026-10-31: M7/M8 download to the shared main-checkout data folder
+  (`MOONSHOT_DATA_DIR=/Users/michael/Documents/code/crypto-moonshot/data`, gitignored) so the
+  visualisation agent can read it (user choice).
+- 2026-10-31: M2 store: invalid month files raise `InvalidMonthFileError` on read/merge; sync
+  must exclude `invalid_months()` from `stored_open_times(months=...)` and overwrite them with
+  `write_month`. `missing_ranges` rounds unaligned bounds and gap edges up to candle boundaries.
 
 ## Blocked on
 
