@@ -50,6 +50,8 @@ type WallClock = Callable[[], datetime]
 
 DEFAULT_SNAPSHOT_INTERVAL_S = 5.0
 _REASON_WIDTH = 44
+_BARS_REASON_WIDTH = 120
+"""A long failure reason wraps inside the status cell instead of being cut."""
 
 
 class ProgressMode(StrEnum):
@@ -98,7 +100,7 @@ def format_rate(rate: float | None) -> str:
 def short_reason(text: str | None, width: int = _REASON_WIDTH) -> str:
     """One-line, length-limited version of an error message."""
     flat = " ".join((text or "").split())
-    return flat if len(flat) <= width else flat[: width - 1] + "..."
+    return flat if len(flat) <= width else flat[: width - 3] + "..."
 
 
 def _percent(done: int, total: int) -> int:
@@ -124,6 +126,8 @@ class SeriesProgress:
     symbol: str
     interval: Interval
     phase: Phase = Phase.PLANNING
+    planned: bool = False
+    """Whether `SeriesPlanned` arrived (a series that fails while planning never gets it)."""
     stored: int = 0
     total: int = 0
     """Candles to fetch, from `SeriesPlanned`."""
@@ -223,6 +227,7 @@ class ProgressTracker:
                     self.row(symbol, interval)
             case SeriesPlanned():
                 row = self.row(event.symbol, event.interval)
+                row.planned = True
                 row.stored = event.candles_stored
                 row.total = event.candles_to_fetch
                 row.months_total = event.months_to_fetch
@@ -254,6 +259,7 @@ class ProgressTracker:
             case SyncFinished():
                 self.summary = event.summary
                 self._finished_at = now
+                self._paused_until = None
         return None
 
     def pause_left(self) -> float | None:
@@ -288,7 +294,7 @@ class ProgressTracker:
         )
 
 
-def status_text(row: SeriesProgress) -> tuple[str, str]:
+def status_text(row: SeriesProgress, reason_width: int = _REASON_WIDTH) -> tuple[str, str]:
     """Short status of a series and a rich style for it."""
     result = row.result
     if result is None:
@@ -306,7 +312,7 @@ def status_text(row: SeriesProgress) -> tuple[str, str]:
         case SeriesStatus.NO_DATA:
             return "no data on Binance", "yellow"
         case SeriesStatus.FAILED:
-            return f"failed \N{BALLOT X} {short_reason(result.error)}", "bold red"
+            return f"failed \N{BALLOT X} {short_reason(result.error, reason_width)}", "bold red"
         case SeriesStatus.ABORTED:
             return "aborted", "yellow"
 
@@ -523,11 +529,12 @@ class _Cell(ProgressColumn):
         *,
         justify: str = "left",
         min_width: int | None = None,
+        wrap: bool = False,
     ) -> None:
         super().__init__(
             table_column=Column(
-                no_wrap=True,
-                overflow="ellipsis",
+                no_wrap=not wrap,
+                overflow="fold" if wrap else "ellipsis",
                 justify=justify,  # type: ignore[arg-type]
                 min_width=min_width,
             )
@@ -569,12 +576,12 @@ class BarsProgress:
         self._running = False
         self._progress = Progress(
             _Cell(self._label_text, clock),
-            BarColumn(bar_width=24),
+            BarColumn(bar_width=20, table_column=Column(no_wrap=True)),
             _Cell(self._candles_text, clock, justify="right", min_width=17),
             _Cell(self._months_text, clock, justify="right", min_width=10),
-            _Cell(self._rate_text, clock, justify="right", min_width=10),
+            _Cell(self._rate_text, clock, justify="right", min_width=11),
             _Cell(self._eta_text, clock, justify="right", min_width=11),
-            _Cell(self._status_text, clock),
+            _Cell(self._status_text, clock, wrap=True),
             console=self.console,
             transient=False,
             refresh_per_second=refresh_per_second,
@@ -589,7 +596,9 @@ class BarsProgress:
         if isinstance(view, _OverallView):
             totals = view.tracker.totals()
             return Text(f"{format_count(totals.done)}/{format_count(totals.total)}")
-        if view.phase is not Phase.PLANNING and view.total == 0:
+        if view.phase is Phase.FINISHED and not view.planned:
+            return Text("-")
+        if view.planned and view.total == 0:
             return Text(f"{format_count(view.stored)} stored")
         return Text(f"{format_count(view.done)}/{format_count(view.total)}")
 
@@ -622,7 +631,7 @@ class BarsProgress:
             if pause is not None:
                 text += f", rate-limit pause {pause:.0f}s"
             return Text(text)
-        text, style = status_text(view)
+        text, style = status_text(view, _BARS_REASON_WIDTH)
         return Text(text, style=style)
 
     # -- events -----------------------------------------------------------------------------
@@ -668,7 +677,7 @@ class BarsProgress:
             return
         if row.total > 0:
             self._progress.update(task_id, total=row.total, completed=row.done)
-        elif row.phase is not Phase.PLANNING:
+        elif row.planned:
             self._progress.update(task_id, total=1, completed=1)  # nothing to fetch: full bar
 
     def _update_overall(self) -> None:
