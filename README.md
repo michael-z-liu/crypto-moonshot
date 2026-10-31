@@ -50,6 +50,19 @@ Exit codes: 0 ok, 1 some downloads failed, 2 usage error, 3 aborted because Bina
 or banned the IP (the client stays under half of Binance's limit and stops after
 `--max-rate-limit-hits` 429 responses), 130 interrupted. Months already written are kept.
 
+To reuse data downloaded in another folder instead of fetching it again, import it:
+
+```bash
+uv run moonshot data import ../other-checkout/data --dry-run   # report only, writes nothing
+uv run moonshot data import ../other-checkout/data
+```
+
+Each month file is checked against the current stored format (path, schema version, columns and
+types, UTC, aligned, no duplicates, closed candles) and imported, merged into an existing month
+(stored candles win) or skipped with its reasons; nothing is upgraded, so run `data sync` to
+download whatever was skipped. The source is never modified. `--json` prints the report; the exit
+code is 0 even when files were skipped.
+
 ## Development
 
 ```bash
