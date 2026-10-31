@@ -11,6 +11,7 @@ Personal Binance research, backtesting and live-trading toolkit. Python 3.13, ma
 ## Conventions
 
 - Source lives in `src/crypto_moonshot/`, tests in `tests/`. CLI entry point is `crypto_moonshot.cli:app` (Typer).
+- `docs/architecture.md` describes the current design. It is a starting point, not a fixed spec: when needs change, change the design and update the doc in the same PR.
 - Manage dependencies only through `uv add` / `uv remove`; never edit `uv.lock` by hand.
 - mypy runs in strict mode; type every function.
 - Datetimes are always timezone-aware UTC (ruff `DTZ` rules enforce this).
