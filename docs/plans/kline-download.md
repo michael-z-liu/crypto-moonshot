@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `claude/kline-download-functionality-cc0cd7`
 - **PR:**
-- **Updated:** 2026-10-31T12:00Z
+- **Updated:** 2026-10-31T12:12Z
 
 ## Goal
 
@@ -117,7 +117,7 @@ source is never modified.
 - **Worker:** sonnet
 - **Commits:** 6ff5569, f0ef6ac, 3f1bb58
 
-### M3: Parallel sync engine (in progress)
+### M3: Parallel sync engine (done)
 
 - **Delivers:** `data/sync.py`: plans missing months per (symbol, interval), runs them
   concurrently under a global limit and the shared rate limiter, writes each month on completion,
@@ -129,9 +129,9 @@ source is never modified.
   requested; one failing symbol leaves the others complete; abort cancels all and keeps finished
   months; events arrive in a sensible order. Check command passes.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** 3445d58, 63bbb81, 625f5dc, 6cf8ec5
 
-### M4: CLI and progress display (todo)
+### M4: CLI and progress display (in progress)
 
 - **Delivers:** `moonshot data sync` and `moonshot data status` with rich progress (TTY), plain
   periodic lines (no TTY), `--json`, `-v`/`-q`, `--concurrency`, `--max-rate-limit-hits`,
@@ -204,6 +204,12 @@ source is never modified.
 - 2026-10-31: M2 store: invalid month files raise `InvalidMonthFileError` on read/merge; sync
   must exclude `invalid_months()` from `stored_open_times(months=...)` and overwrite them with
   `write_month`. `missing_ranges` rounds unaligned bounds and gap edges up to candle boundaries.
+- 2026-10-31: M3 sync: plan all series first (so totals are known), then run month units
+  round-robin across series under one semaphore. Holes older than `gap_limit` (now minus
+  max(2 intervals, 5 min)) are recorded as gaps, so delisted symbols are not refetched forever.
+  Rate-limit abort / ban ends the run with `SyncSummary.aborted` set (no exception);
+  `outcome` drives exit codes. A series failing at planning gets only `SeriesFinished`, so
+  renderers create rows from `SyncStarted.series`.
 
 ## Blocked on
 
