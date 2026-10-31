@@ -429,12 +429,20 @@ def _meta_from_json(raw: object) -> SeriesMeta | None:
     return SeriesMeta(SCHEMA_VERSION, listing, merge_ranges(gaps))
 
 
+def load_meta(series_dir: Path) -> SeriesMeta | None:
+    """Read `<series_dir>/_meta.json`; `None` when it is missing or not valid for this version.
+
+    Unlike `read_meta` this tells "valid" from "missing or invalid" apart.
+    """
+    try:
+        return _meta_from_json(json.loads((series_dir / META_FILENAME).read_text("utf-8")))
+    except (OSError, ValueError, TypeError):
+        return None
+
+
 def read_meta(series_dir: Path) -> SeriesMeta:
     """Read `<series_dir>/_meta.json`; a missing, corrupt or other-version file gives defaults."""
-    try:
-        meta = _meta_from_json(json.loads((series_dir / META_FILENAME).read_text("utf-8")))
-    except (OSError, ValueError, TypeError):
-        return SeriesMeta()
+    meta = load_meta(series_dir)
     return meta if meta is not None else SeriesMeta()
 
 
