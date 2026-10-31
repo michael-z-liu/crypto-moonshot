@@ -235,7 +235,7 @@ def _import_file(
             dest.write_month(symbol, interval, month, frame)
         return result(ImportAction.REPLACED, frame.height)
     existing = dest.read_month(symbol, interval, month)["open_time"]
-    added = int((~frame["open_time"].is_in(existing)).sum())
+    added = int((~frame["open_time"].is_in(existing.implode())).sum())
     if added and not dry_run:
         added = dest.merge_month(symbol, interval, month, frame)
     return result(ImportAction.MERGED if added else ImportAction.UNCHANGED, added)
