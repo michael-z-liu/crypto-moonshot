@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `claude/kline-download-functionality-cc0cd7`
 - **PR:**
-- **Updated:** 2026-10-31T12:31Z
+- **Updated:** 2026-10-31T12:33Z
 
 ## Goal
 
@@ -171,7 +171,7 @@ source is never modified.
 - **Worker:** master
 - **Commits:** 961e64f (cosmetic fix found during the run). Result: 59,860 candles + 32 recorded gap candles = 59,892 expected hours (2020-01-01 to 2026-10-31 11:00); unique, sorted, UTC, no nulls; 15 gaps on known Binance maintenance windows; 83 requests in 9.0 s, 0 rate-limit hits, max used weight 166/6000 (2.8%); second run 0 requests; status matches.
 
-### M8: Real run, top 5 in parallel at 1h, plus import check (in progress)
+### M8: Real run, top 5 in parallel at 1h, plus import check (done)
 
 - **Delivers:** `moonshot data sync BTCUSDT ETHUSDT BNBUSDT SOLUSDT XRPUSDT -i 1h --start
   2020-01-01 --concurrency 4` (about 300 requests); then `data import ./data` into an empty scratch
@@ -180,7 +180,7 @@ source is never modified.
   output shows parallel progress; the imported copy's `data status` matches the original. Same stop
   rules as M7.
 - **Worker:** master
-- **Commits:**
+- **Commits:** none (verification only). Result: 234,094 candles for ETH, BNB, SOL, XRP in 27.6 s with all four progressing in parallel; BTCUSDT up to date; 325 requests, 0 rate-limit hits, max used weight 650/6000 (11%). Every symbol: rows + recorded gaps = expected hours, unique, sorted, UTC, no nulls; SOLUSDT starts at its listing 2020-08-11 06:00. Import of all 403 files into an empty folder: identical status, source unchanged, follow-up sync 0 requests.
 
 ## Decisions
 
@@ -217,3 +217,7 @@ source is never modified.
 ## Blocked on
 
 ## Follow-ups
+
+- Rate and ETA in progress are averages since a series started, so they read low after a long
+  rate-limit pause.
+- `data status` table is 11 columns wide and wraps in terminals narrower than about 130 columns.
