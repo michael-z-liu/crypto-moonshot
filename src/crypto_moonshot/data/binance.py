@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -33,6 +34,8 @@ DEFAULT_RETRY_AFTER_S = 60.0
 _MINUTE_MARGIN_S = 0.5
 """Extra wait past the minute boundary, so the weight window has surely reset."""
 _MAX_BACKOFF_S = 60.0
+
+logger = logging.getLogger(__name__)
 
 
 class BinanceError(Exception):
@@ -73,6 +76,21 @@ class ClientStats:
     """Highest `X-MBX-USED-WEIGHT-1M` seen."""
 
 
+@dataclass(frozen=True)
+class RateLimitHit:
+    """One HTTP 429 response, as reported to `BinanceClient.on_rate_limit`."""
+
+    hits: int
+    """429 responses this client has received so far, including this one."""
+    max_hits: int
+    """The client aborts for good when `hits` reaches this."""
+    retry_after: float
+    """Seconds every request of the client now waits (0 when aborting)."""
+    aborting: bool
+    """Whether this hit made the client abort (`RateLimitAbortError`)."""
+
+
+RateLimitHook = Callable[[RateLimitHit], None]
 Sleep = Callable[[float], Awaitable[None]]
 Clock = Callable[[], datetime]
 
@@ -130,6 +148,9 @@ class BinanceClient:
         max_rate_limit_hits: HTTP 429 responses tolerated before aborting for good.
         max_attempts: Attempts per request on 5xx and network errors.
         backoff_base: Seconds before the first retry; doubles each time.
+        on_rate_limit: Called with a `RateLimitHit` on every HTTP 429, on the event-loop thread.
+            Also settable later as the `on_rate_limit` attribute. Exceptions it raises are logged
+            and ignored.
     """
 
     def __init__(
@@ -144,6 +165,7 @@ class BinanceClient:
         max_rate_limit_hits: int = 3,
         max_attempts: int = 5,
         backoff_base: float = 1.0,
+        on_rate_limit: RateLimitHook | None = None,
         _owns_http: bool = False,
     ) -> None:
         if weight_budget < request_weight:
@@ -162,6 +184,7 @@ class BinanceClient:
         self._max_attempts = max_attempts
         self._backoff_base = backoff_base
         self._owns_http = _owns_http
+        self.on_rate_limit = on_rate_limit
         self.stats = ClientStats()
         self._lock = asyncio.Lock()
         self._inflight_weight = 0
@@ -364,18 +387,33 @@ class BinanceClient:
 
     def _handle_rate_limit(self, response: httpx.Response) -> None:
         self.stats.rate_limit_hits += 1
-        if self.stats.rate_limit_hits >= self._max_rate_limit_hits:
-            msg = f"aborting after {self.stats.rate_limit_hits} rate-limit (HTTP 429) responses"
-            self._fatal = lambda: RateLimitAbortError(msg, status=429)
-            raise RateLimitAbortError(msg, status=429)
+        hits = self.stats.rate_limit_hits
+        aborting = hits >= self._max_rate_limit_hits
         try:
             retry_after = float(response.headers["Retry-After"])
         except (KeyError, ValueError):
             retry_after = DEFAULT_RETRY_AFTER_S
+        self._notify_rate_limit(
+            RateLimitHit(
+                hits, self._max_rate_limit_hits, 0.0 if aborting else retry_after, aborting
+            )
+        )
+        if aborting:
+            msg = f"aborting after {hits} rate-limit (HTTP 429) responses"
+            self._fatal = lambda: RateLimitAbortError(msg, status=429)
+            raise RateLimitAbortError(msg, status=429)
         # Pause every request of this client, not just the one that was limited.
         until = self._now() + timedelta(seconds=retry_after)
         if self._pause_until is None or until > self._pause_until:
             self._pause_until = until
+
+    def _notify_rate_limit(self, hit: RateLimitHit) -> None:
+        if self.on_rate_limit is None:
+            return
+        try:
+            self.on_rate_limit(hit)
+        except Exception:
+            logger.exception("on_rate_limit hook raised; ignoring it")
 
     @staticmethod
     def _api_error(response: httpx.Response) -> BinanceError:

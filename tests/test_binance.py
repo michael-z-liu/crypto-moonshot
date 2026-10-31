@@ -12,6 +12,7 @@ from crypto_moonshot.data.binance import (
     BinanceError,
     IpBannedError,
     RateLimitAbortError,
+    RateLimitHit,
     klines_to_frame,
 )
 from crypto_moonshot.models import KLINE_SCHEMA, Interval
@@ -404,6 +405,39 @@ async def test_aborts_after_max_rate_limit_hits_and_stays_aborted() -> None:
         await client.fetch_klines("ETHUSDT", Interval.H1, T0, T0 + timedelta(days=1))
     assert len(seen) == 3  # no further requests
     assert clock.sleeps == [7.0, 7.0]
+
+
+async def test_on_rate_limit_hook_reports_each_429() -> None:
+    handler, _ = sequence_handler([httpx.Response(429, headers={"Retry-After": "7"}, json={})])
+    clock = FakeClock(FAR_FUTURE)
+    hits: list[RateLimitHit] = []
+    client = make_client(handler, clock, max_rate_limit_hits=3, on_rate_limit=hits.append)
+
+    with pytest.raises(RateLimitAbortError):
+        await client.first_open_time("BTCUSDT", Interval.H1)
+    assert hits == [
+        RateLimitHit(hits=1, max_hits=3, retry_after=7.0, aborting=False),
+        RateLimitHit(hits=2, max_hits=3, retry_after=7.0, aborting=False),
+        RateLimitHit(hits=3, max_hits=3, retry_after=0.0, aborting=True),
+    ]
+
+
+async def test_on_rate_limit_hook_can_be_set_later_and_its_errors_are_ignored() -> None:
+    handler, _ = sequence_handler(
+        [httpx.Response(429, headers={"Retry-After": "5"}, json={}), ok()]
+    )
+    clock = FakeClock(FAR_FUTURE)
+    client = make_client(handler, clock)
+    calls: list[RateLimitHit] = []
+
+    def hook(hit: RateLimitHit) -> None:
+        calls.append(hit)
+        raise RuntimeError("broken hook")
+
+    client.on_rate_limit = hook
+    assert await client.first_open_time("BTCUSDT", Interval.H1) == T0
+    assert calls == [RateLimitHit(hits=1, max_hits=3, retry_after=5.0, aborting=False)]
+    assert clock.sleeps == [5.0]
 
 
 async def test_418_aborts_immediately_and_stays_banned() -> None:
