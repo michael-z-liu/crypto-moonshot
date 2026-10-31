@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `claude/kline-download-functionality-cc0cd7`
 - **PR:**
-- **Updated:** 2026-10-31T11:49Z
+- **Updated:** 2026-10-31T11:55Z
 
 ## Goal
 
@@ -93,7 +93,7 @@ source is never modified.
 
 ## Milestones
 
-### M1: Models, config and REST client (in progress)
+### M1: Models, config and REST client (done)
 
 - **Delivers:** `Interval`, `Settings`, dependencies (httpx, polars, pydantic-settings, rich), and
   the async Binance klines client with paging, closed-candle filtering, listing-date lookup and
@@ -104,9 +104,9 @@ source is never modified.
   Retry-After and abort after N hits; immediate abort on 418; 5xx retry; unknown-symbol error.
   All datetimes UTC. Check command passes.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** 8022062, 84b8ed2, e7d76ba, 6fc68e2, 263f153
 
-### M2: Parquet store and gaps (todo)
+### M2: Parquet store and gaps (in progress)
 
 - **Delivers:** `data/store.py`: read/write monthly files with schema v1 and version metadata,
   atomic writes, merge with de-duplication, stored open times / coverage for a series, `_meta.json`
@@ -190,6 +190,12 @@ source is never modified.
 - 2026-10-31: Top 5 = BTC, ETH, BNB, SOL, XRP against USDT (largest non-stablecoin pairs).
 - 2026-10-31: Import has no schema upgrades; failing files are skipped (user request).
 - 2026-10-31: Config reads environment variables only in this PR; `.env` and keys come later.
+
+- 2026-10-31: `.gitignore` rules `data/` and `logs/` anchored to the root (`/data/`): the unanchored
+  pattern also ignored the `src/crypto_moonshot/data/` package.
+- 2026-10-31: M1 API: `Interval.open_times` / `count_open_times` / `ceil`; `KLINE_SCHEMA` and
+  `SCHEMA_VERSION` live in `models.py`; one `BinanceClient` per run (rate-limit and ban state are
+  per client); `fetch_klines(..., on_page=)` reports raw rows per page.
 
 ## Blocked on
 
