@@ -22,9 +22,15 @@ import typer
 from rich.console import Console
 from rich.logging import RichHandler
 
-from crypto_moonshot.cli_output import print_status, print_sync_summary, stdout_is_tty
+from crypto_moonshot.cli_output import (
+    print_import_report,
+    print_status,
+    print_sync_summary,
+    stdout_is_tty,
+)
 from crypto_moonshot.config import Settings
 from crypto_moonshot.data.binance import BinanceClient
+from crypto_moonshot.data.importer import ImportSourceError, check_source, import_store
 from crypto_moonshot.data.status import store_report
 from crypto_moonshot.data.store import KlineStore
 from crypto_moonshot.data.sync import DEFAULT_CONCURRENCY, KlineSource, SyncSummary, sync_klines
@@ -321,3 +327,49 @@ def status(
             )
     else:
         print_status(reports, tty=stdout_is_tty())
+
+
+# --------------------------------------------------------------------------------------
+# data import
+# --------------------------------------------------------------------------------------
+
+
+@data_app.command("import")
+def import_(
+    source: Annotated[
+        Path,
+        typer.Argument(
+            metavar="SOURCE", help="Another data folder: the one that contains klines/spot/."
+        ),
+    ],
+    dry_run: Annotated[
+        bool, typer.Option("--dry-run", help="Report what would happen; write nothing.")
+    ] = False,
+    data_dir: Annotated[
+        Path | None,
+        typer.Option(help="Data folder to import into (default: $MOONSHOT_DATA_DIR, else ./data)."),
+    ] = None,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Print the report as one JSON object on stdout.")
+    ] = False,
+) -> None:
+    """Copy valid klines from another data folder, without downloading them again.
+
+    Each month file is checked for the current schema (path, version, columns, UTC, aligned,
+    unique, closed candles). Files that fail are skipped with their reasons; run `data sync` to
+    download them. Months already stored are merged (stored candles win). SOURCE is never changed.
+
+    Exit codes: 0 done (even if some files were skipped), 2 usage error.
+    """
+    settings = _resolve_settings(data_dir)
+    try:
+        check_source(source, settings.data_dir)
+        report = import_store(
+            source, KlineStore(settings.data_dir), now=datetime.now(UTC), dry_run=dry_run
+        )
+    except ImportSourceError as exc:
+        raise typer.BadParameter(str(exc), param_hint="SOURCE") from None
+    if json_output:
+        typer.echo(json.dumps(report.to_dict()))
+    else:
+        print_import_report(report)

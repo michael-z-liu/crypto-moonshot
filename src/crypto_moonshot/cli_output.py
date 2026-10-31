@@ -16,6 +16,7 @@ from rich.table import Table
 from rich.text import Text
 
 from crypto_moonshot.data.binance import IP_WEIGHT_LIMIT_1M
+from crypto_moonshot.data.importer import ImportAction, ImportReport, MetaAction
 from crypto_moonshot.data.status import SeriesReport
 from crypto_moonshot.data.sync import SeriesStatus, SyncSummary
 from crypto_moonshot.progress import format_count, short_reason
@@ -211,3 +212,62 @@ def print_status(reports: Sequence[SeriesReport], *, tty: bool | None = None) ->
             print_notice(
                 f"{label} invalid file {month:%Y-%m}: {'; '.join(problems)}", tty=tty, style="red"
             )
+
+
+# --------------------------------------------------------------------------------------
+# data import
+# --------------------------------------------------------------------------------------
+
+
+def print_import_report(report: ImportReport, *, tty: bool | None = None) -> None:
+    """A per-series table, one line per skipped file, then the totals."""
+    tty = stdout_is_tty() if tty is None else tty
+    if report.series:
+        print_table(
+            [
+                "SYMBOL",
+                "INTERVAL",
+                "IMPORTED",
+                "MERGED",
+                "REPLACED",
+                "UNCHANGED",
+                "SKIPPED",
+                "ADDED",
+                "META",
+            ],
+            [
+                [
+                    item.symbol,
+                    item.interval.value,
+                    str(item.imported),
+                    str(item.merged),
+                    str(item.replaced),
+                    str(item.unchanged),
+                    str(item.skipped),
+                    format_count(item.candles_added),
+                    item.meta.value,
+                ]
+                for item in report.series
+            ],
+            tty=tty,
+            right={2, 3, 4, 5, 6, 7},
+            styles=["yellow" if item.skipped else "" for item in report.series],
+        )
+    for item in report.files:
+        if item.action is ImportAction.SKIPPED:
+            reasons = short_reason("; ".join(item.problems), 300)
+            print_notice(f"skipped {item.path}: {reasons}", tty=tty, style="yellow")
+    for entry in report.series:
+        if entry.meta is MetaAction.SKIPPED:
+            label = f"{entry.symbol} {entry.interval.value}"
+            reasons = short_reason("; ".join(entry.meta_problems), 300)
+            print_notice(f"skipped metadata of {label}: {reasons}", tty=tty, style="yellow")
+    totals = report.totals()
+    line = (
+        f"{totals['files']} files: {totals['imported']} imported, {totals['merged']} merged, "
+        f"{totals['replaced']} replaced, {totals['unchanged']} unchanged, "
+        f"{totals['skipped']} skipped; {format_count(totals['candles_added'])} candles added"
+    )
+    if report.dry_run:
+        line += "; dry run: nothing written"
+    print_notice(line, tty=tty, style="")
