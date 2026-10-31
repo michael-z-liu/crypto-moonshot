@@ -59,12 +59,21 @@ They differ only in where candles come from and which broker fills orders.
 - Closed candles only. Prices are floats for analysis and become exact decimals only when an order
   is placed.
 - Size: about 720k rows per symbol for 5m candles since 2020.
-- The data root is configurable, defaults to `./data/`, and is gitignored.
+- The data root is configurable (`MOONSHOT_DATA_DIR` or `--data-dir`), defaults to `./data/`, and
+  is gitignored.
+- `docs/data-format.md` is the exact contract for readers: columns and dtypes, invariants, the
+  per-series `_meta.json` (listing date and known exchange gaps), and the schema version stored in
+  each file's Parquet metadata. Changing the format means bumping the schema version.
 
 ### Data sync
 
 - Works out which candles are missing, then fetches only those ranges from `GET /api/v3/klines`,
-  1,000 candles per request (about 720 requests per symbol for the first download).
+  1,000 candles per request (about 720 requests per symbol for the first download). Requests go
+  to `data-api.binance.vision`, Binance's public market-data host, so no API key is needed.
+- `data/binance.py` keeps one client per run and paces it to stay under half of Binance's
+  6,000-per-minute IP weight limit, using the `X-MBX-USED-WEIGHT-1M` header. A 429 pauses every
+  request for the full `Retry-After`; after three 429s in one run (`--max-rate-limit-hits`) the
+  run aborts. A 418 (IP ban) aborts at once. 5xx and network errors are retried with backoff.
 - `data/sync.py` plans each (symbol, interval) series, then runs one unit of work per month that
   has missing candles. Units of every series share one concurrency limit (default 8) and are
   interleaved across series, so all of them make progress.
@@ -76,7 +85,23 @@ They differ only in where candles come from and which broker fills orders.
   that may just be publishing latency, so the next run tries again.
 - One failing series doesn't stop the others. A rate-limit abort or IP ban stops the whole run,
   and the result says so. Progress is reported as events to a sink; sync itself never prints.
-- Sync is the only code that writes candles.
+- Sync and import are the only code that writes candles.
+
+### Data CLI and progress
+
+- `moonshot data sync` drives sync and renders its events: live rich bars (one row per series
+  plus a total) when stderr is a terminal, otherwise plain timestamped lines with a snapshot
+  every few seconds, so an agent can follow a run. `--json` prints a machine-readable summary on
+  stdout. Exit codes: 0 ok, 1 a series failed, 2 usage error, 3 aborted on rate limits, 130
+  interrupted.
+- `moonshot data status` reports coverage per series from the files alone: range, missing
+  candles, recorded gaps and invalid files.
+- `moonshot data import <folder>` copies candles from another data root so they need not be
+  downloaded again. Each month file must pass the same structural checks sync applies to its own
+  files (layout, schema version, columns, UTC, alignment, duplicates, closed candles); anything
+  else is skipped and left for the next sync to download. There is deliberately no conversion
+  from older schema versions: downloading again is cheap. Overlapping months are merged with the
+  existing candles winning, and the source is never modified.
 
 ### Strategy
 
@@ -150,10 +175,12 @@ positions. With several symbols, this is where capital is split between them.
 
 ```
 src/crypto_moonshot/
-├── cli.py              # Typer commands
+├── cli.py              # Typer app; data_cli.py holds the `data` commands
+├── cli_output.py       # summary and status tables (rich in a terminal, plain text otherwise)
+├── progress.py         # sync progress renderers: bars and lines
 ├── config.py           # API keys from env/.env; per-run settings (symbols, params, limits) from a file
 ├── models.py           # Interval, Candle, Order, Fill, Position, Target
-├── data/               # binance.py (REST), store.py, sync.py, stream.py (WebSocket)
+├── data/               # binance.py (REST), store.py, sync.py, importer.py, status.py, stream.py (WebSocket)
 ├── strategy/           # base.py + algorithms
 ├── portfolio.py        # position sizing
 ├── risk.py
@@ -166,10 +193,11 @@ Commands:
 
 - `moonshot data sync`: download missing candles
 - `moonshot data status`: show coverage and gaps
+- `moonshot data import <folder>`: reuse candles downloaded into another data folder
 - `moonshot backtest <strategy>`
 - `moonshot live <strategy> --mode paper|testnet|live`
 
-Expected dependencies: polars, duckdb, httpx, websockets, pydantic-settings.
+Dependencies so far: polars, httpx, pydantic-settings, rich. Expected later: duckdb, websockets.
 
 ## Key decisions and why
 
@@ -185,8 +213,9 @@ Expected dependencies: polars, duckdb, httpx, websockets, pydantic-settings.
   finer-grained data.
 - **One strategy for backtest and live.** Strategies that do well in backtests and lose live often
   calculate their signal differently on the two paths. Sharing the code removes that cause.
-- **Only sync writes candles.** A single writer means the live trader and a backtest can run at the
-  same time without contending for files.
+- **Only sync and import write candles.** Few writers, all using atomic renames, mean the live
+  trader and a backtest can read while data is being updated. Running two writers on the same
+  data folder at once is not supported.
 - **SQLite for live state.** Orders and fills are many small writes that must survive a crash,
   which suits a transactional database rather than Parquet.
 - **Mainnet candles even when orders go to testnet.** The spot testnet is its own thin market and
