@@ -227,8 +227,10 @@ def sync(
 ) -> None:
     """Download klines for SYMBOL... into the local store, fetching only what is missing.
 
+    Re-running resumes: finished months are never fetched again.
+
     Exit codes: 0 ok, 1 some series failed, 2 usage error, 3 aborted (rate limits or IP ban),
-    130 interrupted. Re-running resumes: finished months are never fetched again.
+    130 interrupted.
     """
     wanted_symbols = parse_symbols(symbols)
     intervals = parse_intervals(interval, [DEFAULT_INTERVAL])

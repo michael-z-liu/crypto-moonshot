@@ -50,6 +50,7 @@ type WallClock = Callable[[], datetime]
 
 DEFAULT_SNAPSHOT_INTERVAL_S = 5.0
 _REASON_WIDTH = 44
+_WIDE_CONSOLE = 110
 _BARS_REASON_WIDTH = 120
 """A long failure reason wraps inside the status cell instead of being cut."""
 
@@ -574,12 +575,15 @@ class BarsProgress:
         self._tasks: dict[tuple[str, Interval], TaskID] = {}
         self._overall: TaskID | None = None
         self._running = False
+        width = self.console.width
+        compact = width < _WIDE_CONSOLE  # keep the label readable on narrow screens
+        bar_width = 8 if compact else (14 if width < _WIDE_CONSOLE + 30 else 20)
         self._progress = Progress(
             _Cell(self._label_text, clock),
-            BarColumn(bar_width=20, table_column=Column(no_wrap=True)),
-            _Cell(self._candles_text, clock, justify="right", min_width=17),
-            _Cell(self._months_text, clock, justify="right", min_width=10),
-            _Cell(self._rate_text, clock, justify="right", min_width=11),
+            BarColumn(bar_width=bar_width, table_column=Column(no_wrap=True)),
+            _Cell(self._candles_text, clock, justify="right", min_width=13 if compact else 17),
+            _Cell(self._months_text, clock, justify="right", min_width=8 if compact else 10),
+            _Cell(self._rate_text, clock, justify="right", min_width=9 if compact else 11),
             _Cell(self._eta_text, clock, justify="right", min_width=11),
             _Cell(self._status_text, clock, wrap=True),
             console=self.console,
