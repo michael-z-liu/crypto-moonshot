@@ -65,9 +65,17 @@ They differ only in where candles come from and which broker fills orders.
 
 - Works out which candles are missing, then fetches only those ranges from `GET /api/v3/klines`,
   1,000 candles per request (about 720 requests per symbol for the first download).
-- Rewrites only the current month's file; finished months never change. Writes go to a temporary
-  file that is then renamed into place.
-- Binance has some real gaps from exchange outages. Sync records them so it doesn't keep refetching.
+- `data/sync.py` plans each (symbol, interval) series, then runs one unit of work per month that
+  has missing candles. Units of every series share one concurrency limit (default 8) and are
+  interleaved across series, so all of them make progress.
+- A month file is rewritten only when it gained candles: normally just the current month. Writes
+  go to a temporary file that is then renamed into place. A month file that fails the format
+  checks counts as missing and is refetched and overwritten.
+- Binance has some real gaps from exchange outages. Sync records them in `_meta.json` so it
+  doesn't keep refetching, but never a hole that ends within two candles (or five minutes) of now:
+  that may just be publishing latency, so the next run tries again.
+- One failing series doesn't stop the others. A rate-limit abort or IP ban stops the whole run,
+  and the result says so. Progress is reported as events to a sink; sync itself never prints.
 - Sync is the only code that writes candles.
 
 ### Strategy
