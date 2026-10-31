@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `claude/kline-download-functionality-cc0cd7`
 - **PR:**
-- **Updated:** 2026-10-31T11:50Z
+- **Updated:** 2026-10-31T11:49Z
 
 ## Goal
 
@@ -93,7 +93,7 @@ source is never modified.
 
 ## Milestones
 
-### M1: Models, config and REST client (todo)
+### M1: Models, config and REST client (in progress)
 
 - **Delivers:** `Interval`, `Settings`, dependencies (httpx, polars, pydantic-settings, rich), and
   the async Binance klines client with paging, closed-candle filtering, listing-date lookup and
