@@ -141,6 +141,8 @@ class SeriesProgress:
     started_at: float | None = None
     finished_at: float | None = None
     result: SeriesResult | None = None
+    active_months: set[datetime] = field(default_factory=set)
+    """Months started and not yet completed: the series is downloading only while this is set."""
     _paged_by_month: dict[datetime, int] = field(default_factory=dict)
 
     @property
@@ -170,14 +172,22 @@ class SeriesProgress:
         self.paged += candles
         self._paged_by_month[month] = self._paged_by_month.get(month, 0) + candles
 
+    def start_month(self, month: datetime) -> None:
+        self.active_months.add(month)
+        self.phase = Phase.DOWNLOADING
+
     def complete_month(self, event: MonthCompleted) -> None:
         self.paged -= self._paged_by_month.pop(event.month, 0)
         self.settled += event.candles_fetched + event.candles_missing
         self.months_done = event.months_done
+        self.active_months.discard(event.month)
+        if not self.active_months and self.phase is Phase.DOWNLOADING:
+            self.phase = Phase.QUEUED  # waiting for a slot for its next month
 
     def finish(self, result: SeriesResult, now: float) -> None:
         self.result = result
         self.phase = Phase.FINISHED
+        self.active_months.clear()
         self.finished_at = now
         if result.status is SeriesStatus.OK:
             self.settled, self.paged, self._paged_by_month = self.total, 0, {}
@@ -236,7 +246,7 @@ class ProgressTracker:
                 return row
             case MonthStarted():
                 row = self.row(event.symbol, event.interval)
-                row.phase = Phase.DOWNLOADING
+                row.start_month(event.month)
                 if row.started_at is None:
                     row.started_at = now
                 if self._first_fetch_at is None:

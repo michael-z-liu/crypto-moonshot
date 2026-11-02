@@ -292,13 +292,31 @@ def test_progress_advances_per_page_and_reconciles_on_month_completed() -> None:
     renderer(PageFetched("BTCUSDT", H1, JAN, 300))
     assert btc.done == 600
     renderer(month_done("BTCUSDT", JAN, 600, 1, 2))
-    assert (btc.done, btc.months_done) == (600, 1)
+    # FEB is still in flight
+    assert (btc.phase, btc.done, btc.months_done) == (Phase.DOWNLOADING, 600, 1)
     renderer(PageFetched("BTCUSDT", H1, FEB, 395))
     renderer(month_done("BTCUSDT", FEB, 395, 2, 2, missing=5))
     assert btc.done == 1000  # fetched + missing: the bar reaches 100%
     renderer(SeriesFinished(BTC_RESULT))
     assert btc.phase is Phase.FINISHED
     assert btc.eta(renderer.tracker.clock()) is None
+
+
+def test_series_waiting_for_a_slot_between_months_is_queued_not_downloading() -> None:
+    renderer = lines_renderer(FakeClock(), io.StringIO())
+    btc = renderer.tracker.row("BTCUSDT", H1)
+    events: list[SyncEvent] = [
+        started(),
+        planned("BTCUSDT", 1000, (JAN, FEB)),
+        MonthStarted("BTCUSDT", H1, JAN),
+        month_done("BTCUSDT", JAN, 500, 1, 2),  # no month in flight: other series hold the slots
+        MonthStarted("BTCUSDT", H1, FEB),
+    ]
+    phases = []
+    for event in events:
+        renderer(event)
+        phases.append(btc.phase)
+    assert phases[1:] == [Phase.QUEUED, Phase.DOWNLOADING, Phase.QUEUED, Phase.DOWNLOADING]
 
 
 # -- bars ------------------------------------------------------------------------------------

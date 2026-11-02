@@ -1,7 +1,7 @@
 """Parallel kline sync: fetch only the candles a series is missing and store them by month.
 
 `sync_klines` plans every (symbol, interval) series, then runs one unit of work per month that has
-missing candles. Units of all series run concurrently under one global limit; the source (a
+missing candles, series by series. Units run concurrently under one global limit; the source (a
 `BinanceClient`) paces the requests themselves. Progress is reported as small frozen event
 dataclasses to an optional sink, so this module never renders or prints anything.
 
@@ -24,7 +24,7 @@ import dataclasses
 import functools
 import logging
 import time
-from collections.abc import Awaitable, Callable, Iterator, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -365,15 +365,6 @@ def _describe(exc: BaseException) -> str:
     return f"{type(exc).__name__}: {text}" if text else type(exc).__name__
 
 
-def _round_robin[T](groups: Sequence[Sequence[T]]) -> Iterator[T]:
-    """First item of every group, then the second of every group, and so on."""
-    longest = max((len(group) for group in groups), default=0)
-    for index in range(longest):
-        for group in groups:
-            if index < len(group):
-                yield group[index]
-
-
 # --------------------------------------------------------------------------------------
 # Engine
 # --------------------------------------------------------------------------------------
@@ -500,13 +491,16 @@ class _SyncRun:
             if self._aborted is None:
                 runnable = [s for s in self._series if s.result is None]
                 self._running_units = True
-                jobs = _round_robin(
-                    [
-                        [(s, functools.partial(self._fetch_month, s, unit)) for unit in s.units]
-                        for s in runnable
-                    ]
-                )
-                await self._run_tasks(list(jobs))
+                # Series by series, in the order given: the semaphore is FIFO, so a series' months
+                # take the free slots before the next series starts and it finishes (and is
+                # usable) as early as possible. Only the last months of one series overlap the
+                # first of the next.
+                jobs = [
+                    (s, functools.partial(self._fetch_month, s, unit))
+                    for s in runnable
+                    for unit in s.units
+                ]
+                await self._run_tasks(jobs)
             for series in self._series:  # anything left was cut short by an abort
                 self._finish(series)
         finally:
@@ -815,7 +809,8 @@ async def sync_klines(
     nothing before the symbol's listing, and never the candle that is still forming. Stored
     candles and recorded gaps are skipped; invalid month files count as missing and are
     overwritten (only the part inside the wanted range is refetched). One unit of work per month
-    with missing candles; units of all series share one limit of `concurrency` at a time.
+    with missing candles; units of all series share one limit of `concurrency` at a time and run
+    series by series in the order given, so each series finishes before the next one is started.
 
     Args:
         source: Where candles come from (one `BinanceClient` per run).
