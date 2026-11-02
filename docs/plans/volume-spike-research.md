@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-02T13:10Z
+- **Updated:** 2026-11-02T13:35Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -116,6 +116,20 @@ checked out of sample. The output is research code plus a findings write-up, not
   C2 spike & ret_4h<=-10% & qv_base>=20k, hold 48: CAGR 80%/72%, maxDD -22%/-20%, 3.3 trades/wk.
   Stops/targets don't beat plain time exits; a 5% trailing stop over 12h is close. NEXT: cost and
   entry-slippage stress, survivorship check (old-coin subset), filters to lift C2, frequency.
+- 13:20Z `m4_robust.py`: C1/C2 positive every year 2020-24; survive 1% round-trip cost; work on
+  coins listed by 2020-01 and on later ones. Entering one bar late costs ~1/3 of the edge (speed
+  matters). Filter scan on C2: MARKET-WIDE flush is the key filter (BTC vol spike >=4x or BTC 4h
+  <= -2%: +247/+367 bp; coin-only crash with calm BTC: +49/+20 bp, i.e. no edge).
+- 13:30Z `m5_market.py` grid (240 combos, so validation is now mildly overfit): 1h holds best.
+- 13:35Z Alternatives: user's 2019 rule (up bar, taker-buy > 60%, flat run-up) = -30 bp/trade at
+  1h/4h, -19 bp at 24h. Breakouts to 7d highs: ~+20..+90 bp at 24h only, mostly bull beta.
+  Uptrend pullback (7d > +20%, 4h < -3%, hold 24h): +78..+234 bp/trade but max DD -30..-84% =>
+  rejected.
+- 13:35Z PRE-REGISTERED finalists for the one-time test (2025-01..2026-10), 5 slots, 0.3% cost:
+  F1 spike>=10x & ret_4h<=-8% & qv_base>=5k & btc_vol_mult>=6, exit after 12 bars (1h).
+  F2 spike>=10x & ret_4h<=-10% & qv_base>=20k & btc_vol_mult>=6, exit after 12 bars.
+  F3 (no BTC filter) spike>=10x & ret_4h<=-15% & qv_base>=5k, exit after 48 bars (= C1).
+  References: user's 2019 rule; all spikes.
 
 ## Decisions
 
