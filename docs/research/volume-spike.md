@@ -129,6 +129,20 @@ equal-weight basket per crash day with half of equity committed per day:
 
 Equity ×2.44 over 4.8 years (CAGR about +20%), worst drawdown −16%.
 
+### Other ideas tried (none beat the capitulation rules)
+
+| Idea | Result |
+| ---- | ------ |
+| Breakout: spike on an up bar at a new 7-day high | Negative at 1h and 4h; +20 to +90 bp at 24h, which is mostly the 2020–2024 bull market |
+| Spike during a pullback in an uptrend (7d > +20%, 4h < −3%), hold 24h | +80 to +230 bp per trade, but max drawdown −30% to −84% |
+| Shorting spikes after pumps (hypothetical, spot can't short) | Erratic: −5.6% per trade in 2025 on squeezes |
+| Limit buy below the spike close | Adverse selection: fills only on trades that keep falling |
+| Abnormal *daily* volume, hold 1–7 days | Amplifies market direction: positive 2020–24, negative 2025–26 |
+| Daily capitulation (coin −10% in a day, BTC −5%) | Same direction as the 5m version, noisier, few days a year |
+| Gradient-boosted model on 36 spike features | Learns the capitulation rule; 2025–26 positive only because of 2025-10-10 |
+| Regime filters (alt-index trend, first flush after a calm spell) | No consistent improvement; flips sign by year |
+| BTC-to-alt lead-lag at 5m | About zero in 2020–2023; any catch-up happens inside the bar |
+
 ## Caveats
 
 - **Survivorship bias.** The universe is today's top 199 coins. Coins that crashed and never came

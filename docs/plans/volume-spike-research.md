@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-02T12:25Z
+- **Updated:** 2026-11-02T12:42Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -59,7 +59,7 @@ checked out of sample. The output is research code plus a findings write-up, not
   exits?"
 - **Worker:** master
 
-### M3: Filters (in progress)
+### M3: Filters (done)
 
 - **Delivers:** single-feature and two-feature conditional expectancy on train data (taker-buy
   share, bar return, run-up, BTC trend, liquidity, time of day, ...), then a small rule set or a
@@ -67,20 +67,20 @@ checked out of sample. The output is research code plus a findings write-up, not
 - **Done when:** candidate rules are ranked on train and validation, with trade counts.
 - **Worker:** master
 
-### M4: Robustness (todo)
+### M4: Robustness (done)
 
 - **Delivers:** per-year, per-symbol and cost-sensitivity checks of the candidates; walk-forward.
 - **Done when:** each candidate has a robustness verdict.
 - **Worker:** master
 
-### M5: Portfolio simulation (todo)
+### M5: Portfolio simulation (done)
 
 - **Delivers:** a simple sequential simulation with a cap on open positions, equity curve,
   drawdown and trades per week, for the best one or two candidates; one look at the test period.
 - **Done when:** results are saved and plotted.
 - **Worker:** master
 
-### M6: Write-up and PR (todo)
+### M6: Write-up and PR (in progress)
 
 - **Delivers:** `docs/research/volume-spike.md` with method, findings, honest caveats and next
   steps; PR opened.
@@ -141,7 +141,17 @@ checked out of sample. The output is research code plus a findings write-up, not
 - 12:24Z `m7_walkforward.py` (pick params on trailing 24m by t-stat, trade next 6m, per-day
   baskets, 50% of equity per crash day): OOS 2022-01..2026-10 CAGR +20..23%, max DD -8..-16%,
   ~40 crash days/yr; 2025 ~flat. This is the honest headline number.
-- NEXT: limit-order entry below the spike close (buy the wick, maker fee), then write-up.
+- 12:27Z `m8_limit_entry.py`: limit buys below the spike close fill 30-40% (at offset 0) and only
+  on trades that keep falling (adverse selection); no improvement in the test period.
+- 12:29Z Majors only in flushes: +120..+350 bp/trade 2020-24 and 2026, negative 2025. Pump-fade
+  shorts (hypothetical): erratic, big squeeze losses. Write-up `docs/research/volume-spike.md`.
+- 12:33Z `m9_daily.py`: daily abnormal volume = market beta; daily capitulation (coin -10%/day,
+  BTC -5%) same sign as 5m version but noisy.
+- 12:36Z `m10_model.py` (HistGradientBoosting on 36 features): top 0.2% picks = capitulation;
+  2025-26 positive only via 2025-10-10, otherwise -76 bp/trade.
+- 12:39Z First-flush-after-calm filter: noise. BTC->alt lead-lag at 5m: ~0 in train.
+- 12:42Z Exploration with the existing data pool is exhausted; remaining ideas need new data
+  (delisted coins, 1m candles) => follow-ups for the user. Moving to M6 (PR) early.
 
 ## Decisions
 
@@ -155,3 +165,10 @@ checked out of sample. The output is research code plus a findings write-up, not
 ## Blocked on
 
 ## Follow-ups
+
+- Paper-trade F2 or the walk-forward version on the live stream (`paper` mode) to measure real fills
+  on flush days; needs the strategy/backtest/live engine from `docs/architecture.md` first.
+- Download 1m candles around past flush days to see how much of the bounce happens inside the 5m
+  spike candle, and whether a faster trigger restores the 2025 edge.
+- Add delisted symbols (Binance public data archive) to remove survivorship bias from dip-buying.
+- Record order-book depth and spread on flush days before sizing anything.
