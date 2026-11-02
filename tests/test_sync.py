@@ -491,13 +491,13 @@ async def test_concurrency_one_runs_units_one_at_a_time(store: KlineStore) -> No
     source = FakeSource({symbol: full() for symbol in symbols})
     await run(source, store, symbols, concurrency=1)
     assert source.max_in_flight == 1
-    # Months are interleaved across series so every series makes progress.
+    # Series by series, in the order given: each one finishes before the next starts.
     assert [(symbol, start) for symbol, start, _ in source.fetches] == [
         ("BTCUSDT", JAN),
-        ("ETHUSDT", JAN),
         ("BTCUSDT", FEB),
-        ("ETHUSDT", FEB),
         ("BTCUSDT", MAR),
+        ("ETHUSDT", JAN),
+        ("ETHUSDT", FEB),
         ("ETHUSDT", MAR),
     ]
 
@@ -637,11 +637,11 @@ async def test_fatal_error_aborts_all_series_and_keeps_written_months(
     assert summary.outcome == "aborted"
     assert [r.status for r in summary.series] == [SeriesStatus.ABORTED] * 2
     assert all(r.error == str(fatal) for r in summary.series)
-    assert [r.months_written for r in summary.series] == [1, 1]
-    assert len(source.fetches) == 3  # BTC Jan, ETH Jan, BTC Feb; nothing after the abort
-    for symbol in ("BTCUSDT", "ETHUSDT"):
-        assert store.list_months(symbol, H1) == [JAN]
-        assert check_month_file(store.month_path(symbol, H1, JAN), now=NOW) == []
+    assert [r.months_written for r in summary.series] == [1, 0]
+    assert len(source.fetches) == 2  # BTC Jan, BTC Feb; nothing after the abort
+    assert store.list_months("BTCUSDT", H1) == [JAN]
+    assert check_month_file(store.month_path("BTCUSDT", H1, JAN), now=NOW) == []
+    assert store.list_months("ETHUSDT", H1) == []
     assert isinstance(events[-1], SyncFinished)
     assert events[-1].summary.aborted == str(fatal)
     assert temp_files(store.root) == []

@@ -75,8 +75,9 @@ They differ only in where candles come from and which broker fills orders.
   request for the full `Retry-After`; after three 429s in one run (`--max-rate-limit-hits`) the
   run aborts. A 418 (IP ban) aborts at once. 5xx and network errors are retried with backoff.
 - `data/sync.py` plans each (symbol, interval) series, then runs one unit of work per month that
-  has missing candles. Units of every series share one concurrency limit (default 8) and are
-  interleaved across series, so all of them make progress.
+  has missing candles. Units of every series share one concurrency limit (default 8) and run
+  series by series in the order given, so each series finishes (and is usable) as early as
+  possible; only the tail of one series overlaps the start of the next.
 - A month file is rewritten only when it gained candles: normally just the current month. Writes
   go to a temporary file that is then renamed into place. A month file that fails the format
   checks counts as missing and is refetched and overwritten.
