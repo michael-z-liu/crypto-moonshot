@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-02T12:05Z
+- **Updated:** 2026-11-02T12:20Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -41,7 +41,7 @@ checked out of sample. The output is research code plus a findings write-up, not
 
 ## Milestones
 
-### M1: Event dataset (todo)
+### M1: Event dataset (done)
 
 - **Delivers:** a loader for the clean universe and an event table: every candle where volume is
   a large multiple of its recent baseline, with features (volume multiple, taker-buy share, bar
@@ -51,7 +51,7 @@ checked out of sample. The output is research code plus a findings write-up, not
   spot check of a few events against the raw candles matches.
 - **Worker:** master
 
-### M2: Baseline edge (todo)
+### M2: Baseline edge (done)
 
 - **Delivers:** expectancy of the raw spike trigger over a grid of take-profit, stop-loss and
   time-stop exits, versus random entries; the user's 2019 setup (+1% / −5%) included.
@@ -59,7 +59,7 @@ checked out of sample. The output is research code plus a findings write-up, not
   exits?"
 - **Worker:** master
 
-### M3: Filters (todo)
+### M3: Filters (in progress)
 
 - **Delivers:** single-feature and two-feature conditional expectancy on train data (taker-buy
   share, bar return, run-up, BTC trend, liquidity, time of day, ...), then a small rule set or a
@@ -91,10 +91,19 @@ checked out of sample. The output is research code plus a findings write-up, not
 
 <!-- Append one dated line per finding or dead end, so a resumed session knows what was tried. -->
 
+- 12:15Z M1: universe 152 symbols (pegged + tokenised stocks dropped). Spike = volume >= 10x the
+  previous day's median 5m volume (4x was 10% of all bars). 1.97M spikes + 296k random bars in
+  `cache/events.parquet` + `cache/fwd.npy` (rebuild: `build_events.py`, ~15 s). Spot checks OK.
+- 12:20Z M2 (train 2020-23): raw spike has NO edge. Gross 4h drift -4 bp (random +3 bp); spikes on
+  up bars -12 bp (they mean-revert). User's +1%/-5% exit: 60% win rate but -31 bp/trade net.
+  Best exit on raw spikes is still -22 bp net. Cost (30 bp) dominates; need filters worth >30 bp.
+
 ## Decisions
 
 - 2026-11-02: Bar interval is 5m (user). A "Good" label meant "price ran up afterwards" by eye;
   the original scanner code is lost, so the trigger is rebuilt from the screenshots.
+- 2026-11-02: User: the 2019 setup is inspiration, not a constraint. Other signals and
+  alternative strategies derived from it are in scope if they improve profitability.
 - 2026-11-02: Research code stays outside `src/` as scripts; only promoted to `src/` once a
   strategy/backtest engine exists.
 
