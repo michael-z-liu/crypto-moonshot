@@ -1,9 +1,9 @@
 # Volume-spike strategy research
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
-- **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-02T12:42Z
+- **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/8
+- **Updated:** 2026-11-02T12:50Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -80,7 +80,7 @@ checked out of sample. The output is research code plus a findings write-up, not
 - **Done when:** results are saved and plotted.
 - **Worker:** master
 
-### M6: Write-up and PR (in progress)
+### M6: Write-up and PR (done)
 
 - **Delivers:** `docs/research/volume-spike.md` with method, findings, honest caveats and next
   steps; PR opened.
