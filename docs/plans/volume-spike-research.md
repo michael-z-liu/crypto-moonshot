@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-02T12:55Z
+- **Updated:** 2026-11-02T13:10Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -110,6 +110,12 @@ checked out of sample. The output is research code plus a findings write-up, not
   2021-12-04, ...). Checked: real moves, not bad ticks. Caveats: survivorship (LUNA/FTT absent),
   crash-time fills. NEXT: long-horizon fwd (288 bars) for crash subset to test stops/exits, then a
   slot-limited portfolio sim, cost sensitivity, and a search for a more frequent second signal.
+- 13:10Z `build_long.py` (24h paths for 173k crash rows) + `portfolio.py` (5 slots, 1 position per
+  symbol, compounding) + `m5_capitulation.py`. Candidates (train / valid):
+  C1 spike & ret_4h<=-15% & qv_base>=5k, hold 48 bars: CAGR 82%/103%, maxDD -11%/-6%, 1.5 trades/wk.
+  C2 spike & ret_4h<=-10% & qv_base>=20k, hold 48: CAGR 80%/72%, maxDD -22%/-20%, 3.3 trades/wk.
+  Stops/targets don't beat plain time exits; a 5% trailing stop over 12h is close. NEXT: cost and
+  entry-slippage stress, survivorship check (old-coin subset), filters to lift C2, frequency.
 
 ## Decisions
 
