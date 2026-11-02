@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-02T12:20Z
+- **Updated:** 2026-11-02T12:55Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -97,6 +97,19 @@ checked out of sample. The output is research code plus a findings write-up, not
 - 12:20Z M2 (train 2020-23): raw spike has NO edge. Gross 4h drift -4 bp (random +3 bp); spikes on
   up bars -12 bp (they mean-revert). User's +1%/-5% exit: 60% win rate but -31 bp/trade net.
   Best exit on raw spikes is still -22 bp net. Cost (30 bp) dominates; need filters worth >30 bp.
+- 12:35Z M3 deciles (`m3_features.py`): spikes AFTER A PUMP fade (-50..-86 bp at 4h for top-decile
+  run-up / bar return / range); spikes AFTER A CRASH bounce (+45 bp 4h, +90 bp 24h for bottom-decile
+  ret_4h/ret_24h; random bars after the same drop only +15 bp at 4h). => "capitulation" idea.
+- 12:45Z Capitulation (spike & ret_24h < -16%): +253 bp net 4h hold (train), +276 (valid). Survives
+  dropping the 20 busiest crash days (+242). First spike per symbol per 24h: +169 bp, positive every
+  year except 2025 (-47 bp: first spike = falling knife). Better when: drop is acute (ret_4h, runup_1h),
+  at 24h low, big range bar, BTC also crashing / BTC volume spike, liquid coin (qv_base high),
+  listed > ~2 months, mid taker-buy share (extremes worse).
+- 12:55Z `m3_rules.py` grid: ret_4h <= -10..-20% & qv_base >= 20k USDT/bar: +600..+1200 bp/trade
+  but only ~100-300 trades/yr, concentrated on market-wide crash days (2020-03-12, 2021-05-19,
+  2021-12-04, ...). Checked: real moves, not bad ticks. Caveats: survivorship (LUNA/FTT absent),
+  crash-time fills. NEXT: long-horizon fwd (288 bars) for crash subset to test stops/exits, then a
+  slot-limited portfolio sim, cost sensitivity, and a search for a more frequent second signal.
 
 ## Decisions
 
