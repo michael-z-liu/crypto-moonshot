@@ -70,14 +70,14 @@ def main() -> None:
 
     fig, ax = plt.subplots(figsize=(11, 5.5))
     for name, eq in curves.items():
-        if eq.height:
+        if eq.height and not name.startswith("ref"):
             ax.plot(eq["day"], eq["equity"], label=name, lw=1.3)
     ax.set_yscale("log")
     ax.axvspan(TRAIN_END.date(), VALID_END.date(), color="0.92", label="validation (2024)")
     ax.axvspan(VALID_END.date(), curves[next(iter(curves))]["day"].max(), color="#fde2e2",
                label="test (2025-26, untouched)")  # fmt: skip
     ax.set_ylabel("equity (log), start = 1")
-    ax.set_title("Volume-spike strategies, 5 slots, 0.3% round-trip cost")
+    ax.set_title("Capitulation finalists, 5 slots, 0.3% round-trip cost (the 2019 rule goes to ~0)")
     ax.legend(loc="upper left", fontsize=8)
     ax.grid(alpha=0.3)
     fig.tight_layout()
