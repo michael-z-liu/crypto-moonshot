@@ -36,6 +36,14 @@ loses.* Code and result tables are in `research/volume_spike/`; the run log is i
    late. Caveats: the portfolio view was a post-hoc check, the test is one 22-month period, and
    survivorship bias hits this kind of rule hardest.
 
+8. **The walk-forward CNN study (27 variants, each tested on five out-of-sample years, 2022–26)
+   confirms the ranking edge, but shows that picking configurations on past results fails.**
+   Simple setups (the first CNN's design, a path forecaster, or an equal-weight ensemble of all
+   variants) with a plain 1h hold made money in every test year. The ensemble made +192, +171,
+   +137, +68 and +76 bp per trade, with a worst drawdown of −13%. The pre-registered "best" pick
+   (a 4h-target CNN with a tuned rule) lost 9% in 2025 and 32% in 2026. The edge is shrinking:
+   2025–26 is about +9% a year, about zero at a 1% round trip, and halved by a one-candle delay.
+
 The visual casebook (every method, with sketches, charts and the data behind them) is a private
 claude.ai page: https://claude.ai/artifact/RpfQqzAyte82MWYGXm7Yn5. Rebuild it locally with
 `uv run python research/volume_spike/report_data.py`, which writes `report/index.html`.
@@ -107,8 +115,9 @@ Per crash day, which is the steadier measure, F2 made +185 to +360 bp in each ye
   so it is not only new-listing chaos.
 - **Speed matters:** entering one candle (5 minutes) later loses about a third of the edge.
 - Stops, targets and trailing stops did not beat a plain time exit; 1h holds were best.
-- Limit orders below the spike close do not help: they fill only on the trades that keep falling
-  and miss the immediate bounces (adverse selection).
+- Limit orders below the spike close looked better the deeper they sat in 2020–2024 (+203 bp per
+  fill at the close, +651 bp at 5% below, F1 in 2020–23), but reversed in 2025–26 (−36 down to
+  −404 bp): the deep fills came from crashes that kept going (adverse selection).
 - Majors only (BTC, ETH, SOL, BNB, XRP and 10 others) during flushes: +120 to +350 bp per trade
   each year 2020–2024 and 2026, negative in 2025.
 
@@ -174,6 +183,65 @@ weights (`m11_cnn.py`; sequences from `build_seq.py`).
   −25%: −9 to +139 bp on 10–22 trades once 2025-10-10 is left out; `results/m11_rule_compare.csv`).
   The edge is in ranking coins within a crash day, and the BTC channels are essential.
 
+### Walk-forward CNN study (M9–M11)
+
+The M7 result rested on one test period that had already been looked at, so the study was
+rebuilt to test every idea on five out-of-sample years. For each test year Y in 2022–2026 a model
+is trained on liquid spikes (≥ 5k USDT per candle, 632k in all) before Y−1 July, stopped early on
+Y−1 July–December, and scores year Y. Scores become percentiles of that fold's own training
+scores. The dataset (`build_seq2.py`) has 24h of candles and 13 channels: the coin's OHLC,
+volume, taker share and trade count; BTC and ETH price and volume; the equal-weight market move;
+and the share of coins spiking. Portfolio: 5 slots, top 2% of scores, 0.3% cost.
+
+- **Screen (`m12_cnn_wf.py`, `results/m12_variants.csv`):** 20 variants, each changing one thing:
+  window (2h / 8h / 24h), channels (coin only, +ETH, +market, all), scalars, target (30m / 1h /
+  4h), loss (MSE, Huber, classification, rank within the day), architecture (CNN, wide CNN,
+  dilated TCN, conv+GRU, MLP), training only on crash-context spikes, and an 8h path forecaster.
+  The top four by the pre-registered 2022–24 rule and three combinations were re-run with 5 seeds.
+- **Picking on the past doesn't work.** Across 27 variants the rank correlation between 2022–24
+  and 2025–26 results is −0.06 (2024 alone: −0.43). The best-looking variants (4h targets,
+  crash-only training, the combinations) failed in 2025–26; those with market-breadth channels
+  held up best, but that wasn't used to choose.
+- **Rule tuning overfits too (`m13_policy.py`).** About 200 rules (thresholds, slots, holds,
+  targets, stops, a BTC-flush gate, score sizing, day caps, cool-downs) were tried per finalist.
+  The rule that won on 2022–24 did worse in 2025–26 than the default (top 2%, 1h, 5 slots) for
+  almost every variant.
+- **Official pre-registered pick:** the 4h-target CNN, hold 4h, 3 slots. +72% a year on 2022–24,
+  then −9% (2025) and −32% (2026), with a −39% drawdown.
+
+| 5-slot portfolio, walk-forward | 2022 | 2023 | 2024 | 2025 | 2026 |
+| ------------------------------ | ---- | ---- | ---- | ---- | ---- |
+| Official pick (4h CNN, 4h hold, 3 slots) | +37% | +97% | +82% | −9% | −32% |
+| Ensemble of all 19 variants, 1h, 5 slots | +58% | +39% | +49% | +9% | +7% |
+| Base CNN (M7 design), 1h, 5 slots | +66% | +37% | +23% | +28% | +13% |
+| Path forecaster (all channels), 1h, 5 slots | +56% | +39% | +21% | +20% | +19% |
+
+- **The ensemble** (post-hoc in motivation, but with nothing tuned: members = every screened
+  variant, threshold only matched to the base model's 2022–24 trade count; `m12_cnn_wf.py ens`)
+  makes +138 bp per trade over 2022–26 (bootstrap 95% CI +64 to +221). It's positive in every
+  year at 0.6% costs, about zero in 2025–26 at 1%, and still positive every year without its
+  5 best days. Entering one candle late drops it to +64 bp. 93% of 30 random 10-variant
+  sub-ensembles are positive in 2025–26 (`m14_robust.py`, `results/m14_robust_ens_all.csv`).
+- **Placebo:** shuffling the scores within each day (same days, same counts) gives −77 bp per
+  trade against +138 bp. The ranking within a crash day is the edge.
+
+### The CNN as a forecasting engine
+
+The user's idea: forecast the price path for the next hours and let the forecast set the trade.
+The path variant predicts the net return every 15 minutes out to 8 hours, at the 10%, 50% and
+90% quantiles (pinball loss). `m15_forecast.py` checks it:
+
+- **Calibration:** the 10–90% band holds 73–78% of real outcomes (80% intended, so slightly too
+  narrow), and the average forecast matches the average outcome.
+- **Ranking:** correlation with the real return is 0.30 at 15m, 0.23 at 4h and 0.21 at 8h.
+- **Shape right, size optimistic:** the top decile forecasts a +2.1% peak; it really averages
+  +0.4% after 1h and +0.7% after 4h.
+- **Forecast-driven rules** (rank by forecast peak, exit at the forecast peak time, take profit
+  at the p90 peak, stop at the p10 trough): exiting at the peak alone is worse than a 1h hold.
+  Adding the target and stop made +211% in 2025 on 826 trades, but about −2% in 2026, and it
+  failed the 2022–24 drawdown limit. Requiring a +2% forecast upside was positive every year
+  but faded to +1% in 2026. The forecast works best as a ranking.
+
 ### Other ideas tried (none beat the capitulation rules)
 
 | Idea | Result |
@@ -181,7 +249,7 @@ weights (`m11_cnn.py`; sequences from `build_seq.py`).
 | Breakout: spike on an up bar at a new 7-day high | Negative at 1h and 4h; +20 to +90 bp at 24h, which is mostly the 2020–2024 bull market |
 | Spike during a pullback in an uptrend (7d > +20%, 4h < −3%), hold 24h | +80 to +230 bp per trade, but max drawdown −30% to −84% |
 | Shorting spikes after pumps (hypothetical, spot can't short) | Erratic: −5.6% per trade in 2025 on squeezes |
-| Limit buy below the spike close | Adverse selection: fills only on trades that keep falling |
+| Limit buy below the spike close | Better the deeper in 2020–24; reversed in 2025–26 (deep fills = crashes that kept going) |
 | Abnormal *daily* volume, hold 1–7 days | Amplifies market direction: positive 2020–24, negative 2025–26 |
 | Daily capitulation (coin −10% in a day, BTC −5%) | Same direction as the 5m version, noisier, few days a year |
 | Gradient-boosted model on 36 spike features | Learns the capitulation rule; 2025–26 positive only because of 2025-10-10 |
@@ -215,8 +283,9 @@ weights (`m11_cnn.py`; sequences from `build_seq.py`).
    2025 edge.
 4. **Measure crash-time slippage.** Record order-book depth and spread for liquid coins on the next
    few flush days before sizing anything.
-5. **Retrain the CNN walk-forward** (each year on all earlier years) to turn one test period into
-   several, and paper-trade it next to F2.
+5. **If building on the CNN, keep it simple and averaged** (the ensemble, or the base design with
+   a 1h hold), and spend the effort on speed (1m data, acting at the candle close) and on
+   measuring real costs, not on tuning. Paper-trade it next to F2.
 6. **Fix survivorship before trusting any dip-buying result:** add delisted symbols to the data
    pool (Binance's public data archive, data.binance.vision, may still have them).
 
@@ -235,7 +304,13 @@ uv run python research/volume_spike/build_seq.py      # 8h candle sequences for 
 uv run python research/volume_spike/m11_cnn.py train   # ~20 min on an M4 (MPS), train/valid only
 uv run python research/volume_spike/m11_cnn.py report  # includes the test period
 uv run python research/volume_spike/m11_cnn.py portfolio && uv run python research/volume_spike/m11_cnn.py stress
-uv run python research/volume_spike/report_data.py    # the visual casebook, report/index.html
+uv run python research/volume_spike/build_seq2.py     # 24h, 13-channel sequences (+ `fwd` for 8h paths)
+uv run python research/volume_spike/m12_cnn_wf.py run base market ...  # walk-forward variants (~5 min each)
+uv run python research/volume_spike/m12_cnn_wf.py eval && uv run python research/volume_spike/m12_cnn_wf.py ens
+uv run python research/volume_spike/m13_policy.py base  # trading-rule grid for one variant
+uv run python research/volume_spike/m14_robust.py ens_all '{"q": 0.97}'
+uv run python research/volume_spike/m15_forecast.py path_all5
+uv run python research/volume_spike/report_data.py && uv run python research/volume_spike/report_wf.py
 ```
 
 Set `MOONSHOT_DATA_DIR` if the candles are not in the default location the scripts expect

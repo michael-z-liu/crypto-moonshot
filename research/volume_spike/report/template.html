@@ -651,14 +651,15 @@ method("m-wf", "Walk-forward: re-tune every six months", "The number to believe"
 method("m-limit", "Limit orders below the spike close", "Rejected", "rejected", s => {
   s.body(`<p>Instead of buying at the next open, rest a buy limit below the spike close for 1–6
     candles. That gives a cheaper entry and a maker fee, but only some orders fill.</p>`);
-  const g = s.grid();
-  for (const split of ["train", "test"]) plate(g, `F1 with a limit entry, ${split === "train" ? "2020–23" : "2025–26"}`, "x: limit offset below the spike close; resting for 3 candles", p => {
+  const g = s.grid(3);
+  for (const [split, label] of [["train", "2020–23"], ["valid", "2024"], ["test", "2025–26"]]) plate(g, `F1 with a limit entry, ${label}`, "net bp per filled trade by limit depth below the spike close; resting 3 candles", p => {
     const r = D.limit.filter(x => x.cand === "F1" && x.wait === 3 && x.split === split).sort((a, b) => a.offset - b.offset);
-    barChart(p, { cats: r.map(x => "−" + (x.offset * 100) + "%"), series: [{ name: "net / signal day", vals: r.map(x => x.day_bp) }], hgt: 200,
-      tipExtra: i => `fill rate ${pct(r[i].fill_rate)} · ${num(r[i].trades)} fills` });
+    barChart(p, { cats: r.map(x => "−" + (x.offset * 100) + "%"), series: [{ name: "net / trade", vals: r.map(x => x.mean_bp) }], hgt: 200,
+      tipExtra: i => `fill rate ${pct(r[i].fill_rate)} · ${num(r[i].trades)} fills<br>per signal day ${bp(r[i].day_bp)}` });
   });
-  s.verdict(`<b>Adverse selection.</b> The orders fill only on the trades that keep falling and miss the immediate bounces, so the
-    deeper the limit, the worse each filled trade. No improvement in the test.`);
+  s.verdict(`<b>It looked great until 2025, then reversed.</b> In 2020–24 a deeper limit bought lower in a flush that bounced, so each fill was
+    worth more (+203 bp at the close up to +651 bp at 5% below in 2020–23). In 2025–26 the deeper the limit, the worse each fill (−36 bp down to
+    −404 bp), because the orders filled mostly in crashes that kept going. That's adverse selection, and it's the same regime change that hurt every dip-buying rule.`);
 });
 
 method("m-trend", "Trend ideas: breakouts and uptrend pullbacks", "Rejected", "rejected", s => {

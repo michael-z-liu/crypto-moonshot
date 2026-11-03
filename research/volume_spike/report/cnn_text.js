@@ -27,7 +27,7 @@ window.CNN_TEXT = {
     The coin-only variant fails (−21 bp), so the market context matters more than the coin's own candles.
     It doesn't work as an enter-or-skip filter on F1. Caveats: the portfolio view is post-hoc,
     it's one 22-month test with 254 trades, and the survivorship bias is at its worst here, since it buys the coins that crashed hardest.`,
-  next: `Next: retrain it walk-forward (each year on all earlier years), paper-trade it next to F2, and test it on delisted coins.`,
+  next: `The walk-forward study below retrains it every year and tests 27 variants of it.`,
 };
 
 window.EVOLVE = `
@@ -35,18 +35,19 @@ window.EVOLVE = `
   <h3>Keep</h3>
   <ul class="plain">
     <li><b>The trigger is the spike, the edge is the context.</b> Every method that worked buys a volume spike <i>after a market-wide crash</i>. Nothing that ignores BTC worked.</li>
-    <li><b>Short time exits.</b> A 1-hour hold beat every target, stop and trailing stop that was tried.</li>
-    <li><b>Ranking within a crash day.</b> The CNN's edge, and the reason the 5-slot portfolio beats the every-trade view.</li>
+    <li><b>A CNN to rank spikes within a crash day.</b> The walk-forward study confirms the edge in all five test years, and shuffling the scores within a day turns it negative.</li>
+    <li><b>Simple settings, averaged.</b> The base CNN, the path forecaster and an equal-weight ensemble with a plain 1-hour hold all made money every year from 2022 to 2026.</li>
   </ul>
   <h3>Drop</h3>
   <ul class="plain">
-    <li>Tight targets with wide stops (+1% / −5%), limit entries below the spike, breakouts, uptrend pullbacks, daily-scale volume.</li>
+    <li>Picking the "best" variant or trading rule on past years. Across 27 variants, 2022–24 results did not predict 2025–26 results (rank correlation −0.06).</li>
+    <li>Tight targets with wide stops (+1% / −5%), limit entries below the spike, breakouts, uptrend pullbacks, daily-scale volume, and 4-hour targets for the CNN.</li>
   </ul>
   <h3>Try next</h3>
   <ul class="plain">
-    <li><b>Walk-forward CNN.</b> Retrain each year on all earlier data and test the next year. This turns one lucky-or-not test into four or five, and it's the cheapest next step (no new data).</li>
-    <li><b>Delisted coins.</b> The CNN buys the coins that crashed hardest, and coins that died are missing from the data, so survivorship bias could be large here. Binance's public archive (data.binance.vision) should have them.</li>
-    <li><b>1-minute candles on flush days.</b> Entering 5 minutes late costs the CNN about a third of its edge. 1m data would show how much is lost inside the spike candle and whether a 1m CNN does better.</li>
-    <li><b>More market channels.</b> The BTC channels made the difference, so add ETH, an altcoin index and, from futures, funding, open interest and liquidations, which measure forced selling directly.</li>
-    <li><b>Paper-trade it.</b> Run the CNN and F2 side by side in paper mode on the live stream. The biggest unknown is the fill price on flush days, and only live data answers it.</li>
+    <li><b>Speed.</b> Entering one candle late halves the ensemble's edge. Get 1-minute candles (or live trades) on flush days, and act within seconds of the candle close.</li>
+    <li><b>Costs.</b> At a 1% round trip the 2025–26 edge is gone. Measure real spreads and slippage on flush days in paper mode before sizing anything.</li>
+    <li><b>Delisted coins.</b> The CNN buys the coins that crashed hardest, and coins that died are missing from the data, so survivorship bias could be large. Binance's public archive (data.binance.vision) should have them.</li>
+    <li><b>The forecast as a risk input.</b> The path forecaster's shape is right but its size is optimistic. Shrink it toward its historical accuracy, then use the band width for position sizing rather than for targets.</li>
+    <li><b>Paper-trade the ensemble</b> next to F2 on the live stream. Only live data shows real fills on crash days.</li>
   </ul>`;

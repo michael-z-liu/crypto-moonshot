@@ -1,9 +1,9 @@
 # Volume-spike strategy research
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
 - **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/8
-- **Updated:** 2026-11-03T04:18Z
+- **Updated:** 2026-11-03T04:23Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -168,7 +168,7 @@ approach, expanding its dimensions toward a more robust strategy.
   shuffles scores within each candle (does the ranking matter?), bootstrap confidence intervals.
 - **Worker:** master
 
-### M12: Report (building)
+### M12: Report (done)
 
 - A new casebook section and write-up for M9-M11; PR updated.
 - **Worker:** master
@@ -290,6 +290,9 @@ approach, expanding its dimensions toward a more robust strategy.
   -13%; positive in all years at 0.6% cost, ~0 in 2025-26 at 1%; placebo -77 vs +138 bp;
   bootstrap 95% CI +64..+221 bp; without the 5 best days still positive every year; one candle
   late +64 bp (2025 +9). 30 random 10-member sub-ensembles: 2025-26 positive in 93% (median +60).
+- 04:23Z M12: casebook updated (new sections `m-cnnwf` and `m-forecast`, data from `report_wf.py`),
+  same private link. Found and fixed a wrong verdict while charting: limit entries looked better
+  the deeper in 2020-24 and reversed in 2025-26 (not "no improvement"); write-up corrected.
 
 ## Decisions
 
@@ -304,7 +307,8 @@ approach, expanding its dimensions toward a more robust strategy.
 
 ## Follow-ups
 
-- Retrain the CNN walk-forward (each year on all earlier years) and paper-trade it next to F2.
+- Paper-trade the CNN ensemble (1h hold, 5 slots) next to F2 to measure real fills and costs.
+- Get 1m candles on flush days: a one-candle delay halves the CNN ensemble's edge.
 
 - Paper-trade F2 or the walk-forward version on the live stream (`paper` mode) to measure real fills
   on flush days; needs the strategy/backtest/live engine from `docs/architecture.md` first.

@@ -291,7 +291,9 @@ def build_html() -> None:
     """Inline the data and the CNN section into report/index.html (one self-contained page)."""
     d = OUT.parent
     cnn = "\n".join(
-        (d / f).read_text() for f in ("cnn_text.js", "cnn_section.js") if (d / f).exists()
+        (d / f).read_text()
+        for f in ("cnn_text.js", "cnn_section.js", "wf_section.js")
+        if (d / f).exists()
     )
     html = (d / "template.html").read_text()
     html = html.replace("__DATA__", OUT.read_text()).replace("/*CNN_SECTION*/", cnn)
