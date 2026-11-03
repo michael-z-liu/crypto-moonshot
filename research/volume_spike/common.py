@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import polars as pl
@@ -13,8 +14,14 @@ DATA_DIR = Path(
 )
 KLINES_5M = DATA_DIR / "klines" / "spot" / "interval=5m"
 HERE = Path(__file__).resolve().parent
-CACHE = HERE / "cache"
-RESULTS = HERE / "results"
+# Which coins (M13): "pool" = the main data folder (today's top ~200, the default);
+# "poolA" = + delisted pairs from the archive; "all" = + every other archived USDT pair.
+UNIVERSE = os.environ.get("MOONSHOT_UNIVERSE", "pool")
+ARCHIVE = HERE / "cache" / "archive"  # store written by fetch_archive.py
+ARCHIVE_5M = ARCHIVE / "klines" / "spot" / "interval=5m"
+CACHE = HERE / "cache" if UNIVERSE == "pool" else HERE / f"cache_{UNIVERSE}"
+RESULTS = HERE / "results" if UNIVERSE == "pool" else HERE / "results" / f"universe_{UNIVERSE}"
+RESULTS.mkdir(parents=True, exist_ok=True)
 
 BAR_MINUTES = 5
 BARS_PER_HOUR = 60 // BAR_MINUTES
@@ -44,14 +51,63 @@ def all_symbols() -> list[str]:
     return sorted(p.name.removeprefix("symbol=") for p in KLINES_5M.glob("symbol=*"))
 
 
+def archive_groups() -> dict[str, list[str]]:
+    """Group A (delisted) and B (listed outside the pool) from fetch_archive.py."""
+    path = HERE / "results" / "archive_groups.json"
+    if not path.exists():
+        return {"A_delisted": [], "B_listed_outside_pool": []}
+    g = json.loads(path.read_text())
+    return {k: sorted(g[k]) for k in ("A_delisted", "B_listed_outside_pool")}
+
+
 def universe() -> list[str]:
     """Tradable crypto symbols: everything stored except pegged assets and tokenised stocks."""
-    return [s for s in all_symbols() if s not in PEGGED and s not in STOCKS]
+    pool = [s for s in all_symbols() if s not in PEGGED and s not in STOCKS]
+    if UNIVERSE == "pool":
+        return pool
+    g = archive_groups()
+    extra = g["A_delisted"] + (g["B_listed_outside_pool"] if UNIVERSE == "all" else [])
+    have = {p.name.removeprefix("symbol=") for p in ARCHIVE_5M.glob("symbol=*")}
+    return sorted(pool + [s for s in extra if s in have])
+
+
+DATA_END = datetime(2026, 10, 25, tzinfo=UTC)
+PAD_BARS = 300  # flat candles added after a series ends early or stops for a day or more
 
 
 def load(symbol: str) -> pl.DataFrame:
-    """All stored 5m candles for one symbol, sorted by open time."""
-    return pl.read_parquet(KLINES_5M / f"symbol={symbol}" / "*.parquet").sort("open_time")
+    """All stored 5m candles for one symbol, sorted by open time.
+
+    Reads the main store, or the archive store for coins outside it. When a series stops early
+    (a delisting) or pauses for a day or more (a halt, as LUNA in May 2022), PAD_BARS flat candles
+    at the last close follow, with zero volume: a position open at that moment exits at the last
+    traded price instead of being dropped.
+    """
+    main = KLINES_5M / f"symbol={symbol}"
+    src = main if main.exists() else ARCHIVE_5M / f"symbol={symbol}"
+    df = pl.read_parquet(src / "*.parquet").sort("open_time")
+    if UNIVERSE == "pool":
+        return df
+    t = df["open_time"]
+    step = timedelta(minutes=BAR_MINUTES)
+    gap = t.diff().shift(-1)
+    ends = df.filter((gap >= timedelta(days=1)) | (gap.is_null() & (t < DATA_END)))
+    if ends.height == 0:
+        return df
+    pads = []
+    for row in ends.iter_rows(named=True):
+        nxt = t.filter(t > row["open_time"]).min()
+        n = PAD_BARS if nxt is None else min(PAD_BARS, int((nxt - row["open_time"]) / step) - 1)  # type: ignore[operator]
+        times = pl.datetime_range(
+            row["open_time"] + step, row["open_time"] + step * n, step, eager=True, time_zone="UTC"
+        )
+        c = row["close"]
+        pads.append(pl.DataFrame({"open_time": times}).with_columns(
+            open=pl.lit(c), high=pl.lit(c), low=pl.lit(c), close=pl.lit(c), volume=pl.lit(0.0),
+            quote_volume=pl.lit(0.0), trade_count=pl.lit(0, dtype=pl.Int64),
+            taker_buy_base_volume=pl.lit(0.0), taker_buy_quote_volume=pl.lit(0.0),
+        ))  # fmt: skip
+    return pl.concat([df, *[p.cast(df.schema) for p in pads]]).sort("open_time")
 
 
 def split_of(col: str = "open_time") -> pl.Expr:

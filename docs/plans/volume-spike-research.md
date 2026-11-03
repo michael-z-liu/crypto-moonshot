@@ -318,6 +318,12 @@ to buy.
 - 04:23Z M12: casebook updated (new sections `m-cnnwf` and `m-forecast`, data from `report_wf.py`),
   same private link. Found and fixed a wrong verdict while charting: limit entries looked better
   the deeper in 2020-24 and reversed in 2025-26 (not "no improvement"); write-up corrected.
+- 04:56Z M13 groups (`fetch_archive.py groups`, `results/archive_groups.json`): A delisted 191 symbols
+  (7,856 months), B listed outside the pool 239 (10,990 months; incl. LUNA from 2020-08, FTT,
+  USTC); 74 tokenised stocks excluded; UST (pre-rename) excluded as a stablecoin like the pool's.
+  Scope fixed before any result: pool+A gets the rule tests and the CNNs base/market/path_all;
+  pool+A+B ("all") additionally gets the full 19-variant ensemble. Loader pads 300 flat candles at
+  the last close after a series ends early or pauses >= 1 day (only in poolA/all runs).
 
 ## Decisions
 
