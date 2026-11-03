@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
 - **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/8
-- **Updated:** 2026-11-03T00:16Z
+- **Updated:** 2026-11-03T00:58Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -192,6 +192,12 @@ idea from.
 - 12:39Z First-flush-after-calm filter: noise. BTC->alt lead-lag at 5m: ~0 in train.
 - 12:42Z Exploration with the existing data pool is exhausted; remaining ideas need new data
   (delisted coins, 1m candles) => follow-ups for the user. Moving to M6 (PR) early.
+- 00:58Z M7 choice (train/valid only, `results/m11_cnn_selection_trainvalid.csv`): validation
+  correlation peaks at epochs 1-3 then falls (overfits fast). The coin+BTC variant beats coin-only
+  on 2024 at every threshold (per signal day +111/+220/+487/+614 bp vs +47/+79/+220/+217) and as
+  an F1 filter (enter +309 / skip +75 bp per trade). CHOSEN before the test: coin+BTC, threshold =
+  best 2024 per-day result among thresholds with >= 20 signal days = top 0.5% (train quantile
+  0.995). GBM on 2024 at the same threshold: +277 bp/trade, +79 bp/day.
 
 ## Decisions
 
