@@ -28,6 +28,17 @@ loses.* Code and result tables are in `research/volume_spike/`; the run log is i
    previous two years only) made about +20% a year from 2022 to 2026 with a −16% worst drawdown,
    trading on about 40 crash days a year, and was flat in 2025. That is promising enough to
    paper-trade, not to fund.
+7. **A convolutional network on the raw candles (added 2026-11-03) is the most promising lead.**
+   A 1D CNN that sees the 8 hours of candles before each spike, for the coin and for BTC, picks
+   which spikes to buy within a crash day better than any rule. In the 5-slot portfolio it made
+   +114 bp per trade in 2025–26 (+33% a year, −11% worst drawdown, positive in both years) where
+   F2 and the boosted trees were flat. That holds without 2025-10-10, at 1% costs and one candle
+   late. Caveats: the portfolio view was a post-hoc check, the test is one 22-month period, and
+   survivorship bias hits this kind of rule hardest.
+
+The visual casebook (every method, with sketches, charts and the data behind them) is a private
+claude.ai page: https://claude.ai/artifact/RpfQqzAyte82MWYGXm7Yn5. Rebuild it locally with
+`uv run python research/volume_spike/report_data.py`, which writes `report/index.html`.
 
 ![Deciles](../../research/volume_spike/results/deciles.png)
 
@@ -129,6 +140,40 @@ equal-weight basket per crash day with half of equity committed per day:
 
 Equity ×2.44 over 4.8 years (CAGR about +20%), worst drawdown −16%.
 
+### Convolutional network on the raw candles (M7)
+
+Protocol fixed in the plan before training (commit `f06ce92` recorded the choices before the
+test was opened): every spike, the last 96 candles (8h) as channels (OHLC as log ratio to the
+spike close, volume relative to the day's median, taker-buy share; plus BTC close and volume in the
+second variant) and the coin's liquidity, predicting the net 1h return. Fit on 2020–2023, an
+average of 3 runs, epochs and variant chosen on 2024, test once on 2025–26. The network has 54k
+weights (`m11_cnn.py`; sequences from `build_seq.py`).
+
+- **Training:** both variants overfit after 1–3 epochs (2024 correlation 0.14–0.17), so each run
+  keeps its best epoch. Coin + BTC beat coin-only on 2024 at every threshold and was chosen, at the
+  top 0.5% of scores.
+- **Pre-registered measure (every trade, one per coin):** 2025–26 −110 bp per trade but +177 bp per
+  signal day (60% of 101 days positive); the boosted trees at the same threshold −161 bp and +56 bp.
+  The losses pile up on a few days with dozens of simultaneous signals.
+- **As an enter-or-skip filter on F1: failed** in the test (enter −155 bp, skip +36 bp per trade).
+- **Post-hoc, 5-slot portfolio, highest score first:**
+
+| 2025–26 test                | Trades | Net / trade | CAGR  | Max DD |
+| --------------------------- | ------ | ----------- | ----- | ------ |
+| CNN, coin + BTC             | 254    | +114 bp     | +33%  | −11%   |
+| … without 2025-10-10        | 235    | +114 bp     | +32%  | −7%    |
+| … 3 / 10 slots              |        | +127 / +87 bp |     |        |
+| … 1% round-trip cost        | 254    | +44 bp      | +9%   | −15%   |
+| … entering one candle late  | 254    | +79 bp      | +19%  | −14%   |
+| CNN, coin only (rejected on 2024) | 466 | −21 bp | −13%  | −40%   |
+| Boosted trees, top 0.5%     | 333    | +10 bp      | −1%   | −26%   |
+| F2 rule                     | 178    | +15 bp      | 0%    | −22%   |
+
+- **Not just crash depth:** its 2025–26 picks fell a median 29% in 4h with BTC volume spiking, but
+  simple deep-flush rules in the same portfolio don't match it (−15%: +27 to +85 bp; −20%: losses;
+  −25%: −9 to +139 bp on 10–22 trades once 2025-10-10 is left out; `results/m11_rule_compare.csv`).
+  The edge is in ranking coins within a crash day, and the BTC channels are essential.
+
 ### Other ideas tried (none beat the capitulation rules)
 
 | Idea | Result |
@@ -140,6 +185,7 @@ Equity ×2.44 over 4.8 years (CAGR about +20%), worst drawdown −16%.
 | Abnormal *daily* volume, hold 1–7 days | Amplifies market direction: positive 2020–24, negative 2025–26 |
 | Daily capitulation (coin −10% in a day, BTC −5%) | Same direction as the 5m version, noisier, few days a year |
 | Gradient-boosted model on 36 spike features | Learns the capitulation rule; 2025–26 positive only because of 2025-10-10 |
+| 1D CNN on raw candles, coin channels only | Rejected on 2024; loses in the 2025–26 portfolio (−21 bp per trade, −40% drawdown) |
 | Regime filters (alt-index trend, first flush after a calm spell) | No consistent improvement; flips sign by year |
 | BTC-to-alt lead-lag at 5m | About zero in 2020–2023; any catch-up happens inside the bar |
 
@@ -169,7 +215,9 @@ Equity ×2.44 over 4.8 years (CAGR about +20%), worst drawdown −16%.
    2025 edge.
 4. **Measure crash-time slippage.** Record order-book depth and spread for liquid coins on the next
    few flush days before sizing anything.
-5. **Fix survivorship before trusting any dip-buying result:** add delisted symbols to the data
+5. **Retrain the CNN walk-forward** (each year on all earlier years) to turn one test period into
+   several, and paper-trade it next to F2.
+6. **Fix survivorship before trusting any dip-buying result:** add delisted symbols to the data
    pool (Binance's public data archive, data.binance.vision, may still have them).
 
 ## Reproduce
@@ -183,6 +231,11 @@ uv run python research/volume_spike/m3_features.py spike
 uv run python research/volume_spike/m6_test.py        # finalists on all periods, equity.png
 uv run python research/volume_spike/m7_walkforward.py t 30
 uv run python research/volume_spike/plots.py
+uv run python research/volume_spike/build_seq.py      # 8h candle sequences for the CNN
+uv run python research/volume_spike/m11_cnn.py train   # ~20 min on an M4 (MPS), train/valid only
+uv run python research/volume_spike/m11_cnn.py report  # includes the test period
+uv run python research/volume_spike/m11_cnn.py portfolio && uv run python research/volume_spike/m11_cnn.py stress
+uv run python research/volume_spike/report_data.py    # the visual casebook, report/index.html
 ```
 
 Set `MOONSHOT_DATA_DIR` if the candles are not in the default location the scripts expect

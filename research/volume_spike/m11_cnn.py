@@ -331,5 +331,40 @@ def stress() -> None:
         print(df)
 
 
+def rules() -> None:
+    """Post-hoc: simple deep-flush rules in the same 5-slot sim. Does depth alone explain it?"""
+    from portfolio import Exit, simulate
+
+    ev, fwd = load_events()
+    calm = (ev["open_time"].dt.date() != CASCADE).to_numpy()
+    out = []
+    for drop in (-0.15, -0.20, -0.25):
+        for btc in (4, 6):
+            for liq in (5_000, 20_000):
+                c = (
+                    pl.col("is_spike") & (pl.col("ret_4h") <= drop)
+                    & (pl.col("btc_vol_mult") >= btc) & (pl.col("qv_base") >= liq)
+                )  # fmt: skip
+                m = ev.select(c.fill_null(False).alias("m"))["m"].to_numpy()
+                row: dict[str, object] = {
+                    "rule": f"4h <= {drop:.0%}, BTC vol >= {btc}x, >= {liq // 1000}k"
+                }
+                split = ev["split"].to_numpy()
+                periods = {"valid": split == "valid", "test": split == "test",
+                           "test_ex1010": (split == "test") & calm}  # fmt: skip
+                for s, mask in periods.items():
+                    k = np.flatnonzero(m & mask)
+                    st = simulate(ev[k], np.asarray(fwd[k]), Exit(bars=HOLD), slots=5).stats()
+                    row |= {f"{s}_trades": st["trades"], f"{s}_bp": st.get("mean_bp"),
+                            f"{s}_cagr": st.get("cagr"), f"{s}_dd": st.get("max_dd")}  # fmt: skip
+                out.append(row)
+    df = pl.DataFrame(out)
+    df.write_csv(RESULTS / "m11_rule_compare.csv")
+    with pl.Config(tbl_rows=20, tbl_cols=14, tbl_width_chars=240, float_precision=2):
+        print(df.select("rule", pl.col("^.*_bp$"), pl.col("^test.*_trades$")))
+
+
 if __name__ == "__main__":
-    {"train": train, "report": report, "portfolio": portfolio, "stress": stress}[sys.argv[1]]()
+    {"train": train, "report": report, "portfolio": portfolio, "stress": stress, "rules": rules}[
+        sys.argv[1]
+    ]()

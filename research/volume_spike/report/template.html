@@ -1,0 +1,811 @@
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="utf-8">
+<title>Volume Spike Casebook</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a lab casebook. Sticky index of methods on the left (verdict chips), one reading column
+   of prose with wider chart plates. Charts are hand-drawn SVG from the embedded result data. */
+:root {
+  --bg: #f3f4f6; --surface: #fcfcfb; --ink: #12151a; --ink2: #4b515b; --muted: #80868f;
+  --grid: #e1e3e7; --axis: #c2c6cd; --accent: #1d5cb8; --ring: rgba(18,21,26,.10);
+  --pos: #2a78d6; --neg: #e34948; --mid: #ecedef;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #6250d6;
+  --good: #0ca30c; --warn: #fab219; --serious: #ec835a; --crit: #d03b3b;
+  --f-display: "Archivo Narrow", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-data: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --f-ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e1013; --surface: #16181c; --ink: #eef0f3; --ink2: #b7bcc5; --muted: #878c95;
+  --grid: #272a30; --axis: #3a3e46; --accent: #6da7ec; --ring: rgba(255,255,255,.10);
+  --pos: #3987e5; --neg: #e66767; --mid: #2e3136;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #9085e9;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0e1013; --surface: #16181c; --ink: #eef0f3; --ink2: #b7bcc5; --muted: #878c95;
+  --grid: #272a30; --axis: #3a3e46; --accent: #6da7ec; --ring: rgba(255,255,255,.10);
+  --pos: #3987e5; --neg: #e66767; --mid: #2e3136;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #9085e9;
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 17px/1.6 var(--f-body); }
+.wrap { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 40px; max-width: 1240px;
+  margin: 0 auto; padding-block: 32px 80px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+nav.index { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 20px); align-self: start;
+  max-height: calc(100vh - 40px); overflow: auto; font: 14px/1.35 var(--f-ui); }
+nav.index h2 { font: 600 12px var(--f-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 18px 0 8px; }
+nav.index a { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 5px 8px;
+  border-radius: 6px; color: var(--ink2); text-decoration: none; }
+nav.index a:hover, nav.index a:focus-visible { background: var(--surface); color: var(--ink); outline: none; }
+main { min-width: 0; }
+.prose { max-width: 68ch; }
+h1 { font: 700 clamp(38px, 6vw, 60px)/1.02 var(--f-display); letter-spacing: -.01em; margin: 6px 0 14px; text-wrap: balance; }
+h2 { font: 700 32px/1.1 var(--f-display); margin: 0 0 6px; text-wrap: balance; }
+h3 { font: 600 20px/1.25 var(--f-display); margin: 26px 0 6px; letter-spacing: .01em; }
+p { margin: 0 0 12px; }
+.eyebrow { font: 600 12px var(--f-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.lede { font-size: 20px; color: var(--ink2); }
+code, .mono { font-family: var(--f-data); font-size: .86em; }
+section.method { border-top: 1px solid var(--axis); padding-top: 30px; margin-top: 56px; scroll-margin-top: 20px; }
+.head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; margin-bottom: 10px; }
+.chip { font: 600 11.5px var(--f-ui); letter-spacing: .05em; text-transform: uppercase; padding: 3px 8px 3px 7px;
+  border-radius: 999px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  border: 1px solid var(--ring); color: var(--ink); background: var(--surface); }
+.chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--muted)); }
+.chip.rejected { --c: var(--crit); } .chip.faded { --c: var(--warn); } .chip.best { --c: var(--good); }
+.chip.mixed { --c: var(--serious); } .chip.base { --c: var(--muted); }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+.grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.plate { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 14px 14px 10px; min-width: 0; margin: 14px 0; }
+.grid2 > .plate, .grid3 > .plate { margin: 0; }
+.plate h4 { font: 600 14px/1.3 var(--f-ui); margin: 0 0 2px; color: var(--ink); }
+.plate .sub { font: 12.5px/1.4 var(--f-ui); color: var(--muted); margin: 0 0 8px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font: 12.5px var(--f-ui); color: var(--ink2); margin: 4px 0 6px; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.legend i.box { height: 10px; width: 10px; border-radius: 2px; }
+svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
+svg text { font: 11px var(--f-ui); fill: var(--muted); }
+svg .gl { stroke: var(--grid); stroke-width: 1; }
+svg .ax { stroke: var(--axis); stroke-width: 1; }
+svg .zero { stroke: var(--muted); stroke-width: 1; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 16px 0; }
+.fact { border-left: 2px solid var(--axis); padding: 2px 0 2px 12px; }
+.fact b { display: block; font: 600 24px/1.1 var(--f-display); }
+.fact span { font: 12.5px/1.35 var(--f-ui); color: var(--muted); }
+.verdict { font: 15px/1.5 var(--f-ui); background: var(--surface); border: 1px solid var(--ring); border-radius: 10px;
+  padding: 12px 14px; margin: 16px 0 0; max-width: 78ch; }
+.verdict b { font-weight: 600; }
+.verdict .next { color: var(--ink2); margin-top: 6px; display: block; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; font: 13px/1.3 var(--f-ui); font-variant-numeric: tabular-nums; width: 100%; }
+th { font-weight: 600; color: var(--muted); text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--axis); white-space: nowrap; }
+td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+td.heat { color: var(--ink); min-width: 62px; }
+tr.link { cursor: pointer; } tr.link:hover td:first-child { color: var(--accent); }
+.seg { display: inline-flex; border: 1px solid var(--axis); border-radius: 8px; overflow: hidden; font: 13px var(--f-ui); }
+.seg button { font: inherit; background: none; color: var(--ink2); border: 0; padding: 5px 10px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 8px 0; font: 13px var(--f-ui); color: var(--muted); }
+#tip { position: fixed; z-index: 20; pointer-events: none; background: var(--ink); color: var(--bg); font: 12.5px/1.45 var(--f-ui);
+  padding: 7px 9px; border-radius: 6px; max-width: 280px; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+#tip b { font-weight: 600; }
+.note { font: 13px/1.5 var(--f-ui); color: var(--muted); }
+ul.plain { padding-left: 20px; margin: 0 0 12px; } ul.plain li { margin: 4px 0; }
+.diagram { width: 100%; height: auto; display: block; }
+.diagram text { font: 12px var(--f-ui); fill: var(--ink2); }
+.diagram .box { fill: var(--surface); stroke: var(--axis); }
+.diagram .hl { fill: color-mix(in oklab, var(--accent) 12%, var(--surface)); stroke: var(--accent); }
+.diagram .t { fill: var(--ink); font-weight: 600; }
+.diagram .arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#ah); }
+footer { margin-top: 70px; border-top: 1px solid var(--axis); padding-top: 18px; }
+@media (max-width: 900px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  nav.index { position: static; max-height: none; border-bottom: 1px solid var(--axis); padding-bottom: 14px; margin-bottom: 10px; }
+  nav.index .list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  body { font-size: 16px; }
+}
+@media (prefers-reduced-motion: no-preference) { nav.index a { transition: background .15s; } }
+</style>
+
+<div id="tip" hidden></div>
+<div class="wrap">
+<nav class="index" aria-label="Methods">
+  <h2>Overview</h2>
+  <div class="list">
+    <a href="#top"><span>The question and the data</span></a>
+    <a href="#scoreboard"><span>Scoreboard</span></a>
+    <a href="#method"><span>How every test works</span></a>
+  </div>
+  <h2>Methods, in the order tried</h2>
+  <div class="list" id="navlist"></div>
+  <h2>Next</h2>
+  <div class="list">
+    <a href="#evolve"><span>Where to take it</span></a>
+    <a href="#caveats"><span>Caveats</span></a>
+  </div>
+</nav>
+
+<main>
+<header id="top" class="prose">
+  <div class="eyebrow">Research casebook · Binance spot 5m · 2020-01 to 2026-10</div>
+  <h1>Volume Spike Casebook</h1>
+  <p class="lede">Your 2019 idea, tested on six years of data: a sudden 5-minute volume spike comes
+  before a jump, so buy it and take a small profit. This casebook goes through every method I
+  tried, the ones that failed included. Each method gets a sketch of the rule, charts from the
+  real results and a verdict, so you can check the work and pick what to build on.</p>
+  <div class="facts" id="facts"></div>
+  <p class="note">All returns are <b>net</b>: after a 0.3% round trip (0.1% fee and 0.05% slippage
+  on each side). 1 bp = 0.01%. A method has an edge only if its net return stays above zero in
+  years it was not tuned on.</p>
+</header>
+
+<section id="scoreboard" class="method" style="margin-top:36px">
+  <div class="head"><h2>Scoreboard</h2></div>
+  <p class="prose">Each method, scored the same way: every qualifying trade, at most one open trade
+  per coin, entry at the next candle's open. Blue is profit, red is loss; hover a cell for trade
+  counts and win rates. 2020–2023 is where the rules were tuned, 2024 is where they were chosen,
+  and 2025–26 is the out-of-sample check. Click a row to jump to that method.</p>
+  <div class="controls"><span>Measure</span>
+    <div class="seg" role="group" aria-label="Measure">
+      <button id="m-trade" aria-pressed="true">Net per trade</button>
+      <button id="m-day" aria-pressed="false">Net per signal day</button>
+    </div>
+  </div>
+  <div class="plate scroll"><table id="score"></table></div>
+  <p class="note">"Per signal day" averages each day's trades first, so a crash day with 40
+  signals counts once. It's the steadier view for the capitulation rules. The slot-limited
+  portfolio results (5 positions at most) appear in the finalists section.</p>
+</section>
+
+<section id="method" class="method">
+  <div class="head"><h2>How every test works</h2></div>
+  <div class="prose">
+    <p>Every method goes through the same pipeline. The features use only candles up to the spike
+    candle's close, and the trade buys at the next candle's open. Nothing peeks ahead.</p>
+  </div>
+  <div class="plate">
+    <svg class="diagram" viewBox="0 0 900 250" role="img" aria-label="Pipeline from candles to scored trades">
+      <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+      <rect class="box" x="10" y="20" width="150" height="74" rx="8"/><text class="t" x="24" y="44">5m candles</text><text x="24" y="63">152 coins, 2020–26</text><text x="24" y="80">OHLC, volume, taker buys</text>
+      <rect class="box" x="190" y="20" width="160" height="74" rx="8"/><text class="t" x="204" y="44">Spike detector</text><text x="204" y="63">volume ≥ 10× the previous</text><text x="204" y="80">day's median 5m volume</text>
+      <rect class="box" x="380" y="20" width="160" height="74" rx="8"/><text class="t" x="394" y="44">Context at the close</text><text x="394" y="63">4h / 24h / 7d moves, BTC,</text><text x="394" y="80">liquidity, taker share …</text>
+      <rect class="hl" x="570" y="20" width="150" height="74" rx="8"/><text class="t" x="584" y="44">Rule or model</text><text x="584" y="63">enter, or skip?</text><text x="584" y="80">(the part that varies)</text>
+      <rect class="box" x="750" y="20" width="140" height="74" rx="8"/><text class="t" x="764" y="44">Trade</text><text x="764" y="63">buy next open, exit by</text><text x="764" y="80">time / target / stop</text>
+      <path class="arrow" d="M160,57 H186"/><path class="arrow" d="M350,57 H376"/><path class="arrow" d="M540,57 H566"/><path class="arrow" d="M720,57 H746"/>
+      <text class="t" x="10" y="140">Time split, fixed in advance</text>
+      <rect x="10" y="152" width="460" height="30" rx="4" fill="color-mix(in oklab, var(--s1) 22%, var(--surface))" stroke="var(--s1)"/>
+      <text x="20" y="172" style="fill:var(--ink)">Train 2020–2023: explore and tune</text>
+      <rect x="474" y="152" width="115" height="30" rx="4" fill="color-mix(in oklab, var(--s3) 22%, var(--surface))" stroke="var(--s3)"/>
+      <text x="484" y="172" style="fill:var(--ink)">Valid 2024: choose</text>
+      <rect x="593" y="152" width="200" height="30" rx="4" fill="color-mix(in oklab, var(--s2) 22%, var(--surface))" stroke="var(--s2)"/>
+      <text x="603" y="172" style="fill:var(--ink)">Test 2025–26-10: look once</text>
+      <text x="10" y="210">Costs 0.3% round trip, stressed at 0.6% and 1%. A stop and a target touched in the same candle count as the stop.</text>
+      <text x="10" y="230">Every rule is compared with random candles under the same exit.</text>
+    </svg>
+  </div>
+</section>
+
+<div id="methods"></div>
+
+<section id="evolve" class="method">
+  <div class="head"><h2>Where to take it</h2></div>
+  <div class="prose" id="evolve-body"></div>
+</section>
+
+<section id="caveats" class="method">
+  <div class="head"><h2>Caveats that apply to everything</h2></div>
+  <div class="prose">
+    <ul class="plain">
+      <li><b>Survivorship bias.</b> The coins are today's top ~200. Coins that crashed and never came back (LUNA, FTT, many 2021 alts) are missing, which flatters every dip-buying result.</li>
+      <li><b>Crash-time fills.</b> The backtest buys at the next open plus 0.05% slippage. On flush days spreads widen and Binance has throttled before. Real fills could be much worse.</li>
+      <li><b>Few independent bets.</b> The capitulation rules trade on 20–70 days a year. One bad week can decide a year.</li>
+      <li><b>Many variants tried.</b> Several hundred rule variants were tried on 2020–2024. The 2025–26 test is the only clean check, and it's where the edge shrank.</li>
+      <li><b>Test period reuse.</b> The finalists' test was the first look at 2025–26. The gradient-boosting model and the CNN were fitted and chosen without it, but I had already seen that period's results, so it isn't a fully blind test for them.</li>
+    </ul>
+  </div>
+  <footer class="note">
+    Source: <code>research/volume_spike/</code> on branch <code>claude/high-volume-trading-strategy-0c5d1e</code>.
+    Charts are drawn from <code>report/data.json</code>, built by <code>report_data.py</code> from the cached event table and the committed result CSVs.
+    Rebuild: <code>uv run python research/volume_spike/report_data.py</code>.
+  </footer>
+</section>
+</main>
+</div>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+"use strict";
+const D = JSON.parse(document.getElementById("data").textContent);
+const NS = "http://www.w3.org/2000/svg";
+const tip = document.getElementById("tip");
+const $ = (s, r = document) => r.querySelector(s);
+
+function el(tag, attrs = {}, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null) e.setAttribute(k, v);
+  if (text !== undefined) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function h(tag, attrs = {}, html) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (html !== undefined) e.innerHTML = html;
+  return e;
+}
+const bp = (v, digits = 0) => v == null || Number.isNaN(v) ? "–" : (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(digits) + " bp";
+const pct = (v, d = 0) => v == null || Number.isNaN(v) ? "–" : (v * 100).toFixed(d) + "%";
+const num = v => v == null ? "–" : Math.round(v).toLocaleString("en-US");
+function showTip(evt, html) {
+  tip.innerHTML = html; tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  let x = evt.clientX + 14, y = evt.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = evt.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = evt.clientY - r.height - 14;
+  tip.style.left = Math.max(8, x) + "px"; tip.style.top = Math.max(8, y) + "px";
+}
+const hideTip = () => { tip.hidden = true; };
+addEventListener("scroll", hideTip, { passive: true });
+
+function ticks(lo, hi, n = 5) {
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const step0 = (hi - lo) / n, mag = 10 ** Math.floor(Math.log10(step0));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= step0);
+  const out = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+const lin = (d0, d1, r0, r1) => v => r0 + (v - d0) / (d1 - d0 || 1) * (r1 - r0);
+
+/* --- frame: a responsive SVG with margins --- */
+function frame(target, { w = 720, hgt = 260, m = {} } = {}) {
+  const M = { t: 14, r: 18, b: 30, l: 54, ...m };
+  /* draw at the container's real pixel width so text stays at its true size */
+  const cs = getComputedStyle(target), cw = target.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  if (cw > 0) w = Math.max(280, Math.round(cw));
+  const svg = el("svg", { class: "chart", viewBox: `0 0 ${w} ${hgt}`, role: "img" });
+  target.appendChild(svg);
+  return { svg, w, h: hgt, M, iw: w - M.l - M.r, ih: hgt - M.t - M.b };
+}
+function legend(target, items, box = false) {
+  const lg = h("div", { class: "legend" });
+  for (const it of items) lg.appendChild(h("span", {}, `<i class="${box ? "box" : ""}" style="background:${it.color}"></i>${it.name}`));
+  target.appendChild(lg);
+}
+function yAxis(f, y, lo, hi, fmt, title) {
+  for (const t of ticks(lo, hi)) {
+    const yy = y(t);
+    el("line", { class: t === 0 ? "zero" : "gl", x1: f.M.l, x2: f.w - f.M.r, y1: yy, y2: yy }, f.svg);
+    el("text", { x: f.M.l - 6, y: yy + 3.5, "text-anchor": "end" }, f.svg, fmt(t));
+  }
+  if (title) el("text", { x: f.M.l, y: f.M.t - 3 }, f.svg, title);
+}
+
+/* --- line chart (x numeric or time) with crosshair tooltip --- */
+function lineChart(target, { series, x = "num", yFmt = v => v, xFmt, yTitle, hgt = 250, log = false, xTicks, marks = [] }) {
+  const f = frame(target, { hgt });
+  const xs = series.flatMap(s => s.x.map(v => x === "time" ? +new Date(v) : v));
+  const ys = series.flatMap(s => s.y).filter(v => v != null && Number.isFinite(v));
+  let x0 = Math.min(...xs), x1 = Math.max(...xs);
+  let y0 = Math.min(...ys), y1 = Math.max(...ys);
+  if (!log) { y0 = Math.min(y0, 0); y1 = Math.max(y1, 0); const pad = (y1 - y0) * .06; y0 -= pad; y1 += pad; }
+  const tf = log ? Math.log10 : v => v;
+  const X = lin(x0, x1, f.M.l, f.w - f.M.r);
+  const Yb = lin(tf(y0), tf(y1), f.h - f.M.b, f.M.t), Y = v => Yb(tf(v));
+  if (log) {
+    const all = Array.from({ length: 18 }, (_, i) => 2 ** (i - 4)).filter(v => v >= y0 * .9 && v <= y1 * 1.1);
+    const lt = all.filter((_, i) => i % Math.ceil(all.length / 7) === 0);
+    for (const t of lt) { el("line", { class: t === 1 ? "zero" : "gl", x1: f.M.l, x2: f.w - f.M.r, y1: Y(t), y2: Y(t) }, f.svg);
+      el("text", { x: f.M.l - 6, y: Y(t) + 3.5, "text-anchor": "end" }, f.svg, yFmt(t >= 1 ? t : +t.toFixed(3))); }
+    if (yTitle) el("text", { x: f.M.l, y: f.M.t - 3 }, f.svg, yTitle);
+  } else yAxis(f, Y, y0, y1, yFmt, yTitle);
+  el("line", { class: "ax", x1: f.M.l, x2: f.w - f.M.r, y1: f.h - f.M.b, y2: f.h - f.M.b }, f.svg);
+  const xt = xTicks || (x === "time"
+    ? Array.from({ length: 8 }, (_, i) => 2020 + i).map(yr => +new Date(`${yr}-01-01`)).filter(t => t >= x0 && t <= x1)
+    : ticks(x0, x1, 6));
+  for (const t of xt) el("text", { x: X(t), y: f.h - f.M.b + 16, "text-anchor": "middle" }, f.svg,
+    xFmt ? xFmt(t) : x === "time" ? new Date(t).getUTCFullYear() : t);
+  for (const mk of marks) {
+    const mx = X(x === "time" ? +new Date(mk.x) : mk.x);
+    el("line", { x1: mx, x2: mx, y1: f.M.t, y2: f.h - f.M.b, stroke: "var(--axis)", "stroke-width": 1 }, f.svg);
+    el("text", { x: mx + 4, y: f.M.t + 10 }, f.svg, mk.label);
+  }
+  const pts = series.map(s => s.x.map((v, i) => [X(x === "time" ? +new Date(v) : v), s.y[i] == null ? null : Y(s.y[i]), s.y[i], v]));
+  series.forEach((s, k) => {
+    let d = "", pen = false;
+    for (const [px, py] of pts[k]) { if (py == null) { pen = false; continue; } d += (pen ? "L" : "M") + px.toFixed(1) + "," + py.toFixed(1); pen = true; }
+    el("path", { d, fill: "none", stroke: s.color, "stroke-width": s.width || 2, "stroke-dasharray": s.dash, "stroke-linejoin": "round", "stroke-linecap": "round" }, f.svg);
+  });
+  const cross = el("line", { y1: f.M.t, y2: f.h - f.M.b, stroke: "var(--muted)", "stroke-width": 1, visibility: "hidden" }, f.svg);
+  const dots = series.map(s => el("circle", { r: 4, fill: s.color, stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" }, f.svg));
+  const hit = el("rect", { x: f.M.l, y: f.M.t, width: f.iw, height: f.ih, fill: "transparent" }, f.svg);
+  hit.addEventListener("pointermove", e => {
+    const r = f.svg.getBoundingClientRect(), px = (e.clientX - r.left) * f.w / r.width;
+    let rows = [], cx = null;
+    pts.forEach((p, k) => {
+      if (!p.length) return;
+      let lo = 0, hi = p.length - 1;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; (p[mid][0] < px ? lo = mid : hi = mid); }
+      const q = Math.abs(p[lo][0] - px) < Math.abs(p[hi][0] - px) ? p[lo] : p[hi];
+      if (q[1] == null) { dots[k].setAttribute("visibility", "hidden"); return; }
+      dots[k].setAttribute("cx", q[0]); dots[k].setAttribute("cy", q[1]); dots[k].setAttribute("visibility", "visible");
+      cx = cx ?? q[0];
+      rows.push(`<i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${series[k].color};margin-right:6px"></i>${series[k].name}: <b>${yFmt(q[2])}</b>`);
+      if (k === 0) rows.unshift(`<b>${xFmt ? xFmt(x === "time" ? +new Date(q[3]) : q[3]) : x === "time" ? q[3] : q[3]}</b>`);
+    });
+    if (cx != null) { cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); cross.setAttribute("visibility", "visible"); }
+    showTip(e, rows.join("<br>"));
+  });
+  hit.addEventListener("pointerleave", () => { hideTip(); cross.setAttribute("visibility", "hidden"); dots.forEach(d => d.setAttribute("visibility", "hidden")); });
+  if (series.length > 1) legend(target, series);
+}
+
+/* --- grouped bar chart; single series bars are coloured by sign --- */
+function barChart(target, { cats, series, yFmt = v => bp(v), yTitle, hgt = 240, tipExtra, signColor = series.length === 1, rotate = false }) {
+  const f = frame(target, { hgt, m: { b: rotate ? 64 : 30 } });
+  const vals = series.flatMap(s => s.vals).filter(v => v != null && Number.isFinite(v));
+  let y0 = Math.min(0, ...vals), y1 = Math.max(0, ...vals);
+  const pad = (y1 - y0) * .08; y0 -= y0 < 0 ? pad : 0; y1 += pad;
+  const Y = lin(y0, y1, f.h - f.M.b, f.M.t);
+  yAxis(f, Y, y0, y1, yFmt, yTitle);
+  const band = f.iw / cats.length, gap = Math.min(10, band * .2), bw = Math.max(2, (band - gap * 2 - (series.length - 1) * 2) / series.length);
+  cats.forEach((c, i) => {
+    const bx = f.M.l + i * band + gap;
+    series.forEach((s, k) => {
+      const v = s.vals[i]; if (v == null || !Number.isFinite(v)) return;
+      const color = signColor ? (v >= 0 ? "var(--pos)" : "var(--neg)") : s.color;
+      const x = bx + k * (bw + 2), ya = Y(Math.max(v, 0)), yb = Y(Math.min(v, 0));
+      const r = el("rect", { x, y: ya, width: bw, height: Math.max(1, yb - ya), rx: Math.min(3, bw / 2), fill: color }, f.svg);
+      const hitR = el("rect", { x: x - 1, y: f.M.t, width: bw + 2, height: f.ih, fill: "transparent" }, f.svg);
+      hitR.addEventListener("pointermove", e => { r.setAttribute("opacity", .8); showTip(e, `<b>${c}</b>${series.length > 1 ? " · " + s.name : ""}<br>${yFmt(v)}${tipExtra ? "<br>" + tipExtra(i, k) : ""}`); });
+      hitR.addEventListener("pointerleave", () => { r.removeAttribute("opacity"); hideTip(); });
+    });
+    const lx = f.M.l + i * band + band / 2, ly = f.h - f.M.b + 15;
+    if (rotate) el("text", { x: lx, y: ly - 4, "text-anchor": "end", transform: `rotate(-35 ${lx} ${ly - 4})` }, f.svg, c);
+    else el("text", { x: lx, y: ly, "text-anchor": "middle" }, f.svg, c);
+  });
+  el("line", { class: "ax", x1: f.M.l, x2: f.w - f.M.r, y1: f.h - f.M.b, y2: f.h - f.M.b }, f.svg);
+  if (series.length > 1) legend(target, series, true);
+}
+
+/* --- diverging cell colour from tokens: blue for gains, red for losses --- */
+function heatColor(v, maxAbs) {
+  if (v == null || !Number.isFinite(v)) return "transparent";
+  const p = Math.round(Math.min(1, Math.abs(v) / maxAbs) * 70);
+  return `color-mix(in oklab, ${v >= 0 ? "var(--pos)" : "var(--neg)"} ${p}%, var(--mid))`;
+}
+
+/* --- candlestick + volume (taker buys vs sells) for one real event --- */
+function candles(target, ex) {
+  const f = frame(target, { hgt: 300, m: { l: 58, b: 26 } });
+  const n = ex.t.length, spikeI = ex.t.findIndex(t => +new Date(t) === +new Date(ex.time));
+  const pTop = f.M.t, pBot = f.M.t + f.ih * .66, vTop = pBot + 14, vBot = f.h - f.M.b;
+  const lo = Math.min(...ex.low), hi = Math.max(...ex.high);
+  const ref = ex.close[spikeI];
+  const Y = lin(Math.log(lo / ref), Math.log(hi / ref), pBot, pTop), Yp = p => Y(Math.log(p / ref));
+  const vmax = Math.max(...ex.volume);
+  const V = lin(0, vmax, vBot, vTop);
+  const X = i => f.M.l + (i + .5) * f.iw / n, bw = Math.max(1.5, f.iw / n * .7);
+  for (const t of ticks(Math.log(lo / ref) * 100, Math.log(hi / ref) * 100, 5)) {
+    const yy = Y(t / 100); if (yy < pTop - 1 || yy > pBot + 1) continue;
+    el("line", { class: t === 0 ? "zero" : "gl", x1: f.M.l, x2: f.w - f.M.r, y1: yy, y2: yy }, f.svg);
+    el("text", { x: f.M.l - 6, y: yy + 3.5, "text-anchor": "end" }, f.svg, (t > 0 ? "+" : "") + t + "%");
+  }
+  el("text", { x: f.M.l, y: pTop - 3 }, f.svg, "price vs. spike close");
+  el("text", { x: f.M.l - 6, y: vTop + 8, "text-anchor": "end" }, f.svg, "volume");
+  if (spikeI >= 0) {
+    const hold = ex.hold || 12;
+    el("rect", { x: X(spikeI + 1) - bw / 2 - 1, y: pTop, width: X(Math.min(n - 1, spikeI + hold)) - X(spikeI + 1) + bw + 2, height: vBot - pTop,
+      fill: "color-mix(in oklab, var(--accent) 9%, transparent)" }, f.svg);
+    el("text", { x: X(spikeI + 1), y: vBot + 16 }, f.svg, `holding window (${hold * 5} min)`);
+  }
+  for (let i = 0; i < n; i++) {
+    const up = ex.close[i] >= ex.open[i], color = up ? "var(--pos)" : "var(--neg)";
+    el("line", { x1: X(i), x2: X(i), y1: Yp(ex.high[i]), y2: Yp(ex.low[i]), stroke: color, "stroke-width": 1 }, f.svg);
+    const a = Yp(Math.max(ex.open[i], ex.close[i])), b = Yp(Math.min(ex.open[i], ex.close[i]));
+    el("rect", { x: X(i) - bw / 2, y: a, width: bw, height: Math.max(1, b - a), fill: color }, f.svg);
+    const tb = ex.taker_buy[i], v = ex.volume[i];
+    el("rect", { x: X(i) - bw / 2, y: V(v), width: bw, height: V(0) - V(v), fill: "var(--axis)" }, f.svg);
+    el("rect", { x: X(i) - bw / 2, y: V(tb), width: bw, height: V(0) - V(tb), fill: i === spikeI ? "var(--s2)" : "var(--s1)" }, f.svg);
+  }
+  if (spikeI >= 0) {
+    el("text", { x: X(spikeI), y: V(ex.volume[spikeI]) - 5, "text-anchor": "middle", style: "fill:var(--ink);font-weight:600" }, f.svg, "spike");
+  }
+  const hit = el("rect", { x: f.M.l, y: f.M.t, width: f.iw, height: f.ih, fill: "transparent" }, f.svg);
+  hit.addEventListener("pointermove", e => {
+    const r = f.svg.getBoundingClientRect(), px = (e.clientX - r.left) * f.w / r.width;
+    const i = Math.max(0, Math.min(n - 1, Math.floor((px - f.M.l) / f.iw * n)));
+    const rel = k => ((ex[k][i] / ref - 1) * 100).toFixed(2) + "%";
+    showTip(e, `<b>${ex.t[i].slice(0, 16).replace("T", " ")} UTC</b>${i === spikeI ? " · spike candle" : i === spikeI + 1 ? " · entry at open" : ""}<br>open ${rel("open")} · high ${rel("high")}<br>low ${rel("low")} · close ${rel("close")}<br>volume ${num(ex.volume[i])} · taker buys ${pct(ex.taker_buy[i] / (ex.volume[i] || 1))}`);
+  });
+  hit.addEventListener("pointerleave", hideTip);
+  legend(target, [{ name: "taker buys", color: "var(--s1)" }, { name: "taker sells", color: "var(--axis)" }, { name: "spike candle buys", color: "var(--s2)" }], true);
+}
+
+/* --- small schematic of a rule: the shape before the spike, the spike, BTC, and the exit --- */
+function sketch(target, { pre = "flat", btc = null, exit = "time", label = "", short = false }) {
+  const w = 300, hh = btc ? 200 : 165;
+  const svg = el("svg", { class: "diagram", viewBox: `0 0 ${w} ${hh}`, role: "img", "aria-label": label });
+  target.appendChild(svg);
+  const shapes = {
+    flat:     [5, 4, 6, 4.5, 5.5, 5, 4.5, 5, 4, 4.5, 5, 5.5, 5],
+    pump:     [9, 8.8, 8.4, 8, 7.4, 6.8, 6, 5.2, 4.4, 3.6, 2.8, 2.2, 1.8],
+    crash:    [1, 1.1, 1.3, 1.6, 2, 2.6, 3.4, 4.3, 5.3, 6.4, 7.6, 8.6, 9.2],
+    uptrend:  [8.6, 8, 7.4, 6.8, 6.1, 5.4, 4.7, 4, 3.4, 2.9, 3.4, 4, 4.6],
+    breakout: [6, 5.8, 6.2, 5.9, 6.1, 5.8, 6.2, 6, 5.9, 6.1, 6, 5, 3.6],
+  };
+  const Yv = v => 26 + v * 7.6, step = 15, x0 = 14;   /* price lives in y 26..96 */
+  const pts = shapes[pre].map((v, i) => [x0 + i * step, Yv(v)]);
+  el("text", { x: 14, y: 14, style: "fill:var(--ink);font-weight:600" }, svg, label);
+  el("polyline", { points: pts.map(p => p.join(",")).join(" "), fill: "none", stroke: "var(--ink2)", "stroke-width": 2, "stroke-linejoin": "round" }, svg);
+  const [sx, sy] = pts[pts.length - 1];
+  for (let i = 0; i < pts.length - 1; i++) el("rect", { x: x0 + i * step - 4, y: 146, width: 8, height: 6, rx: 1, fill: "var(--axis)" }, svg);
+  el("rect", { x: sx - 4, y: 112, width: 8, height: 40, fill: "var(--s2)", rx: 1 }, svg);
+  el("text", { x: sx - 10, y: 126, "text-anchor": "end" }, svg, "volume ≥ 10× normal");
+  el("circle", { cx: sx + 12, cy: sy, r: 4.5, fill: "var(--accent)" }, svg);
+  el("text", { x: sx + 20, y: sy + 4, style: "fill:var(--ink)" }, svg, short ? "sell short" : "buy next open");
+  const ex = sx + 12;
+  if (exit === "barrier") {
+    el("line", { x1: ex, x2: w - 6, y1: sy - 16, y2: sy - 16, stroke: "var(--pos)", "stroke-width": 1.5 }, svg);
+    el("text", { x: w - 6, y: sy - 20, "text-anchor": "end", style: "fill:var(--pos)" }, svg, "+1% target");
+    el("line", { x1: ex, x2: w - 6, y1: sy + 30, y2: sy + 30, stroke: "var(--neg)", "stroke-width": 1.5 }, svg);
+    el("text", { x: w - 6, y: sy + 44, "text-anchor": "end", style: "fill:var(--neg)" }, svg, "−5% stop · 4h max");
+  } else {
+    el("line", { x1: ex, x2: w - 8, y1: sy + 16, y2: sy + 16, stroke: "var(--muted)", "stroke-width": 1, "marker-end": "url(#ah2)" }, svg);
+    el("text", { x: w - 8, y: sy + 30, "text-anchor": "end" }, svg, exit);
+  }
+  if (btc) {
+    const by = btc === "flush" ? [0, 0, .2, .5, 1, 1.6, 2.4, 3.2, 4, 4.6, 5.2, 5.6, 6] : [3, 2.8, 3.1, 3, 2.9, 3.1, 3, 2.8, 3, 3.1, 2.9, 3, 3];
+    el("polyline", { points: by.map((v, i) => `${x0 + i * step},${170 + v * 3.6}`).join(" "), fill: "none", stroke: "var(--s6)", "stroke-width": 1.5 }, svg);
+    el("text", { x: x0 + 13 * step + 4, y: 186, style: "fill:var(--s6)" }, svg, btc === "flush" ? "BTC falling too" : "BTC calm");
+  }
+  const defs = el("defs", {}, svg);
+  const mk = el("marker", { id: "ah2", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: "auto" }, defs);
+  el("path", { d: "M0,0 L10,5 L0,10 z", fill: "var(--muted)" }, mk);
+}
+
+/* ===================== data helpers ===================== */
+const YEARS = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
+const yearly = m => YEARS.map(y => D.yearly.find(r => r.method === m && r.year === y) || null);
+const summ = m => D.summary.find(r => r.method === m);
+function yearlyChart(target, m, measure = "mean_bp") {
+  const rows = yearly(m);
+  barChart(target, { cats: YEARS.map(String), series: [{ name: m, vals: rows.map(r => r ? r[measure] : null) }], hgt: 200,
+    tipExtra: i => rows[i] ? `${num(rows[i].trades)} trades · ${pct(rows[i].win)} win<br>${num(rows[i].days)} signal days` : "" });
+}
+function cumChart(target, methods, names, colors) {
+  lineChart(target, { x: "time", yFmt: v => (v > 0 ? "+" : "") + Math.round(v) + "%", yTitle: "cumulative net %, one unit per signal day",
+    series: methods.filter(m => D.cum[m]).map((m, i) => ({ name: names[i], color: colors[i], x: D.cum[m].day, y: D.cum[m].cum })),
+    marks: [{ x: "2024-01-01", label: "valid" }, { x: "2025-01-01", label: "test" }] });
+}
+function pathChart(target, groups, period, colors) {
+  const s = groups.map((g, i) => { const r = D.paths.find(p => p.group === g && p.period === period); return r && { name: `${g} (${num(r.n)})`, color: colors[i], x: r.bp.map((_, k) => k * 5), y: r.bp }; }).filter(Boolean);
+  lineChart(target, { series: s, yFmt: v => bp(v), yTitle: "average gross move after entry (each path clipped at ±20%)", xFmt: v => v + " min", xTicks: [0, 30, 60, 120, 180, 240], hgt: 230 });
+}
+function plate(parent, title, sub, fn, cls = "") {
+  const p = h("div", { class: "plate " + cls });
+  p.appendChild(h("h4", {}, title)); if (sub) p.appendChild(h("p", { class: "sub" }, sub));
+  parent.appendChild(p);
+  /* drawn after the whole page is laid out, so each chart knows its real width */
+  QUEUE.push(() => { try { fn(p); } catch (err) { p.appendChild(h("p", { class: "note" }, "Chart data missing: " + err.message)); console.error(err); } });
+  return p;
+}
+const QUEUE = [];
+function tableFrom(target, cols, rowsData) {
+  const wrap = h("div", { class: "scroll" }), t = h("table");
+  t.appendChild(h("thead", {}, "<tr>" + cols.map(c => `<th>${c[0]}</th>`).join("") + "</tr>"));
+  const tb = h("tbody");
+  for (const r of rowsData) tb.appendChild(h("tr", {}, cols.map(c => `<td>${c[1](r)}</td>`).join("")));
+  t.appendChild(tb); wrap.appendChild(t); target.appendChild(wrap);
+}
+
+/* ===================== header facts ===================== */
+{
+  const u = D.universe, sp = Object.fromEntries(u.spikes_by_split.map(r => [r.split, r.len]));
+  const facts = [[u.coins, "coins after dropping stablecoins, gold, wrapped and tokenised stocks"], [num(u.spikes), "volume spikes (≥ 10× the day's median)"],
+    [num(sp.train), "spikes in 2020–23 (tuning)"], [num(sp.test), "spikes in 2025–26 (test)"]];
+  $("#facts").innerHTML = facts.map(([b, s]) => `<div class="fact"><b>${b}</b><span>${s}</span></div>`).join("");
+}
+
+/* ===================== method sections ===================== */
+const M = window.METHODS = [];
+function method(id, title, verdict, chip, build) { M.push({ id, title, verdict, chip, build }); }
+</script>
+<script>
+"use strict";
+/* Each method: an idea, a sketch, charts from the data, and a verdict. In the order they were tried. */
+method("m-2019", "The 2019 rule", "Rejected", "rejected", s => {
+  s.body(`<p>The rule from your screenshots: a 5m candle with volume far above normal, closing up,
+    mostly bought by takers (over 60% taker buys), with no run-up in the hour before. Buy, take +1%,
+    stop at −5%, give up after 4 hours. The hope was a high win rate on many small trades.</p>`);
+  const g = s.grid();
+  plate(g, "The rule", "rebuilt from the Good / Bad / Missed screenshots", p => sketch(p, { pre: "flat", exit: "barrier", label: "2019 rule" }));
+  plate(g, "Net return per trade, by year", "every qualifying trade, one per coin at a time", p => yearlyChart(p, "rule2019"));
+  s.facts([[pct(summ("rule2019").train_win), "trades won in 2020–23"], [bp(summ("rule2019").train_mean_bp), "average net per trade, 2020–23"],
+    [bp(summ("rule2019").test_mean_bp), "average net per trade, 2025–26"], [num((summ("rule2019").train_trades || 0) + (summ("rule2019").valid_trades || 0) + (summ("rule2019").test_trades || 0)), "trades in total"]]);
+  const ex = D.examples.filter(e => e.title.startsWith("2019"));
+  const g2 = s.grid();
+  ex.forEach(e => plate(g2, e.title, `${e.symbol} · ${e.time.slice(0, 16).replace("T", " ")} UTC · volume ${e.vol_mult.toFixed(0)}× · taker buys ${pct(e.tbr)} · result ${bp(e.ret_bp)}`, p => candles(p, { ...e, hold: 48 })));
+  plate(s.main, "Every combination of target, stop and holding time for these entries", "net bp per trade, 2020–23, max 4h hold; rows are targets, columns are stops", p => exitGrid(p, "spike_up"));
+  s.verdict(`<b>Wins more than half its trades and still loses about 0.3% per trade, in every year.</b>
+    A +1% target with a −5% stop needs to win more than 5 of 6 trades just to cover the stops, and
+    0.3% of costs comes off every trade on top. No combination of target and stop rescues these
+    entries: the best cell in the grid is still below zero. Spikes on up candles actually drift <i>down</i>
+    afterwards.`, `If you want to keep this shape, the entry has to change. The exits are not the problem.`);
+});
+
+method("m-raw", "The raw spike vs. a random candle", "No edge", "rejected", s => {
+  s.body(`<p>Before adding any filter: does a volume spike, on its own, predict anything? I compared
+    the average price path after all 1.97M spikes with the path after a random sample of ordinary
+    candles.</p>`);
+  const g = s.grid();
+  plate(g, "Average move after entry, 2020–24", "gross, before costs", p => pathChart(p, ["all spikes", "random", "2019 rule entries"], "2020-24", ["var(--s1)", "var(--muted)", "var(--s2)"]));
+  plate(g, "Best exit found for each, 2020–23", "net bp per trade after costs", p => {
+    const best = grp => D.exit_grid.filter(r => r.group === grp).reduce((a, b) => (b.mean_bp > a.mean_bp ? b : a));
+    const cats = ["spike", "spike_up", "random"], names = { spike: "all spikes", spike_up: "up-candle spikes", random: "random candle" };
+    const b = cats.map(best);
+    barChart(p, { cats: cats.map(c => names[c]), series: [{ name: "best exit", vals: b.map(r => r.mean_bp) }], hgt: 200,
+      tipExtra: i => `target ${b[i].tp ?? "none"} · stop ${b[i].sl ?? "none"} · ${b[i].bars * 5} min<br>${num(b[i].n)} trades`});
+  });
+  s.verdict(`<b>A spike on its own moves the price within about ±5 bp of a random candle over the next 4 hours.</b>
+    That is far below the 30 bp a trade costs. Whatever edge exists has to come from <i>what happened before the spike</i>.`);
+});
+
+method("m-context", "What the spike means depends on what came before", "The key finding", "best", s => {
+  s.body(`<p>I split the spikes into tenths by each feature (taker share, volume multiple, prior
+    move, and so on) and compared the 4-hour drift with random candles in the same bucket. Two
+    things stood out: <b>spikes after a pump fade</b>, and <b>spikes after a crash bounce</b>, more than an
+    ordinary candle after the same drop.</p>`);
+  const feats = [["ret_4h", "coin move over the previous 4h"], ["ret_24h", "coin move over the previous 24h"], ["ret_bar", "the spike candle's own move"],
+    ["tbr", "taker-buy share of the spike candle"], ["vol_mult", "volume multiple"], ["btc_vol_mult", "BTC's volume multiple at the same time"]];
+  const g = s.grid(3);
+  for (const [fe, label] of feats) plate(g, label, "4h gross drift by decile, spike vs. random, 2020–23", p => decileChart(p, fe));
+  const g2 = s.grid();
+  plate(g2, "After a pump vs. after a crash, 2020–24", "average gross path", p => pathChart(p, ["after a pump (+10% in 4h)", "crash during a BTC flush", "crash, BTC calm", "random"], "2020-24", ["var(--s2)", "var(--s1)", "var(--s3)", "var(--muted)"]));
+  plate(g2, "The same groups in 2025–26", "2025-10-10 left out: its 80–99% wicks would put the flush line at +550 bp after 1h", p => pathChart(p, ["after a pump (+10% in 4h)", "crash during a BTC flush", "crash, BTC calm", "random"], "2025-26", ["var(--s2)", "var(--s1)", "var(--s3)", "var(--muted)"]));
+  s.verdict(`<b>This is where the strategy came from.</b> In the left-most decile of the 4h and 24h move (the
+    deepest crashes) the spike adds a real bounce. In the right-most (the biggest pumps) it marks the top. Taker share and
+    volume multiple on their own barely matter. BTC's volume is a strong context signal: when the whole market is spiking, alt bounces are bigger.`);
+});
+
+method("m-capit", "Capitulation: buy the spike after a crash", "Edge in 2020–24", "faded", s => {
+  s.body(`<p>The capitulation idea: when a coin has just fallen hard and volume explodes, that's
+    sellers giving up, so buy and hold briefly. The crash has to be <b>market-wide</b>. When BTC is
+    flushing too (BTC volume ≥ 6× or BTC −2% in 4h), the bounce is large. When the coin falls on
+    its own (a hack, an unlock or a delisting), it doesn't bounce.</p>`);
+  const g = s.grid();
+  plate(g, "Market-wide flush", "", p => sketch(p, { pre: "crash", btc: "flush", exit: "sell after 1h", label: "Flush bounce" }));
+  plate(g, "Coin crashing alone", "", p => sketch(p, { pre: "crash", btc: "calm", exit: "sell after 1h", label: "Crash alone" }));
+  plate(s.main, "Net 1h return by the coin's 4h move before the spike", "liquid spikes (≥ 5k USDT per candle), returns clipped at ±20%, 2025-10-10 left out; overlapping trades included, so this shows the shape, not a strategy", p => depthChart(p));
+  const g2 = s.grid();
+  plate(g2, "Coin crash with BTC calm, by year", "−10% in 4h, ≥ 20k USDT per candle, hold 1h", p => yearlyChart(p, "crash_alone"));
+  plate(g2, "Same crash during a BTC flush (F2), by year", "the only difference is BTC", p => yearlyChart(p, "F2"));
+  const ex = D.examples.filter(e => e.title.startsWith("F2"));
+  const g3 = s.grid();
+  ex.forEach(e => plate(g3, e.title, `${e.symbol} · ${e.time.slice(0, 16).replace("T", " ")} UTC · coin ${pct(e.ret_4h)} in 4h · BTC volume ${e.btc_vol_mult.toFixed(1)}× · result ${bp(e.ret_bp)}`, p => candles(p, e)));
+  s.verdict(`<b>A large, real edge in 2020–24, concentrated on market-wide crash days</b> (2020-03-12, 2021-05-19,
+    2021-12-04, 2022-05/11, 2024-08-05 …). The deeper the crash, the bigger the bounce. A coin crashing alone has no edge.
+    In 2025–26 the moderate crashes kept falling. Only the deepest flushes still bounced.`);
+});
+
+method("m-final", "The three finalists, out of sample", "Faded in 2025–26", "faded", s => {
+  s.body(`<p>Three versions were written down before 2025–26 was opened, then run once on it with a
+    realistic portfolio: 5 slots, one position per coin, compounding, and simultaneous signals
+    taken deepest crash first.</p>
+    <ul class="plain"><li><b>F1</b>: spike, coin −8% in 4h, ≥ 5k USDT per candle, BTC volume ≥ 6×, hold 1h.</li>
+    <li><b>F2</b>: spike, coin −10% in 4h, ≥ 20k USDT per candle, BTC volume ≥ 6×, hold 1h.</li>
+    <li><b>F3</b>: spike, coin −15% in 4h, ≥ 5k USDT per candle, no BTC filter, hold 4h.</li></ul>`);
+  plate(s.main, "Portfolio equity, 5 slots (log scale)", "starting at 1; 2024 is validation, from 2025 is the test", p => lineChart(p, { x: "time", log: true, yFmt: v => v + "×", hgt: 280,
+    series: ["F1", "F2", "F3"].map((f, i) => ({ name: f, color: `var(--s${i + 1})`, x: D.equity[f].day, y: D.equity[f].equity })),
+    marks: [{ x: "2024-01-01", label: "valid" }, { x: "2025-01-01", label: "test" }] }));
+  plate(s.main, "F2 per signal day, by quarter", "equal-weight basket of that day's signals, net bp per day", p => {
+    const q = D.quarterly.filter(r => r.method === "F2");
+    barChart(p, { cats: q.map(r => r.q.slice(2, 4) + "Q" + (Math.floor((+r.q.slice(5, 7) - 1) / 3) + 1)), series: [{ name: "F2", vals: q.map(r => r.day_bp) }], hgt: 220, rotate: true,
+      tipExtra: i => `${q[i].days} signal days` });
+  });
+  plate(s.main, "Finalists by period", "portfolio simulation (results/m6_test.csv)", p => tableFrom(p,
+    [["Rule", r => r.strategy], ["Period", r => r.period], ["Trades", r => num(r.trades)], ["Per week", r => r.trades_per_week.toFixed(1)], ["Net / trade", r => bp(r.mean_bp)],
+     ["Win", r => pct(r.win)], ["CAGR", r => pct(r.cagr)], ["Max DD", r => pct(r.max_dd)]],
+    D.finalists.filter(r => !r.strategy.startsWith("ref") && r.period !== "all")));
+  s.verdict(`<b>Strong in 2020–24 (CAGR around 80–110% with drawdowns of 7–15%), roughly break-even in 2025–26.</b>
+    F1 −3 bp, F2 +15 bp and F3 +42 bp per trade in the test. The first half of 2025 was the bad stretch. Per signal day, F2 still averaged +50 bp (2025) and +78 bp (2026),
+    down from +185 to +360 bp in each earlier year. It decayed but didn't die.`);
+});
+
+method("m-robust", "Robustness checks on 2020–24", "Passed, with one warning", "mixed", s => {
+  s.body(`<p>Before the test, the two early candidates (C1 = F3's rule; C2 = −10% in 4h, ≥ 20k USDT,
+    hold 4h) were stressed: higher costs, entering one candle late, fewer or more slots, and old vs.
+    new coins.</p>`);
+  plate(s.main, "Net per trade under each stress", "portfolio simulation, 2020–24 (results/m4_robust.csv)", p => {
+    const v = [...new Set(D.robust.map(r => r.variant))].filter(x => !x.startsWith("year"));
+    barChart(p, { cats: v, rotate: true, hgt: 270, signColor: false, series: ["C1", "C2"].map((c, i) => ({ name: c, color: `var(--s${i + 1})`,
+      vals: v.map(x => (D.robust.find(r => r.cand === c && r.variant === x) || {}).mean_bp) })) });
+  });
+  s.verdict(`<b>Survives a 1% round trip, works on coins listed before 2020 and on newer ones, and works with 3 or 10 slots.</b>
+    The warning: entering one candle (5 minutes) late costs about a third of the edge. A live version has to act within seconds of the candle close.`);
+});
+
+method("m-wf", "Walk-forward: re-tune every six months", "The number to believe", "faded", s => {
+  s.body(`<p>To avoid picking the rule with hindsight: every six months, choose the rule with the best
+    t-statistic over the previous 24 months (drop 8–20%, liquidity 5k–50k, BTC filter 0–10×, hold
+    1h or 4h), then trade it for the next six months as an equal-weight basket per signal day.</p>`);
+  plate(s.main, "Out-of-sample result of each six-month period", "net bp per signal day; the rule was chosen from the 24 months before", p => {
+    const w = D.walkforward;
+    barChart(p, { cats: w.map(r => r.start.slice(0, 7)), series: [{ name: "out of sample", vals: w.map(r => r.oos_bp) }], hgt: 220,
+      tipExtra: i => `${w[i].rule}<br>${w[i].oos_days} signal days · ${pct(w[i].oos_win_days)} positive<br>in-sample ${bp(w[i].train_bp)}` });
+  });
+  plate(s.main, "Rules chosen", "", p => tableFrom(p, [["From", r => r.start], ["Chosen rule", r => `<span class="mono">${r.rule}</span>`], ["In-sample / day", r => bp(r.train_bp)],
+    ["Out-of-sample / day", r => bp(r.oos_bp)], ["Days", r => r.oos_days], ["Days positive", r => pct(r.oos_win_days)]], D.walkforward));
+  s.verdict(`<b>2022 to 2026-10: 214 signal days, +87 bp per day, 66% of days positive, about +20% a year with a −16% worst drawdown.</b>
+    2025 was flat and 2026 so far is negative. It's worth paper-trading, not funding.`);
+});
+
+method("m-limit", "Limit orders below the spike close", "Rejected", "rejected", s => {
+  s.body(`<p>Instead of buying at the next open, rest a buy limit below the spike close for 1–6
+    candles. That gives a cheaper entry and a maker fee, but only some orders fill.</p>`);
+  const g = s.grid();
+  for (const split of ["train", "test"]) plate(g, `F1 with a limit entry, ${split === "train" ? "2020–23" : "2025–26"}`, "x: limit offset below the spike close; resting for 3 candles", p => {
+    const r = D.limit.filter(x => x.cand === "F1" && x.wait === 3 && x.split === split).sort((a, b) => a.offset - b.offset);
+    barChart(p, { cats: r.map(x => "−" + (x.offset * 100) + "%"), series: [{ name: "net / signal day", vals: r.map(x => x.day_bp) }], hgt: 200,
+      tipExtra: i => `fill rate ${pct(r[i].fill_rate)} · ${num(r[i].trades)} fills` });
+  });
+  s.verdict(`<b>Adverse selection.</b> The orders fill only on the trades that keep falling and miss the immediate bounces, so the
+    deeper the limit, the worse each filled trade. No improvement in the test.`);
+});
+
+method("m-trend", "Trend ideas: breakouts and uptrend pullbacks", "Rejected", "rejected", s => {
+  s.body(`<p>Two ideas from the opposite side. <b>Breakout</b>: a spike on an up candle at a new 7-day
+    high, hold 24h. <b>Uptrend pullback</b>: a coin up 20% in a week dips 3% in 4 hours with a spike,
+    hold 24h.</p>`);
+  const g = s.grid();
+  plate(g, "Breakout", "", p => sketch(p, { pre: "breakout", exit: "sell after 24h", label: "Breakout to a 7-day high" }));
+  plate(g, "Uptrend pullback", "", p => sketch(p, { pre: "uptrend", exit: "sell after 24h", label: "Pullback in an uptrend" }));
+  plate(g, "Breakout, net per trade by year", "", p => yearlyChart(p, "breakout"));
+  plate(g, "Pullback, net per trade by year", "", p => yearlyChart(p, "pullback"));
+  plate(s.main, "Cumulative result, one unit per signal day", "the 2021 and 2024 bull runs carry both", p => cumChart(p, ["breakout", "pullback"], ["breakout", "pullback"], ["var(--s1)", "var(--s2)"]));
+  s.verdict(`<b>Both are mostly market beta.</b> They make money in bull years and give it back in 2025–26. The pullback rule had drawdowns of 30–84% in the portfolio simulation.`);
+});
+
+method("m-pump", "Fading the pump (short)", "Rejected", "rejected", s => {
+  s.body(`<p>Spikes after a pump fade, so in principle you could short them. Spot can't short, so this
+    is hypothetical: a coin up 10% in 4 hours, then a spike, short it and cover 4 hours later.</p>`);
+  const g = s.grid();
+  plate(g, "The rule", "", p => sketch(p, { pre: "pump", exit: "cover after 4h", label: "Short the pump spike", short: true }));
+  plate(g, "Short, net per trade by year", "hypothetical; same costs", p => yearlyChart(p, "pump_short"));
+  s.verdict(`<b>Erratic.</b> The fade is real on average, but squeezes produce huge losses in some years, and spot trading can't short anyway.`);
+});
+
+method("m-daily", "Daily-scale abnormal volume", "Rejected", "rejected", s => {
+  s.body(`<p>The same idea one level up: a day with 3–5× normal volume, held 1, 3 or 7 days.</p>`);
+  plate(s.main, "7-day forward return after high-volume days", "gross bp; by group and period (results/m9_daily.csv)", p => {
+    const groups = [...new Set(D.daily.map(r => r.group))];
+    barChart(p, { cats: groups, rotate: true, hgt: 300, signColor: false, yFmt: v => bp(v),
+      series: [["train", "2020–23", "var(--s1)"], ["valid", "2024", "var(--s3)"], ["test", "2025–26", "var(--s2)"]].map(([k, n, c]) => ({ name: n, color: c, vals: groups.map(g => (D.daily.find(r => r.group === g && r.split === k) || {}).f7) })) });
+  });
+  s.verdict(`<b>It amplifies the market's direction.</b> Positive in 2020–24 and negative in 2025–26. The daily capitulation version (coin −10% and BTC −5% in a day) has the same sign as the 5m version, but it's noisier and there are only a few such days a year.`);
+});
+
+method("m-majors", "Majors only, during flushes", "Faded in 2025", "faded", s => {
+  s.body(`<p>Restrict the flush bounce to 15 large coins (BTC, ETH, BNB, SOL, XRP, ADA, DOGE, TRX, LINK,
+    AVAX, DOT, LTC, BCH, XLM, ATOM), where fills on crash days are most realistic. Coin −5% in 4h
+    during a BTC flush, hold 1h.</p>`);
+  plate(s.main, "Majors flush bounce, net per trade by year", "re-run for this report", p => yearlyChart(p, "majors_flush"));
+  s.verdict(`<b>Positive in most years, negative in 2025.</b> A cleaner, more executable version of the same edge, with the same 2025 problem.`);
+});
+
+method("m-other", "Regime filters and BTC lead-lag", "No improvement", "rejected", s => {
+  s.body(`<p>Two attempts to rescue 2025. <b>Regime filters</b>: only trade flushes when an equal-weight
+    index of the alts is above its 7, 30 or 90-day trend, or when the flush is the first after a
+    calm spell, or when the crash is deep relative to the coin's own volatility. <b>Lead-lag</b>: do alts
+    follow BTC's 5m moves one candle later?</p>`);
+  s.verdict(`<b>Neither helped.</b> The regime filters flip sign from year to year, and BTC-to-alt lead-lag at 5m is about zero (any catch-up happens inside the same candle).
+    These were run as one-off checks (<code>alt_index.py</code>, <code>explore.py</code>), so there are no saved tables to chart.`);
+});
+
+method("m-gbm", "Gradient-boosted trees on 36 features", "Learns the same rule", "mixed", s => {
+  s.body(`<p>A HistGradientBoosting model given all 36 hand-made features of each spike (volume,
+    taker share, prior moves, BTC context, liquidity, hour …), trained on 2020–23 to predict the
+    1h net return. Trades are the spikes it scores in the top 1% to 0.1%.</p>`);
+  plate(s.main, "Net per trade of the top-scored spikes", "threshold from the 2020–23 score distribution; one trade per coin at a time", p => modelChart(p, D.gbm, "quantile", "split"));
+  s.verdict(`<b>It rediscovers the capitulation rule</b>: its top picks are deep crashes during BTC volume spikes. In 2025–26 it's positive only at the
+    most selective thresholds, and that comes from a single day: 2025-10-10, the liquidation cascade with 80–99% wicks. Without that day it loses about 76 bp per trade.`);
+});
+
+/* placeholder for the CNN section; filled by CNN_SECTION below */
+</script>
+<script>
+/*CNN_SECTION*/
+</script>
+<script>
+"use strict";
+/* ===================== shared chart builders used above ===================== */
+function exitGrid(p, group) {
+  const tps = [0.01, 0.02, 0.03, 0.05, null], sls = [0.01, 0.02, 0.03, 0.05, null];
+  const rows = D.exit_grid.filter(r => r.group === group && r.bars === 48);
+  const get = (tp, sl) => rows.find(r => (r.tp ?? null) === tp && (r.sl ?? null) === sl);
+  const t = h("table");
+  t.innerHTML = `<thead><tr><th>target ↓ / stop →</th>${sls.map(s => `<th>${s ? "−" + s * 100 + "%" : "none"}</th>`).join("")}</tr></thead>`;
+  const tb = h("tbody");
+  for (const tp of tps) {
+    const tr = h("tr"); tr.appendChild(h("td", {}, tp ? "+" + tp * 100 + "%" : "none"));
+    for (const sl of sls) { const r = get(tp, sl); const td = h("td", { class: "heat" }, r ? bp(r.mean_bp) : "–");
+      if (r) { td.style.background = heatColor(r.mean_bp, 60); td.title = `${pct(r.win)} win · ${num(r.n)} trades`; } tr.appendChild(td); }
+    tb.appendChild(tr);
+  }
+  t.appendChild(tb); const w = h("div", { class: "scroll" }); w.appendChild(t); p.appendChild(w);
+  p.appendChild(h("p", { class: "note" }, "Hover a cell for its win rate. Exits that hit neither level close at 4h."));
+}
+function decileChart(p, feat) {
+  const a = D.deciles_spike.filter(r => r.feature === feat).sort((x, y) => x.q - y.q);
+  const b = D.deciles_random.filter(r => r.feature === feat).sort((x, y) => x.q - y.q);
+  const fmtX = v => Math.abs(v) < 1 && feat !== "vol_mult" && feat !== "btc_vol_mult" ? (v * 100).toFixed(1) + "%" : v.toFixed(1);
+  lineChart(p, { hgt: 190, yFmt: v => bp(v), xFmt: q => "decile " + (q + 1) + (a[q] ? ` (≈ ${fmtX(a[q].x)})` : ""), xTicks: [0, 9],
+    series: [{ name: "spike", color: "var(--s1)", x: a.map(r => r.q), y: a.map(r => r.f4h) }, { name: "random", color: "var(--muted)", x: b.map(r => r.q), y: b.map(r => r.f4h) }] });
+}
+function depthChart(p) {
+  const labels = [...new Set(D.depth.map(r => r.b))];
+  const order = ["< -20%", "-20..-15", "-15..-10", "-10..-8", "-8..-5", "-5..-3", "-3..-1", "-1..+1", "+1..+3", "+3..+5", "+5..+10", "+10..+15", "> +15%"].filter(l => labels.includes(l));
+  const get = (b, fl, per) => (D.depth.find(r => r.b === b && r.flush === fl && r.period === per) || {});
+  const ser = [[true, "2020-24", "BTC flush, 2020–24", "var(--s1)"], [false, "2020-24", "BTC calm, 2020–24", "var(--s3)"], [true, "2025-26", "BTC flush, 2025–26", "var(--s2)"], [false, "2025-26", "BTC calm, 2025–26", "var(--s4)"]];
+  barChart(p, { cats: order, rotate: true, hgt: 300, signColor: false, series: ser.map(([fl, per, name, color]) => ({ name, color, vals: order.map(b => { const r = get(b, fl, per); return r.n >= 30 ? r.mean_bp : null; }) })),
+    tipExtra: (i, k) => `${num(get(order[i], ser[k][0], ser[k][1]).n)} spikes (buckets under 30 hidden)` });
+}
+function modelChart(p, rowsData, qKey, sKey) {
+  const qs = [...new Set(rowsData.map(r => r[qKey]))].sort();
+  const sp = [["train", "2020–23", "var(--s1)"], ["valid", "2024", "var(--s3)"], ["test", "2025–26", "var(--s2)"]];
+  barChart(p, { cats: qs.map(q => "top " + (100 - q * 100).toFixed(1).replace(/\.0$/, "") + "%"), hgt: 230, signColor: false,
+    series: sp.map(([k, n, c]) => ({ name: n, color: c, vals: qs.map(q => (rowsData.find(r => r[qKey] === q && r[sKey] === k) || {}).mean_bp) })),
+    tipExtra: (i, k) => { const r = rowsData.find(x => x[qKey] === qs[i] && x[sKey] === sp[k][0]) || {}; return `${num(r.trades)} trades · ${num(r.days)} days` + (r.mean_bp_ex1010 != null ? `<br>without 2025-10-10: ${bp(r.mean_bp_ex1010)}` : ""); } });
+}
+
+/* ===================== render ===================== */
+const host = $("#methods"), nav = $("#navlist");
+for (const m of window.METHODS) {
+  const sec = h("section", { class: "method", id: m.id });
+  sec.appendChild(h("div", { class: "head" }, `<h2>${m.title}</h2><span class="chip ${m.chip}">${m.verdict}</span>`));
+  const main = h("div"); sec.appendChild(main); host.appendChild(sec);
+  nav.appendChild(h("a", { href: "#" + m.id }, `<span>${m.title}</span><span class="chip ${m.chip}" title="${m.verdict}" style="padding:3px 5px"></span>`));
+  const api = {
+    main,
+    body: html => main.appendChild(h("div", { class: "prose" }, html)),
+    grid: (n = 2) => { const g = h("div", { class: n === 3 ? "grid3" : "grid2" }); g.style.margin = "14px 0"; main.appendChild(g); return g; },
+    facts: fs => main.appendChild(h("div", { class: "facts" }, fs.map(([b, s]) => `<div class="fact"><b>${b}</b><span>${s}</span></div>`).join(""))),
+    verdict: (html, next) => main.appendChild(h("div", { class: "verdict" }, `<span class="eyebrow">Verdict</span><br>${html}${next ? `<span class="next">${next}</span>` : ""}`)),
+  };
+  try { m.build(api); } catch (err) { main.appendChild(h("p", { class: "note" }, "This section failed to render: " + err.message)); console.error(err); }
+}
+
+for (const draw of QUEUE.splice(0)) draw();
+
+/* ===================== scoreboard ===================== */
+const SCORE = [["rule2019", "m-2019", "2019 rule (+1% / −5%)"], ["random", "m-raw", "Random candle, 1h"], ["all_spikes", "m-raw", "Every spike, 1h"],
+  ["pump_long", "m-context", "Buy spike after a pump, 4h"], ["crash_alone", "m-capit", "Coin crash, BTC calm, 1h"], ["F1", "m-final", "F1 flush bounce"],
+  ["F2", "m-final", "F2 deep liquid flush"], ["F3", "m-final", "F3 deep crash, 4h"], ["majors_flush", "m-majors", "Majors in a flush"],
+  ["breakout", "m-trend", "Breakout, 24h"], ["pullback", "m-trend", "Uptrend pullback, 24h"], ["pump_short", "m-pump", "Short the pump (hypothetical)"],
+  ["gbm_top", "m-gbm", "Boosted trees, top 0.5%"], ["cnn_top", "m-cnn", "CNN (coin + BTC), top 0.5%"]].filter(([m]) => D.summary.some(r => r.method === m));
+function drawScore(measure) {
+  const t = $("#score");
+  const head = `<thead><tr><th>Method</th>${YEARS.map(y => `<th>${y}${y === 2024 ? " ·v" : y >= 2025 ? " ·t" : ""}</th>`).join("")}<th>Trades</th></tr></thead>`;
+  const body = SCORE.map(([m, sec, label]) => {
+    const ys = yearly(m), total = ys.reduce((a, r) => a + (r ? r.trades : 0), 0);
+    return `<tr class="link" data-sec="${sec}"><td>${label}</td>${ys.map((r, i) => r ? `<td class="heat" style="background:${heatColor(r[measure], 300)}" data-tip="${YEARS[i]} · ${label}<br>${num(r.trades)} trades on ${num(r.days)} days<br>${pct(r.win)} of trades won · ${pct(r.win_days)} of days positive">${bp(r[measure])}</td>` : "<td>–</td>").join("")}<td>${num(total)}</td></tr>`;
+  }).join("");
+  t.innerHTML = head + "<tbody>" + body + "</tbody>";
+}
+drawScore("mean_bp");
+$("#score").addEventListener("pointermove", e => { const c = e.target.closest("td[data-tip]"); c ? showTip(e, c.dataset.tip) : hideTip(); });
+$("#score").addEventListener("pointerleave", hideTip);
+$("#score").addEventListener("click", e => { const r = e.target.closest("tr[data-sec]"); if (r) document.getElementById(r.dataset.sec)?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" }); });
+for (const [id, mm] of [["m-trade", "mean_bp"], ["m-day", "day_bp"]]) $("#" + id).addEventListener("click", () => {
+  for (const b of document.querySelectorAll("#m-trade,#m-day")) b.setAttribute("aria-pressed", String(b.id === id)); drawScore(mm); });
+
+$("#evolve-body").innerHTML = window.EVOLVE || "";
+</script>
