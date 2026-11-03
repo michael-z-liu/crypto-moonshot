@@ -265,6 +265,11 @@ approach, expanding its dimensions toward a more robust strategy.
   User idea added (01:05Z): a forecasting CNN that predicts the 8h path (10/50/90% quantiles) and
   lets the forecast set the trade (enter, target, stop, hold): variants `path`, `path_all`, then
   forecast-driven policies in M10.
+- 01:13Z M10 metric fixed before any rule is evaluated: rules change trade counts and sizing, so
+  they are ranked by the mean yearly return (5-slot portfolio, 0.3% cost) over 2022-2024, among
+  rules whose worst 2022-24 year has a max drawdown no worse than -25%; 2025-26 reported only.
+  `m13_policy.py` reproduces m12's portfolio numbers exactly for the default rule (checked on
+  `base`: +334/+170/+57/+67/+53 bp per trade in 2022..2026 at the top 2%).
 
 ## Decisions
 
