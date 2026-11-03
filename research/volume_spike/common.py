@@ -52,7 +52,15 @@ def all_symbols() -> list[str]:
 
 
 def archive_groups() -> dict[str, list[str]]:
-    """Group A (delisted) and B (listed outside the pool) from fetch_archive.py."""
+    """Group A (delisted) and B (listed outside the pool), as fetched by fetch_archive.py.
+
+    Read from the data folder's `delisted.txt` / `outside_pool.txt` when present (written next to
+    `top200.txt` when the archive is imported there), else from results/archive_groups.json.
+    """
+    a, b = DATA_DIR / "delisted.txt", DATA_DIR / "outside_pool.txt"
+    if a.exists() and b.exists():
+        return {"A_delisted": sorted(a.read_text().split()),
+                "B_listed_outside_pool": sorted(b.read_text().split())}  # fmt: skip
     path = HERE / "results" / "archive_groups.json"
     if not path.exists():
         return {"A_delisted": [], "B_listed_outside_pool": []}
@@ -60,15 +68,23 @@ def archive_groups() -> dict[str, list[str]]:
     return {k: sorted(g[k]) for k in ("A_delisted", "B_listed_outside_pool")}
 
 
+def stored(symbol: str) -> bool:
+    return (KLINES_5M / f"symbol={symbol}").exists() or (ARCHIVE_5M / f"symbol={symbol}").exists()
+
+
 def universe() -> list[str]:
-    """Tradable crypto symbols: everything stored except pegged assets and tokenised stocks."""
-    pool = [s for s in all_symbols() if s not in PEGGED and s not in STOCKS]
+    """Tradable crypto symbols, minus pegged assets and tokenised stocks.
+
+    "pool" is the coins in the data folder's `top200.txt` (today's top ~200), so importing
+    archive coins into the same folder does not change it.
+    """
+    listed = (DATA_DIR / "top200.txt").read_text().split()
+    pool = sorted(s for s in listed if s not in PEGGED and s not in STOCKS and stored(s))
     if UNIVERSE == "pool":
         return pool
     g = archive_groups()
     extra = g["A_delisted"] + (g["B_listed_outside_pool"] if UNIVERSE == "all" else [])
-    have = {p.name.removeprefix("symbol=") for p in ARCHIVE_5M.glob("symbol=*")}
-    return sorted(pool + [s for s in extra if s in have])
+    return sorted(pool + [s for s in extra if stored(s)])
 
 
 DATA_END = datetime(2026, 10, 25, tzinfo=UTC)
@@ -83,8 +99,8 @@ def load(symbol: str) -> pl.DataFrame:
     at the last close follow, with zero volume: a position open at that moment exits at the last
     traded price instead of being dropped.
     """
-    main = KLINES_5M / f"symbol={symbol}"
-    src = main if main.exists() else ARCHIVE_5M / f"symbol={symbol}"
+    arch = ARCHIVE_5M / f"symbol={symbol}"  # a fresh fetch wins over a (maybe partial) import
+    src = arch if arch.exists() else KLINES_5M / f"symbol={symbol}"
     df = pl.read_parquet(src / "*.parquet").sort("open_time")
     if UNIVERSE == "pool":
         return df

@@ -187,5 +187,40 @@ def fetch() -> None:
     print("finished:", done, "months,", len(bad), "problems", flush=True)
 
 
+def publish() -> None:
+    """Import the fetched store into the main data folder, so any session can reuse it.
+
+    Uses the repo's own `moonshot data import` (validates every month file, never overwrites
+    stored candles), then writes the group lists next to `top200.txt`.
+    """
+    import subprocess
+
+    cmd = [
+        "uv",
+        "run",
+        "moonshot",
+        "data",
+        "import",
+        str(ARCHIVE),
+        "--data-dir",
+        str(DATA_DIR),
+        "--json",
+    ]
+    out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+    (RESULTS / "archive_import_report.json").write_text(out.strip() + "\n")
+    g = json.loads(GROUPS.read_text())
+    have = {
+        p.name.removeprefix("symbol=")
+        for p in (DATA_DIR / "klines/spot/interval=5m").glob("symbol=*")
+    }
+    for name, key in (
+        ("delisted.txt", "A_delisted"),
+        ("outside_pool.txt", "B_listed_outside_pool"),
+    ):
+        syms = sorted(s for s in g[key] if s in have)
+        (DATA_DIR / name).write_text("\n".join(syms) + "\n")
+        print(name, len(syms), "symbols")
+
+
 if __name__ == "__main__":
-    {"groups": groups, "fetch": fetch}[sys.argv[1]]()
+    {"groups": groups, "fetch": fetch, "publish": publish}[sys.argv[1]]()
