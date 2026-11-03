@@ -36,3 +36,8 @@ htmlcov/
 # Claude Code local settings
 .claude/settings.local.json
 .claude/worktrees/
+
+# Research caches
+/research/**/cache/
+/research/**/report/index.html
+/research/**/report/data.json

@@ -32,6 +32,22 @@ gitignored and never committed.
 - The folder names are Hive-style, so readers that support Hive partitioning (polars, DuckDB)
   expose `interval` and `symbol` as string columns.
 
+### Symbol lists and delisted coins
+
+A data root may hold plain-text symbol lists (one symbol per line) next to `klines/`:
+
+- `top200.txt`: the pairs fetched with `moonshot data sync` (today's top USDT pairs by volume).
+- `delisted.txt`: USDT pairs Binance has delisted (status `BREAK`), e.g. `MATICUSDT`, `WAVESUSDT`.
+- `outside_pool.txt`: USDT pairs still listed but not in `top200.txt`, including coins that
+  collapsed and still trade (`LUNAUSDT` from 2020-08, `FTTUSDT`).
+
+`moonshot data sync` cannot fetch delisted pairs (the live API has no history for them). The
+second and third lists come from Binance's public archive, data.binance.vision, via
+`research/volume_spike/fetch_archive.py` (`groups`, then `fetch`, then `publish`, which runs
+`moonshot data import` into the data root and writes the lists). They hold 5m candles from 2020-01
+to 2026-10, stored in the same format as everything else. A delisted series simply ends at the
+delisting; the archive has its own gaps (`moonshot data status` shows them).
+
 ## Candle columns (schema v1)
 
 | Column                   | Type                       | Meaning                                                  |
