@@ -319,6 +319,7 @@ def run(name: str, data: Data) -> None:
     uni = data.crash if cfg.universe == "crash" else np.ones(n, dtype=bool)
     pct = np.full(n, np.nan, dtype=np.float32)
     raw = np.full(n, np.nan, dtype=np.float32)
+    pct_seed = np.full((cfg.seeds, n), np.nan, dtype=np.float32)
     path = (
         np.full((n, len(PATH_STEPS), len(QUANTILES)), np.nan, dtype=np.float16)
         if cfg.target == "path"
@@ -349,8 +350,15 @@ def run(name: str, data: Data) -> None:
             s_test, s_ref = o_test[:, 0], o_ref[:, 0]
         raw[test] = s_test
         pct[test] = np.searchsorted(np.sort(s_ref), s_test) / len(s_ref)
+        for j, (ot, orf) in enumerate(zip(outs_test, outs_ref, strict=True)):
+            if cfg.target == "path":
+                ot, orf = (
+                    ot.reshape(len(test), -1, 3)[:, 3, 1:2],
+                    orf.reshape(len(ref), -1, 3)[:, 3, 1:2],
+                )
+            pct_seed[j, test] = np.searchsorted(np.sort(orf[:, 0]), ot[:, 0]) / len(orf)
         print(f"{name} {year}: {len(test)} scored, {time.time() - t_start:.0f}s", flush=True)
-    out = {"pct": pct, "raw": raw}
+    out = {"pct": pct, "raw": raw, "pct_seed": pct_seed}
     if path is not None:
         out["path"] = path
     np.savez(WF / f"{name}.npz", **out)

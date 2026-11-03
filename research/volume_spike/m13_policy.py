@@ -100,15 +100,16 @@ def book(sig: pl.DataFrame, slots: int, day_cap: int | None, cooldown_h: int) ->
         open_pos.append((exit_t, sym, stake, r["ret"]))
         last_exit[sym] = exit_t
         per_day[day] = per_day.get(day, 0) + 1
-        rows.append((exit_t.date(), stake * r["ret"], r["ret"]))
+        rows.append((exit_t.date(), stake * r["ret"], r["ret"], sym))
     if not rows:
-        return {"trades": 0, "mean_bp": np.nan, "cagr": 0.0, "max_dd": 0.0, "win": np.nan}
-    t = pl.DataFrame(rows, schema=["d", "pnl", "ret"], orient="row")
+        return {"trades": 0, "mean_bp": np.nan, "cagr": 0.0, "max_dd": 0.0, "_rows": []}
+    t = pl.DataFrame(rows, schema=["d", "pnl", "ret", "symbol"], orient="row")
     daily = t.group_by("d").agg(pl.col("pnl").sum()).sort("d")
     eq = 1 + np.cumsum(daily["pnl"].to_numpy())
     peak = np.maximum.accumulate(np.concatenate([[1.0], eq]))[1:]
+    dd = float(min(0.0, (eq / peak - 1).min()))
     return {"trades": t.height, "mean_bp": t["ret"].mean() * 1e4, "win": (t["ret"] > 0).mean(),
-            "cagr": eq[-1] - 1, "max_dd": float(min(0.0, (eq / peak - 1).min()))}  # fmt: skip
+            "cagr": eq[-1] - 1, "max_dd": dd, "_rows": rows}  # fmt: skip
 
 
 class Ctx:
@@ -125,11 +126,13 @@ class Ctx:
             ((m["btc_vol_mult"] >= 4) | (m["btc_ret_4h"] <= -0.01)).fill_null(False).to_numpy()
         )
         self.years = m["year"].to_numpy()
+        self.cost = COST
+        self.exclude = np.zeros(m.height, dtype=bool)
 
     def evaluate(self, rule: Rule) -> list[dict[str, object]]:
         out = []
         for year in YEARS:
-            m = (self.years == year) & (self.pct >= rule.q)
+            m = (self.years == year) & (self.pct >= rule.q) & ~self.exclude
             if rule.gate == "flush":
                 m &= self.flush
             k = np.flatnonzero(m)
@@ -163,11 +166,18 @@ class Ctx:
                     sl = np.maximum(trough, 0.02)
             if len(k) == 0:
                 out.append(
-                    {"year": year, "trades": 0, "mean_bp": np.nan, "cagr": 0.0, "max_dd": 0.0}
+                    {
+                        "year": year,
+                        "trades": 0,
+                        "mean_bp": np.nan,
+                        "cagr": 0.0,
+                        "max_dd": 0.0,
+                        "_rows": [],
+                    }
                 )
                 continue
             fwd = np.asarray(self.fwd[k], dtype=np.float32)
-            ret, t_exit = exits(fwd, tp, sl, bars.astype(int), COST)
+            ret, t_exit = exits(fwd, tp, sl, bars.astype(int), self.cost)
             size = np.ones(len(k))
             if rule.sizing == "score":
                 size = np.clip((self.pct[k] - rule.q) / (1 - rule.q), 0.25, 1.0) * 1.6
