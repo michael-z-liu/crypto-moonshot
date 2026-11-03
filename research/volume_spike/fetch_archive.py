@@ -207,7 +207,10 @@ def publish() -> None:
         "--json",
     ]
     out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
-    (RESULTS / "archive_import_report.json").write_text(out.strip() + "\n")
+    (ARCHIVE.parent / "archive_import_report.json").write_text(out.strip() + "\n")  # large
+    report = json.loads(out)
+    summary = {"destination": report["destination"], "totals": report["totals"]}
+    (RESULTS / "archive_import_summary.json").write_text(json.dumps(summary, indent=1) + "\n")
     g = json.loads(GROUPS.read_text())
     have = {
         p.name.removeprefix("symbol=")
