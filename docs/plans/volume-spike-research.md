@@ -113,6 +113,20 @@ hand-made features?
 - **Done when:** the table is committed and the write-up says whether the CNN adds an edge.
 - **Worker:** master
 
+### M8: Visual report of every method (pending)
+
+Added 2026-11-03 at the user's request: after M7, one report with plots, diagrams and the real
+data for every method tried (including the ones that failed), to check the work and to evolve the
+idea from.
+
+- **Delivers:** `report_data.py` (recomputes every method per year on the same basis and exports
+  the chart data as JSON) and an HTML report published as a private claude.ai artifact (source in
+  `research/volume_spike/report/`): per method, a diagram of the rule, charts from the data, and
+  a verdict.
+- **Done when:** the report is published, linked from `docs/research/volume-spike.md`, and the
+  PR is updated.
+- **Worker:** master
+
 ## Research log
 
 <!-- Append one dated line per finding or dead end, so a resumed session knows what was tried. -->
