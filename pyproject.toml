@@ -34,6 +34,7 @@ research = [
     "matplotlib>=3.11.2",
     "numpy>=2.5.4",
     "scikit-learn>=1.9.1",
+    "torch>=2.15.0",
 ]
 
 [tool.uv]
