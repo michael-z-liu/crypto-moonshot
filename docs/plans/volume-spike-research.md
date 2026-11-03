@@ -258,6 +258,13 @@ approach, expanding its dimensions toward a more robust strategy.
   published privately at https://claude.ai/artifact/RpfQqzAyte82MWYGXm7Yn5. Shape charts leave out
   2025-10-10 and clip paths at +-20% (that day's wicks put the 2025-26 flush average at +550 bp).
   Post-hoc rule check (`m11_cnn.py rules`): deep-flush thresholds don't reproduce the CNN.
+- 01:11Z M9 AMENDMENT before screening (only `base` run, only its trade counts looked at): top
+  0.5% of liquid-spike training scores gives just 12-41 portfolio trades a year (M7 ranked against
+  all spikes, so its 0.5% was looser). Primary threshold is now the top 2% (81-233 trades a year in
+  `base`); top 1% and 3% are reported alongside. The selection rule is otherwise unchanged.
+  User idea added (01:05Z): a forecasting CNN that predicts the 8h path (10/50/90% quantiles) and
+  lets the forecast set the trade (enter, target, stop, hold): variants `path`, `path_all`, then
+  forecast-driven policies in M10.
 
 ## Decisions
 
