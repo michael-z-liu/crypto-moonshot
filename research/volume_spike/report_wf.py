@@ -6,6 +6,7 @@ uv run python research/volume_spike/report_wf.py   # after report_data.py and m1
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -95,9 +96,77 @@ def main() -> None:
         {"rule": n, "yearly": yearly(ctx.evaluate(r))} for n, r in FORECAST_RULES.items()
     ]
     data["wf"] = wf
+    data["surv"] = survivorship()
     OUT.write_text(json.dumps(data, default=str, separators=(",", ":")))
     print(OUT, OUT.stat().st_size // 1024, "KB")
     build_html()
+
+
+def survivorship() -> dict[str, Any]:
+    """M13: the main strategies on the pool, pool + delisted, and every archived USDT pair."""
+    from common import DATA_DIR, archive_groups
+
+    out: dict[str, Any] = {}
+    g = archive_groups()
+    root = DATA_DIR / "klines" / "spot" / "interval=5m"
+    pool = (DATA_DIR / "top200.txt").read_text().split()
+    counts: dict[str, dict[str, int]] = {}
+    for name, syms in (("pool", pool), ("A delisted", g["A_delisted"]),
+                       ("B outside pool", g["B_listed_outside_pool"])):  # fmt: skip
+        c: dict[str, int] = {}
+        for s in syms:
+            for f in (root / f"symbol={s}").glob("20*.parquet"):
+                c[f.stem] = c.get(f.stem, 0) + 1
+        counts[name] = dict(sorted(c.items()))
+    out["coins_by_month"] = counts
+    here = Path(__file__).resolve().parent / "results"
+    folders = {"pool": here, "poolA": here / "universe_poolA", "all": here / "universe_all"}
+    fin, wf, m16 = [], [], []
+    for u, folder in folders.items():
+        if (folder / "m6_test.csv").exists():
+            fin += [{"universe": u, **r} for r in rows(pl.read_csv(folder / "m6_test.csv"))]
+        if (folder / "m7_walkforward_t_30.csv").exists():
+            wf += [
+                {"universe": u, **r} for r in rows(pl.read_csv(folder / "m7_walkforward_t_30.csv"))
+            ]
+        if (folder / "m16_rows.csv").exists():
+            m16 += rows(pl.read_csv(folder / "m16_rows.csv"))
+    out["finalists"], out["walkforward"], out["strategies"] = fin, wf, m16
+    out["examples"] = luna_examples(folders["all"])
+    return out
+
+
+def luna_examples(folder: Path) -> list[dict[str, Any]]:
+    """Candles around two real LUNA trades in May 2022 (full universe): F2's best and F3's worst."""
+    from datetime import timedelta
+
+    from common import load
+
+    picks = []
+    for f, best in (("F2", True), ("F3", False)):
+        path = folder / f"trades_{f}.csv"
+        if not path.exists():
+            continue
+        t = pl.read_csv(path).filter(pl.col("symbol") == "LUNAUSDT").sort("ret", descending=best)
+        if t.height:
+            picks.append((f, t.row(0, named=True)))
+    raw = load("LUNAUSDT")
+    out = []
+    for f, r in picks:
+        entry = pl.Series([r["entry_time"]]).str.to_datetime(time_zone="UTC")[0]
+        spike = entry - timedelta(minutes=5)
+        w = raw.filter((pl.col("open_time") > spike - timedelta(minutes=5 * 96))
+                       & (pl.col("open_time") <= spike + timedelta(minutes=5 * 48)))  # fmt: skip
+        hold = 12 if f == "F2" else 48
+        out.append({
+            "title": f"{f} on LUNA, {spike:%Y-%m-%d %H:%M} UTC: {r['ret']:+.1%}",
+            "symbol": "LUNAUSDT",
+            "time": spike.isoformat(), "ret_bp": r["ret"] * 1e4, "hold": hold,
+            "t": [x.isoformat() for x in w["open_time"]],
+            **{c: w[c].to_list() for c in ("open", "high", "low", "close", "volume")},
+            "taker_buy": w["taker_buy_base_volume"].to_list(),
+        })  # fmt: skip
+    return out
 
 
 if __name__ == "__main__":
