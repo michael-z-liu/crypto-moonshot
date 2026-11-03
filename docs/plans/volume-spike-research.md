@@ -1,9 +1,9 @@
 # Volume-spike strategy research
 
-- **Status:** review <!-- building | blocked | review | done -->
+- **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
 - **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/8
-- **Updated:** 2026-11-02T12:50Z
+- **Updated:** 2026-11-03T00:16Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -85,6 +85,32 @@ checked out of sample. The output is research code plus a findings write-up, not
 - **Delivers:** `docs/research/volume-spike.md` with method, findings, honest caveats and next
   steps; PR opened.
 - **Done when:** check command passes and the PR is open.
+- **Worker:** master
+
+### M7: Convolutional network on raw candles (building)
+
+Added 2026-11-03 at the user's request: can a 1D CNN that sees the raw candle sequence before a
+spike (price, volume, taker-buy volume) tell good entries from bad ones better than the
+hand-made features?
+
+- **Delivers:** `m11_cnn.py` and `build_seq.py`, a results table and a write-up section.
+- **Protocol (fixed before training):**
+  - Candidates: every 5m spike (volume >= 10x), the same 1.97M events as M1-M6.
+  - Input: the last 96 candles (8 hours) up to and including the spike candle. Coin channels:
+    open/high/low/close as log ratio to the spike close, log volume relative to the previous
+    day's median volume, taker-buy share. Plus the coin's liquidity (log median USDT volume) as
+    a scalar. A second variant adds BTC's close and volume channels.
+  - Target: net 1h return (close of bar 12 after entry at the next open, minus 0.3%), clipped at
+    +-20%. Same target and hold as the gradient-boosting model in M3 (`m10_model.py`).
+  - Fit on 2020-2023; choose the variant, epochs and selection threshold on 2024 only; an
+    ensemble of 3 seeds. Then run the chosen setup once on 2025-01..2026-10.
+  - Report, per split: mean net bp per trade and per day (non-overlapping per symbol) at the
+    train-quantile thresholds 0.99 / 0.995 / 0.998 / 0.999, also excluding 2025-10-10, side by
+    side with the gradient-boosting model. And as an entry filter on top of F1: F1 trades with the
+    CNN score above vs. below its median.
+  - Caveat: the test period was already inspected for M5, so it is clean for this model's
+    fitting and choices but not a fully untouched period.
+- **Done when:** the table is committed and the write-up says whether the CNN adds an edge.
 - **Worker:** master
 
 ## Research log
