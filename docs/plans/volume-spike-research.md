@@ -324,6 +324,14 @@ to buy.
   Scope fixed before any result: pool+A gets the rule tests and the CNNs base/market/path_all;
   pool+A+B ("all") additionally gets the full 19-variant ensemble. Loader pads 300 flat candles at
   the last close after a series ends early or pauses >= 1 day (only in poolA/all runs).
+- 05:41Z M13 pool+A (`results/universe_poolA/`; 343 coins, 5.6M spikes vs 2.0M): F1 test +8 bp/trade
+  (pool -3), F2 +48 (pool +15), F3 (no BTC filter) -139 bp, CAGR -46%, DD -75% (pool +42): deep
+  crashes with calm BTC are where dead coins add losses; the BTC filter protects. Rule walk-forward
+  OOS 2022-26: +36 bp/day, CAGR +6%, DD -35% (pool: +87, +20%, -16%). Walk-forward CNNs, 5 slots,
+  1h (bp/trade 2022..2026): market +232/+303/+60/+53/+44 (all positive), base +191/+129/+62/+23/
+  +252, path_all +135/+316/+89/+104/-104. Delisted coins are 40-70% of CNN trades in 2022-23 and
+  profitable on average then. All 18,846 archive months imported into the main data folder (628
+  symbols) with lists delisted.txt / outside_pool.txt; documented in docs/data-format.md.
 
 ## Decisions
 
