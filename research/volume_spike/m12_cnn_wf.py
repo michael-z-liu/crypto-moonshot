@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import sys
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 
 import numpy as np
@@ -81,6 +81,20 @@ VARIANTS: dict[str, Cfg] = {
         note="path forecast, all channels",
     ),
 }
+# M9 finalists (top 4 by the selection rule on 2022-24) and combinations of the per-dimension
+# winners, all with 5 seeds. Defined after the screen; see the plan's research log.
+VARIANTS |= {
+    "crash5": replace(VARIANTS["crash"], seeds=5),
+    "t4h5": replace(VARIANTS["t4h"], seeds=5),
+    "huber5": replace(VARIANTS["huber"], seeds=5),
+    "path_all5": replace(VARIANTS["path_all"], seeds=5),
+    "combo_a": Cfg(universe="crash", target="y4h", loss="huber", seeds=5,
+                   note="crash context + 4h target + Huber"),
+    "combo_b": Cfg(seq=288, target="y4h", loss="huber", seeds=5,
+                   note="4h target + Huber + 24h window"),
+    "combo_c": Cfg(target="path", loss="quantile", channels=COIN + TRADES + BTC + ETH + MARKET,
+                   universe="crash", seeds=5, note="path forecast, all channels, crash context"),
+}  # fmt: skip
 
 
 # ----------------------------------------------------------------------------- models
