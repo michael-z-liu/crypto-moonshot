@@ -1,9 +1,9 @@
 # Volume-spike strategy research
 
-- **Status:** review <!-- building | blocked | review | done -->
+- **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
 - **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/8
-- **Updated:** 2026-11-03T04:23Z
+- **Updated:** 2026-11-03T04:50Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -171,6 +171,31 @@ approach, expanding its dimensions toward a more robust strategy.
 ### M12: Report (done)
 
 - A new casebook section and write-up for M9-M11; PR updated.
+- **Worker:** master
+
+### M13: Survivorship - add delisted and fallen coins (building)
+
+Added 2026-11-03 at the user's request ("Add delisted coins"). The data pool is today's top ~200
+USDT pairs, which leaves out every coin that died or shrank, the ones dip-buying rules most like
+to buy.
+
+- **Source:** Binance's public archive (data.binance.vision, monthly 5m zips, sha256-checked),
+  2020-01..2026-10, written with the repo's `KlineStore` into a separate store
+  (`research/volume_spike/cache/archive/`, gitignored; `moonshot data import` can merge it into
+  the main data folder). The research loader reads both stores.
+- **Group A, delisted (197):** USDT pairs in the archive with status BREAK, minus leveraged
+  tokens and pegged assets. Includes renames (MATIC, FTM, RNDR, EOS) whose old series are real.
+- **Group B, still listed but outside the pool (318):** includes the classic collapses that
+  still trade (LUNA, FTT, USTC) and every smaller coin. Same exclusions.
+- **Trades open at a delisting** close at the last traded price (the forward path is padded with
+  the last close instead of the event being dropped).
+- **Re-run unchanged (no re-tuning, no re-selection):** the event table; F1-F3 (5-slot
+  portfolio); the rule walk-forward (m7); the walk-forward CNNs `base`, `market`, `path_all`
+  and the 19-variant equal-weight ensemble with the default rule (top 2% / ensemble top 3%, 1h,
+  5 slots). Reported per year for: pool only (as before), pool + A, pool + A + B; plus the share
+  of trades and P&L from the added coins.
+- **Done when:** the comparison table is committed and the casebook and write-up say how much of
+  each edge survives.
 - **Worker:** master
 
 ## Research log
