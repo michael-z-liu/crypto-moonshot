@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
 - **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/8
-- **Updated:** 2026-11-03T01:00Z
+- **Updated:** 2026-11-03T04:18Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -155,20 +155,20 @@ approach, expanding its dimensions toward a more robust strategy.
 - **Done when:** the variant table is committed with yearly OOS results.
 - **Worker:** master
 
-### M10: Trading rules on top of the scores (pending)
+### M10: Trading rules on top of the scores (done)
 
 - On the chosen variant's walk-forward scores: threshold, slots, hold, exits (target / stop /
   trailing), score-weighted sizing, a BTC-flush gate, a per-day cap and cool-downs. Chosen on
   2022-2024 by the same rule; 2025-26 reported.
 - **Worker:** master
 
-### M11: Robustness of the final strategy (pending)
+### M11: Robustness of the final strategy (done)
 
 - Costs, latency, slot count, per-coin and per-day concentration, seed spread, a placebo that
   shuffles scores within each candle (does the ranking matter?), bootstrap confidence intervals.
 - **Worker:** master
 
-### M12: Report (pending)
+### M12: Report (building)
 
 - A new casebook section and write-up for M9-M11; PR updated.
 - **Worker:** master
@@ -270,6 +270,26 @@ approach, expanding its dimensions toward a more robust strategy.
   rules whose worst 2022-24 year has a max drawdown no worse than -25%; 2025-26 reported only.
   `m13_policy.py` reproduces m12's portfolio numbers exactly for the default rule (checked on
   `base`: +334/+170/+57/+67/+53 bp per trade in 2022..2026 at the top 2%).
+- 04:18Z M9/M10/M11 RESULTS. Finalists with 5 seeds (2022-24 / 2025-26 mean bp per trade, top 2%):
+  combo_c +491 / +324 (2025 -42, 2026 +690 on few trades), crash5 +488 / +68, combo_a +461 / -213,
+  t4h5 +316 / -91, combo_b +266 / -96, huber5 +187 / +52, path_all5 +169 / +136. The variants
+  that look best on 2022-24 (4h targets, crash-only training) fail in 2025-26. Across 27 variants
+  the rank correlation between 2022-24 and 2025-26 results is -0.06 (2024 alone: -0.43), so
+  choosing between variants on 2022-24 has no value. OFFICIAL PRE-REGISTERED PICK (best variant x
+  rule by 2022-24 yearly return, DD >= -25%): t4h5 + top 2%, hold 4h, 3 slots: +72%/yr 2022-24,
+  then 2025 -9%, 2026 -32% (-30 / -208 bp per trade, DD -39%). Rule tuning overfits too: for
+  every variant the 2022-24-best rule (longer holds, fewer slots) did worse in 2025-26 than the
+  default rule (top 2%, 1h, 5 slots). Forecast-driven rules (exit at forecast peak, target at
+  p90 peak, stop at p10 trough) on path_all5: +104%/yr in 2025-26, almost all in 2025, but fail
+  the 2022-24 drawdown limit (-26%); not chosen. Forecast quality (path_all5): the 10-90% band
+  holds 73-78% of outcomes (aim 80%), median-forecast correlation 0.30 at 15m, 0.23 at 4h, 0.21
+  at 8h; top forecast decile +2.1% forecast peak vs +0.4%/+0.7% realised at 1h/4h.
+  POST-HOC, NO-SELECTION ALTERNATIVE: an equal-weight ensemble of all 19 all-universe variants
+  (threshold only matched to base's 2022-24 trade count: top 3% of the averaged percentile),
+  default rule: +192/+171/+137/+68/+76 bp per trade 2022..2026, every year positive, worst DD
+  -13%; positive in all years at 0.6% cost, ~0 in 2025-26 at 1%; placebo -77 vs +138 bp;
+  bootstrap 95% CI +64..+221 bp; without the 5 best days still positive every year; one candle
+  late +64 bp (2025 +9). 30 random 10-member sub-ensembles: 2025-26 positive in 93% (median +60).
 
 ## Decisions
 

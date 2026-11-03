@@ -100,8 +100,8 @@ def main(variant: str, rule: Rule) -> None:
         print(df)
     print(f"placebo mean bp: {pm.mean():.0f} (range {pm.min():.0f}..{pm.max():.0f})")
     print(f"real {out[0]['mean_bp']:.0f}; bootstrap 95% CI of real: {lo:.0f}..{hi:.0f} bp")
-    (RESULTS / f"m14_robust_{variant}.json").write_text(json.dumps(
-        {"placebo": pm.tolist(), "ci": [lo, hi], "rule": rule.__dict__}, default=str))  # fmt: skip
+    info = {"placebo": pm.tolist(), "ci": [lo, hi], "rule": rule.__dict__}
+    (RESULTS / f"m14_robust_{variant}.json").write_text(json.dumps(info, default=str) + "\n")
 
 
 if __name__ == "__main__":
