@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
 - **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/8
-- **Updated:** 2026-11-03T00:58Z
+- **Updated:** 2026-11-03T01:10Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -87,7 +87,7 @@ checked out of sample. The output is research code plus a findings write-up, not
 - **Done when:** check command passes and the PR is open.
 - **Worker:** master
 
-### M7: Convolutional network on raw candles (building)
+### M7: Convolutional network on raw candles (done)
 
 Added 2026-11-03 at the user's request: can a 1D CNN that sees the raw candle sequence before a
 spike (price, volume, taker-buy volume) tell good entries from bad ones better than the
@@ -113,7 +113,7 @@ hand-made features?
 - **Done when:** the table is committed and the write-up says whether the CNN adds an edge.
 - **Worker:** master
 
-### M8: Visual report of every method (pending)
+### M8: Visual report of every method (building)
 
 Added 2026-11-03 at the user's request: after M7, one report with plots, diagrams and the real
 data for every method tried (including the ones that failed), to check the work and to evolve the
@@ -198,6 +198,15 @@ idea from.
   an F1 filter (enter +309 / skip +75 bp per trade). CHOSEN before the test: coin+BTC, threshold =
   best 2024 per-day result among thresholds with >= 20 signal days = top 0.5% (train quantile
   0.995). GBM on 2024 at the same threshold: +277 bp/trade, +79 bp/day.
+- 01:05Z M7 TEST (`m11_cnn.py report`, `results/m11_cnn_selection.csv`): chosen CNN (coin+BTC,
+  top 0.5%) on 2025-26, every trade one per coin: -110 bp/trade but +177 bp per signal day (60% of
+  101 days positive); without 2025-10-10 +64 bp/trade, +184 bp/day. GBM same threshold: -161 bp/trade,
+  +56 bp/day. As an F1 enter/skip filter the CNN FAILED in the test (enter -155, skip +36 bp/trade).
+- 01:08Z Post-hoc (`m11_cnn.py portfolio|stress`): in the 5-slot portfolio (highest score first)
+  the CNN makes +114 bp/trade in 2025-26 (CAGR +33%, max DD -11%; 2025 +120, 2026 +106) vs GBM
+  +10 bp (DD -26%) and F2 +15 bp (DD -22%). Holds without 2025-10-10 (+114), at 3/10 slots
+  (+127/+87), at 1% cost (+44) and one candle late (+79). Coin-only CNN (rejected on 2024) loses
+  (-21 bp, DD -40%): the BTC channels carry it. Its edge is in ranking signals within crash days.
 
 ## Decisions
 

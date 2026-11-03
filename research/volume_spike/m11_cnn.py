@@ -246,5 +246,90 @@ def report(splits: tuple[str, ...] = ("train", "valid", "test")) -> None:
         print(f1)
 
 
+def portfolio() -> None:
+    """Post-hoc (after the test): the chosen CNN, the GBM and F2 in the 5-slot portfolio sim."""
+    from portfolio import Exit, simulate
+
+    ev, fwd = load_events()
+    meta = pl.read_parquet(CACHE / "seq_meta.parquet")
+    rows_ = meta["event"].to_numpy()
+    tr = meta["split"].to_numpy() == "train"
+    out = []
+    picks: dict[str, np.ndarray] = {}
+    for name, file in (("cnn_coin_btc", "cnn_pred_coin_btc.npy"), ("gbm", "gbm_pred.npy")):
+        p = np.load(CACHE / file)
+        keep = p >= np.quantile(p[tr], 0.995)
+        picks[name] = rows_[keep]
+        ev_p = np.full(ev.height, np.nan)
+        ev_p[rows_] = p
+        ev = ev.with_columns(pl.Series(f"neg_{name}", -ev_p))
+    f2 = (
+        pl.col("is_spike") & (pl.col("ret_4h") <= -0.10) & (pl.col("qv_base") >= 20_000)
+        & (pl.col("btc_vol_mult") >= 6)
+    )  # fmt: skip
+    picks["F2 rule"] = np.flatnonzero(ev.select(f2.fill_null(False).alias("m"))["m"].to_numpy())
+    for name, idx in picks.items():
+        idx = np.sort(idx)
+        prio = f"neg_{name}" if name != "F2 rule" else "ret_4h"
+        for s in ("train", "valid", "test"):
+            k = idx[(ev["split"].to_numpy()[idx] == s)]
+            res = simulate(ev[k], np.asarray(fwd[k]), Exit(bars=HOLD), slots=5, priority=prio)
+            st = res.stats()
+            yearly = res.trades.group_by(pl.col("entry_time").dt.year().alias("y")).agg(
+                (pl.col("ret").mean() * 1e4).alias("bp")
+            )  # fmt: skip
+            by_year = "; ".join(
+                f"{r['y']}: {r['bp']:+.0f}" for r in yearly.sort("y").iter_rows(named=True)
+            )
+            out.append({"model": name, "split": s, **st, "by_year": by_year})
+    df = pl.DataFrame(out)
+    df.write_csv(RESULTS / "m11_cnn_portfolio.csv")
+    with pl.Config(
+        tbl_rows=20, tbl_cols=14, tbl_width_chars=260, float_precision=2, fmt_str_lengths=60
+    ):
+        print(df.drop("sharpe", "days_in_market"))
+
+
+def stress() -> None:
+    """Post-hoc stress tests of the chosen CNN portfolio on the test period."""
+    from portfolio import Exit, simulate
+
+    ev, fwd = load_events()
+    meta = pl.read_parquet(CACHE / "seq_meta.parquet")
+    rows_ = meta["event"].to_numpy()
+    tr = meta["split"].to_numpy() == "train"
+    out = []
+    for variant in ("coin_btc", "coin"):
+        p = np.load(CACHE / f"cnn_pred_{variant}.npy")
+        ev_p = np.full(ev.height, np.nan)
+        ev_p[rows_] = p
+        e2 = ev.with_columns(neg=pl.Series(-ev_p))
+        idx = np.sort(rows_[p >= np.quantile(p[tr], 0.995)])
+        test = idx[e2["split"].to_numpy()[idx] == "test"]
+        day = e2["open_time"].dt.date().to_numpy()[test]
+        f = np.asarray(fwd[test])
+        late = (1 + f[:, :, 1:]) / (1 + f[:, 2:3, :1]) - 1  # enter at the next candle's close
+        calm = day != CASCADE
+        cases = {
+            "base (5 slots, 0.3%)": (test, f, 5, 0.003),
+            "without 2025-10-10": (test[calm], f[calm], 5, 0.003),
+            "3 slots": (test, f, 3, 0.003),
+            "10 slots": (test, f, 10, 0.003),
+            "cost 0.6%": (test, f, 5, 0.006),
+            "cost 1.0%": (test, f, 5, 0.010),
+            "enter one candle late": (test, late, 5, 0.003),
+        }  # fmt: skip
+        if variant == "coin":
+            cases = {"base (5 slots, 0.3%)": cases["base (5 slots, 0.3%)"]}
+        for case, (k, fw, slots, cost) in cases.items():
+            res = simulate(e2[k], fw, Exit(bars=HOLD), slots=slots, cost=cost, priority="neg")
+            st = res.stats()
+            out.append({"variant": variant, "case": case, **st})
+    df = pl.DataFrame(out).drop("sharpe", "days_in_market")
+    df.write_csv(RESULTS / "m11_cnn_stress.csv")
+    with pl.Config(tbl_rows=20, tbl_cols=12, tbl_width_chars=220, float_precision=2):
+        print(df)
+
+
 if __name__ == "__main__":
-    {"train": train, "report": report}[sys.argv[1]]()
+    {"train": train, "report": report, "portfolio": portfolio, "stress": stress}[sys.argv[1]]()
