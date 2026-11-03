@@ -1,9 +1,9 @@
 # Volume-spike strategy research
 
-- **Status:** review <!-- building | blocked | review | done -->
+- **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
 - **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/8
-- **Updated:** 2026-11-03T00:45Z
+- **Updated:** 2026-11-03T01:00Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -125,6 +125,52 @@ idea from.
   a verdict.
 - **Done when:** the report is published, linked from `docs/research/volume-spike.md`, and the
   PR is updated.
+- **Worker:** master
+
+### M9: Walk-forward CNN study (building)
+
+Added 2026-11-03 at the user's request: a much more thorough, creative investigation of the CNN
+approach, expanding its dimensions toward a more robust strategy.
+
+- **Why walk-forward:** M7 rests on one 22-month test that has now been looked at. Retraining each
+  year on all earlier data gives five out-of-sample years (2022-2026) per variant instead of one.
+- **Candidates:** spikes (>= 10x) on liquid coins (median >= 5k USDT per 5m candle), 632k events.
+- **Dataset (`build_seq2.py`):** 288 candles (24h) up to the spike candle; channels: coin OHLC,
+  volume, taker share, trade count; BTC close and volume; ETH close and volume; market breadth
+  (equal-weight universe return) and market spike share (share of coins with volume >= 5x);
+  scalars: liquidity, coin age, hour of day. Forward returns at 15m/30m/1h/2h/4h.
+- **Folds (`m12_cnn_wf.py`):** for each test year Y in 2022..2026: train on 2020-01 .. Y-1 Jul,
+  early-stop on Y-1 Jul .. Y-1 Dec, predict Y. Scores are turned into percentiles of the fold's
+  own training scores, so thresholds never use future data.
+- **Variants screened (2 seeds each):** window length (2h / 8h / 24h), channel sets (coin, +BTC,
+  +ETH, +market breadth, all), target horizon (30m / 1h / 4h, multi-horizon), loss (MSE, Huber,
+  classification, within-bar cross-sectional rank target), architecture (M7 CNN, dilated TCN,
+  CNN+GRU, MLP on the raw grid, boosted trees on the raw grid), training universe (all liquid
+  spikes vs. crash context only).
+- **Selection rule (fixed now):** a variant is judged on the 5-slot portfolio (top 0.5% by
+  percentile, highest first, hold = its target horizon, 0.3% cost) over the walk-forward years
+  **2022-2024 only**: mean of the three yearly net bp per trade, with the worst year as the
+  tie-breaker. 2025-26 is reported for every variant, but is never used to choose. The finalists
+  get 5 seeds.
+- **Done when:** the variant table is committed with yearly OOS results.
+- **Worker:** master
+
+### M10: Trading rules on top of the scores (pending)
+
+- On the chosen variant's walk-forward scores: threshold, slots, hold, exits (target / stop /
+  trailing), score-weighted sizing, a BTC-flush gate, a per-day cap and cool-downs. Chosen on
+  2022-2024 by the same rule; 2025-26 reported.
+- **Worker:** master
+
+### M11: Robustness of the final strategy (pending)
+
+- Costs, latency, slot count, per-coin and per-day concentration, seed spread, a placebo that
+  shuffles scores within each candle (does the ranking matter?), bootstrap confidence intervals.
+- **Worker:** master
+
+### M12: Report (pending)
+
+- A new casebook section and write-up for M9-M11; PR updated.
 - **Worker:** master
 
 ## Research log
