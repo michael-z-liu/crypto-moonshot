@@ -442,10 +442,48 @@ def evaluate() -> None:
         print(df.select(cols))
 
 
+def ensemble() -> None:
+    """Post-hoc, no selection: average the percentiles of every all-universe screened variant.
+
+    The threshold is only matched to `base`'s 2022-24 trade count at the default rule. Also tests
+    30 random 10-member sub-ensembles. Writes cache/wf/ens_all.npz and results/m12_ensemble*.csv.
+    """
+    names = [n for n, c in VARIANTS.items() if c.universe == "all" and c.seeds == 2]
+    pcts = np.stack([np.load(WF / f"{n}.npz")["pct"] for n in names])
+    ens = np.nanmean(pcts, 0)
+    data = Data()
+    base = np.nan_to_num(np.load(WF / "base.npz")["pct"], nan=-1)
+    target = sum(r["trades"] or 0 for r in portfolio_years(data, base, 12, q=Q_MAIN)[:3])
+    counts = {}
+    for q in np.round(np.arange(0.90, 0.995, 0.005), 3):
+        yrs = portfolio_years(data, np.nan_to_num(ens, nan=-1), 12, q=float(q))
+        counts[float(q)] = sum(r["trades"] or 0 for r in yrs[:3])
+    q_ens = min(counts, key=lambda q: abs(counts[q] - target))
+    np.savez(
+        WF / "ens_all.npz", pct=ens.astype(np.float32), q=np.float32(q_ens), members=np.array(names)
+    )
+    full = portfolio_years(data, np.nan_to_num(ens, nan=-1), 12, q=q_ens)
+    pl.DataFrame(full).with_columns(q=pl.lit(q_ens)).write_csv(RESULTS / "m12_ensemble.csv")
+    rng = np.random.default_rng(7)
+    rows = []
+    for _ in range(30):
+        pick = rng.choice(len(names), 10, replace=False)
+        sub = np.nan_to_num(np.nanmean(pcts[pick], 0), nan=-1)
+        r = portfolio_years(data, sub, 12, q=0.97)
+        rows.append({"members": ",".join(names[j] for j in sorted(pick)),
+                     **{f"bp_{x['year']}": x["mean_bp"] for x in r},
+                     **{f"n_{x['year']}": x["trades"] for x in r}})  # fmt: skip
+    pl.DataFrame(rows).write_csv(RESULTS / "m12_ensemble_subsets.csv")
+    print("members", names, "q", q_ens)
+    print([(r["year"], r["trades"], round(r["mean_bp"] or 0)) for r in full])
+
+
 if __name__ == "__main__":
     if sys.argv[1] == "run":
         d = Data()
         for v in sys.argv[2:]:
             run(v, d)
+    elif sys.argv[1] == "ens":
+        ensemble()
     else:
         evaluate()
