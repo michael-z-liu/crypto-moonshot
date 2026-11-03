@@ -75,7 +75,7 @@ def exits(
 def book(sig: pl.DataFrame, slots: int, day_cap: int | None, cooldown_h: int) -> dict[str, float]:
     """Slot-limited portfolio from precomputed per-trade returns and exit bars (portfolio.py)."""
     sig = sig.sort("open_time", "prio")
-    equity, open_pos, rows = 1.0, [], []
+    equity, open_pos, rows, taken = 1.0, [], [], []
     last_exit: dict[str, object] = {}
     per_day: dict[object, int] = {}
     cool = timedelta(hours=cooldown_h)
@@ -101,6 +101,7 @@ def book(sig: pl.DataFrame, slots: int, day_cap: int | None, cooldown_h: int) ->
         last_exit[sym] = exit_t
         per_day[day] = per_day.get(day, 0) + 1
         rows.append((exit_t.date(), stake * r["ret"], r["ret"], sym))
+        taken.append(r["i"])
     if not rows:
         return {"trades": 0, "mean_bp": np.nan, "cagr": 0.0, "max_dd": 0.0, "_rows": []}
     t = pl.DataFrame(rows, schema=["d", "pnl", "ret", "symbol"], orient="row")
@@ -109,7 +110,7 @@ def book(sig: pl.DataFrame, slots: int, day_cap: int | None, cooldown_h: int) ->
     peak = np.maximum.accumulate(np.concatenate([[1.0], eq]))[1:]
     dd = float(min(0.0, (eq / peak - 1).min()))
     return {"trades": t.height, "mean_bp": t["ret"].mean() * 1e4, "win": (t["ret"] > 0).mean(),
-            "cagr": eq[-1] - 1, "max_dd": dd, "_rows": rows}  # fmt: skip
+            "cagr": eq[-1] - 1, "max_dd": dd, "_rows": rows, "_taken": taken}  # fmt: skip
 
 
 class Ctx:
@@ -189,6 +190,7 @@ class Ctx:
                     exit_bar=pl.Series(t_exit),
                     prio=pl.Series(prio),
                     size=pl.Series(size),
+                    i=pl.Series(k),  # row in meta, so callers can find the trades taken
                 )
             )
             out.append({"year": year, **book(sig, rule.slots, rule.day_cap, rule.cooldown_h)})

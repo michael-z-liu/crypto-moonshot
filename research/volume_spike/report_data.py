@@ -292,7 +292,13 @@ def build_html() -> None:
     d = OUT.parent
     cnn = "\n".join(
         (d / f).read_text()
-        for f in ("cnn_text.js", "cnn_section.js", "wf_section.js", "surv_section.js")
+        for f in (
+            "cnn_text.js",
+            "cnn_section.js",
+            "wf_section.js",
+            "surv_section.js",
+            "ex_section.js",
+        )
         if (d / f).exists()
     )
     html = (d / "template.html").read_text()

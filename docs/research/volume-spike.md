@@ -279,6 +279,24 @@ delisting or halt exits at the last traded price. Nothing was re-tuned. Runs:
   forecaster +119 bp (CI +46 to +192). 2025 is the weak year for every strategy.
 - Not covered: UST before its rename (excluded as a stablecoin), and coins delisted before 2020.
 
+### What the path forecaster's trades look like
+
+`report_examples.py` takes the 1,120 trades the path forecaster made on the full universe (default
+rule: top 2%, hold 1h, 5 slots, 2022 to October 2026) and draws 10 winners and 10 losers, two of
+each per year at random, with the forecast made at entry over the candles (casebook section
+`m-examples`).
+
+- 59% of trades win. The average winner makes +5.8% and the average loser loses −5.5%, after
+  costs; the median trade makes +0.9%. 58 trades lost more than 10% and 66 made 10% or more.
+- The forecast is too optimistic as a price target: the median 1h forecast is +2.4%, and only 65%
+  of results land inside its 10–90% band. It works as a ranking. The quarter of trades with the
+  biggest forecasts (+3.2% or more) won 68% of the time and averaged +2.8%; the other three
+  quarters averaged +0.4% to +0.8%. That split was found after the fact and is untested.
+- At entry, winners and losers look almost the same (forecast, coin drop, spike size); winners
+  came on slightly heavier BTC flushes (median BTC volume 6.6× normal vs. 4.7×).
+- The fixed one-hour exit is rough both ways: 61% of losers were up more than 1% at some point in
+  the hour, and 42% of winners first fell more than 2%.
+
 ### Other ideas tried (none beat the capitulation rules)
 
 | Idea | Result |
@@ -348,6 +366,7 @@ uv run python research/volume_spike/m13_policy.py base  # trading-rule grid for 
 uv run python research/volume_spike/m14_robust.py ens_all '{"q": 0.97}'
 uv run python research/volume_spike/m15_forecast.py path_all5
 uv run python research/volume_spike/report_data.py && uv run python research/volume_spike/report_wf.py
+MOONSHOT_UNIVERSE=all uv run python research/volume_spike/report_examples.py  # example trades
 ```
 
 Set `MOONSHOT_DATA_DIR` if the candles are not in the default location the scripts expect

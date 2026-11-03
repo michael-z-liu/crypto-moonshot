@@ -341,6 +341,11 @@ to buy.
   +158/+215/+73/+63/+212, avg +119 (CI +46..+192). Base CNN +93/+175/+74/+5/+21, market CNN
   +96/+181/+23/-16/+122. 50-87% of CNN trades in 2022-25 are in added coins. Casebook section
   `m-surv` added (same private link); write-up updated.
+- 2026-11-04 Follow-up (asked by the user): example trades of the path forecaster on the full
+  universe, `report_examples.py`, casebook section `m-examples`. 1,120 trades, 59% winners, avg
+  winner +5.8%, avg loser -5.5%, median +0.9%; median 1h forecast +2.4%; top forecast quarter
+  68% winners, +2.8% avg (post hoc, untested). `book()` now also returns the meta rows it traded
+  (`_taken`).
 
 ## Decisions
 
