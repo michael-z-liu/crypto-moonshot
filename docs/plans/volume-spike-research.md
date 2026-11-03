@@ -1,9 +1,9 @@
 # Volume-spike strategy research
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `claude/high-volume-trading-strategy-0c5d1e`
 - **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/8
-- **Updated:** 2026-11-03T04:50Z
+- **Updated:** 2026-11-04T14:31Z
 - **Deadline:** 2026-11-02T22:00Z (09:00 Sydney). At or after the deadline, stop exploring, finish
   the write-up (M6) and open the PR, even if earlier milestones are only partly explored.
 
@@ -173,7 +173,7 @@ approach, expanding its dimensions toward a more robust strategy.
 - A new casebook section and write-up for M9-M11; PR updated.
 - **Worker:** master
 
-### M13: Survivorship - add delisted and fallen coins (building)
+### M13: Survivorship - add delisted and fallen coins (done)
 
 Added 2026-11-03 at the user's request ("Add delisted coins"). The data pool is today's top ~200
 USDT pairs, which leaves out every coin that died or shrank, the ones dip-buying rules most like
@@ -332,6 +332,15 @@ to buy.
   +252, path_all +135/+316/+89/+104/-104. Delisted coins are 40-70% of CNN trades in 2022-23 and
   profitable on average then. All 18,846 archive months imported into the main data folder (628
   symbols) with lists delisted.txt / outside_pool.txt; documented in docs/data-format.md.
+- 2026-11-04 14:31Z M13 DONE. Full universe ("all": 152 pool + 191 delisted + 239 outside the pool;
+  `results/universe_all/`, `results/m16_survivorship.csv`): F1 test -11 bp/trade, F2 +49 (CAGR
+  +10%, DD -17%), F3 -148 (CAGR -66%, DD -87%). Rule walk-forward +78 bp/day, CAGR +20%, DD -24%.
+  CNN ensemble (19 variants, threshold matched to base's trade count: top 5%) +116/+207/+88/+20/
+  +213 bp per trade 2022..2026, avg +105 (CI +41..+173, placebo -79), returns +131/+59/+59/+4/
+  +24%, DD -24%; 2025 turns negative at 0.6% cost (-10) and one candle late (-45). Path forecaster
+  +158/+215/+73/+63/+212, avg +119 (CI +46..+192). Base CNN +93/+175/+74/+5/+21, market CNN
+  +96/+181/+23/-16/+122. 50-87% of CNN trades in 2022-25 are in added coins. Casebook section
+  `m-surv` added (same private link); write-up updated.
 
 ## Decisions
 
@@ -353,5 +362,4 @@ to buy.
   on flush days; needs the strategy/backtest/live engine from `docs/architecture.md` first.
 - Download 1m candles around past flush days to see how much of the bounce happens inside the 5m
   spike candle, and whether a faster trigger restores the 2025 edge.
-- Add delisted symbols (Binance public data archive) to remove survivorship bias from dip-buying.
 - Record order-book depth and spread on flush days before sizing anything.

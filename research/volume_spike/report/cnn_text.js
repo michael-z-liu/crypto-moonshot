@@ -51,3 +51,25 @@ window.EVOLVE = `
     <li><b>The forecast as a risk input.</b> The path forecaster's shape is right but its size is optimistic. Shrink it toward its historical accuracy, then use the band width for position sizing rather than for targets.</li>
     <li><b>Paper-trade the ensemble</b> next to F2 on the live stream. Only live data shows real fills on crash days.</li>
   </ul>`;
+
+window.SURV_TEXT = {
+  chip: "Edge smaller, still there",
+  chipClass: "mixed",
+  extra: `<h3>What changes</h3>
+    <ul class="plain">
+      <li><b>Rules without the BTC filter break.</b> F3 (a deep crash, any market) goes from +42 to −139 bp per trade in 2025–26 with the
+        delisted coins (−46% a year, −75% drawdown), and to −148 bp with every coin. Coins crashing on their own, while the market is calm, are
+        often dying. F3's worst real trade bought LUNA on 12 May 2022 and lost 99.8% in four hours.</li>
+      <li><b>F2 (deep, liquid, market-wide flush) holds up.</b> It made money every year from 2020 to 2024 in every universe (+75 to +319 bp per trade),
+        lost a little in 2025 (−7 to −44 bp) and made +187 to +313 bp in 2026.</li>
+      <li><b>The CNNs keep a smaller edge.</b> With every USDT pair added, the ensemble makes +105 bp per trade over 2022–26 (95% interval +41 to +173),
+        against +138 on the pool, and the path forecaster +119 bp. Shuffling the scores within each day still turns both negative (about −78 bp).
+        2025 is the weak year: +20 bp for the ensemble, which turns negative at 0.6% costs or one candle late.</li>
+      <li><b>The added coins are most of the trading.</b> On the full universe, 50–87% of the CNN trades in 2022–25 are in coins outside today's top 200,
+        so the pool-only results described a different strategy from the one that would really have run.</li>
+    </ul>`,
+  verdict: `<b>Survivorship bias was real but didn't create the edge.</b> Adding 430 delisted and smaller coins killed the rules that buy any deep crash,
+    left the market-wide flush rule (F2) and the CNN ranking positive in most years, and made 2025 close to break-even for most of them.
+    What decides whether this is tradable is now costs and speed: at a 1% round trip, or one candle late, the 2025 edge is gone.`,
+  next: `Next: measure real fills and latency in paper mode (the trading-engine session), and get 1m candles for flush days.`,
+};

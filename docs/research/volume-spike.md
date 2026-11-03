@@ -44,6 +44,13 @@ loses.* Code and result tables are in `research/volume_spike/`; the run log is i
    (a 4h-target CNN with a tuned rule) lost 9% in 2025 and 32% in 2026. The edge is shrinking:
    2025–26 is about +9% a year, about zero at a 1% round trip, and halved by a one-candle delay.
 
+9. **Survivorship (M13): adding 430 delisted and smaller coins cut the edges but didn't erase the
+   market-wide ones.** Rules that buy any deep crash break (F3: −148 bp per trade in 2025–26).
+   F2, the deep, liquid, market-wide flush, still made money every year from 2020 to 2024 in every
+   universe. The CNN ensemble on every USDT pair makes +105 bp per trade over 2022–26 (95% CI +41
+   to +173; the placebo is −79 bp), but 2025 is only +20 bp, and it turns negative at 0.6% costs or
+   one candle late.
+
 The visual casebook (every method, with sketches, charts and the data behind them) is a private
 claude.ai page: https://claude.ai/artifact/RpfQqzAyte82MWYGXm7Yn5. Rebuild it locally with
 `uv run python research/volume_spike/report_data.py`, which writes `report/index.html`.
@@ -242,6 +249,36 @@ The path variant predicts the net return every 15 minutes out to 8 hours, at the
   failed the 2022–24 drawdown limit. Requiring a +2% forecast upside was positive every year
   but faded to +1% in 2026. The forecast works best as a ranking.
 
+### Survivorship: delisted and fallen coins (M13)
+
+The data pool was today's top ~200 USDT pairs. Binance's public archive (data.binance.vision)
+still has the rest: 191 delisted pairs (status BREAK, e.g. MATIC, WAVES, SRM, ANC, MIR) and 239
+still listed outside the pool (incl. LUNA with its May 2022 crash, FTT, USTC). Tokenised stocks
+and stablecoins are left out as before. `fetch_archive.py` downloaded 18,846 checksum-verified
+months and imported them with `moonshot data import` into the main data folder; the lists are
+`delisted.txt` and `outside_pool.txt` there (`docs/data-format.md`). A position open at a
+delisting or halt exits at the last traded price. Nothing was re-tuned. Runs:
+`run_universe.sh poolA|all`, results in `results/universe_*/` and `results/m16_survivorship.csv`.
+
+| Net bp per trade, 5 slots | Universe | 2022 | 2023 | 2024 | 2025 | 2026 |
+| -------------------------- | -------- | ---- | ---- | ---- | ---- | ---- |
+| F2 rule | pool / +delisted / all | +223 / +75 / +188 | +287 / +209 / +195 | +284 / +242 / +161 | −44 / −37 / −7 | +187 / +313 / +219 |
+| F3 rule (no BTC filter) | pool / +delisted / all | +284 / +258 / +187 | +252 / +126 / +37 | +569 / +20 / +26 | −158 / −243 / −196 | +207 / +40 / −80 |
+| Base CNN, 1h | pool / +delisted / all | +334 / +191 / +93 | +170 / +129 / +175 | +57 / +62 / +74 | +67 / +23 / +5 | +53 / +252 / +21 |
+| Market CNN, 1h | pool / +delisted / all | +257 / +232 / +96 | +184 / +303 / +181 | +89 / +60 / +23 | +88 / +53 / −16 | +175 / +44 / +122 |
+| Path forecaster, 1h | pool / +delisted / all | +278 / +135 / +158 | +206 / +316 / +215 | +107 / +89 / +73 | +65 / +104 / +63 | +101 / −104 / +212 |
+| CNN ensemble, 1h | pool / all | +192 / +116 | +171 / +207 | +137 / +88 | +68 / +20 | +76 / +213 |
+
+- **The BTC filter matters most.** Coins crashing while the market is calm are often dying.
+  F3's worst real trade bought LUNA on 2022-05-12 and lost 99.8% in its 4-hour hold; F2's best
+  bought it the day before and made +218% in an hour.
+- **Rule walk-forward (m7), OOS 2022–26:** pool +20% a year (DD −16%); +delisted +6% (DD −35%);
+  all +20% (DD −24%). The re-tuned rule is sensitive to which coins it sees.
+- **On the full universe, 50–87% of CNN trades in 2022–25 are in coins outside today's top
+  200.** The ensemble still makes +105 bp per trade (CI +41 to +173, placebo −79) and the path
+  forecaster +119 bp (CI +46 to +192). 2025 is the weak year for every strategy.
+- Not covered: UST before its rename (excluded as a stablecoin), and coins delisted before 2020.
+
 ### Other ideas tried (none beat the capitulation rules)
 
 | Idea | Result |
@@ -286,8 +323,8 @@ The path variant predicts the net return every 15 minutes out to 8 hours, at the
 5. **If building on the CNN, keep it simple and averaged** (the ensemble, or the base design with
    a 1h hold), and spend the effort on speed (1m data, acting at the candle close) and on
    measuring real costs, not on tuning. Paper-trade it next to F2.
-6. **Fix survivorship before trusting any dip-buying result:** add delisted symbols to the data
-   pool (Binance's public data archive, data.binance.vision, may still have them).
+6. **Survivorship is now measured** (M13). Use the full universe (`MOONSHOT_UNIVERSE=all`) for
+   any new dip-buying test.
 
 ## Reproduce
 

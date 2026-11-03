@@ -397,7 +397,8 @@ function candles(target, ex) {
   for (const t of ticks(Math.log(lo / ref) * 100, Math.log(hi / ref) * 100, 5)) {
     const yy = Y(t / 100); if (yy < pTop - 1 || yy > pBot + 1) continue;
     el("line", { class: t === 0 ? "zero" : "gl", x1: f.M.l, x2: f.w - f.M.r, y1: yy, y2: yy }, f.svg);
-    el("text", { x: f.M.l - 6, y: yy + 3.5, "text-anchor": "end" }, f.svg, (t > 0 ? "+" : "") + t + "%");
+    const real = Math.round((Math.exp(t / 100) - 1) * 100);  /* ticks are log units; label the real move */
+    el("text", { x: f.M.l - 6, y: yy + 3.5, "text-anchor": "end" }, f.svg, (real > 0 ? "+" : "") + real + "%");
   }
   el("text", { x: f.M.l, y: pTop - 3 }, f.svg, "price vs. spike close");
   el("text", { x: f.M.l - 6, y: vTop + 8, "text-anchor": "end" }, f.svg, "volume");
