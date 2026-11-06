@@ -184,3 +184,6 @@ re-run.
   2025 trades), so every result now also reports P&L without 2025-10-10/11.
   Next, in order: publish -> `MOONSHOT_UNIVERSE=all` build_events -> build_long30 -> m18 rules ->
   build_seq2 (+ fwd) -> m18 cnn_run -> cnn_eval -> journal section b2.
+- 11:55Z Archive fetched and imported: 18,846 months, 0 problems; delisted.txt 191, outside_pool.txt
+  239 in the shared data folder (klines now 6.9 GB). B2 pipeline started on "all", log
+  `research/volume_spike/cache_all/logs/b2_pipeline.log` (events -> long30 -> rules -> seq2).
