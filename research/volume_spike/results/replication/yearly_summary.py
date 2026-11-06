@@ -11,8 +11,8 @@ idx = np.flatnonzero(ev.select(f2.fill_null(False).alias("m"))["m"].to_numpy())
 yr = ev["open_time"].dt.year().to_numpy()
 for y in range(2020, 2027):
     k = idx[yr[idx] == y]
-    st = simulate(ev[k], np.asarray(fwd[k]), Exit(bars=12), slots=5, priority="ret_4h").stats()
-    rows.append(dict(strategy="F2 rule", year=y, trades=st["trades"], bp=st["mean_bp"], ret=st["total_x"]-1, dd=st["max_dd"]))
+    res = simulate(ev[k], np.asarray(fwd[k]), Exit(bars=12), slots=5, priority="ret_4h"); st = res.stats()
+    rows.append(dict(strategy="F2 rule", year=y, trades=st["trades"], bp=st["mean_bp"], ret=float((res.trades["stake"]*res.trades["ret"]).sum()), dd=st["max_dd"]))
 d = m.Data()
 years = d.meta["year"].to_numpy()
 for name, label in (("base", "Base CNN"), ("path_all", "Path forecaster CNN")):
@@ -20,8 +20,8 @@ for name, label in (("base", "Base CNN"), ("path_all", "Path forecaster CNN")):
     for y in m.YEARS:
         k = np.flatnonzero((years == y) & (pct >= m.Q_MAIN))
         sig = d.meta[k].with_columns(neg=pl.Series(-pct[k]))
-        st = simulate(sig, np.asarray(d.fwd[k]), Exit(bars=12), slots=5, cost=m.COST, priority="neg").stats()
-        rows.append(dict(strategy=label, year=y, trades=st["trades"], bp=st["mean_bp"], ret=st["total_x"]-1, dd=st["max_dd"]))
+        res = simulate(sig, np.asarray(d.fwd[k]), Exit(bars=12), slots=5, cost=m.COST, priority="neg"); st = res.stats()
+        rows.append(dict(strategy=label, year=y, trades=st["trades"], bp=st["mean_bp"], ret=float((res.trades["stake"]*res.trades["ret"]).sum()), dd=st["max_dd"]))
 df = pl.DataFrame(rows)
 df.write_csv("results/replication/yearly_summary.csv")
 with pl.Config(tbl_rows=40, float_precision=3): print(df)

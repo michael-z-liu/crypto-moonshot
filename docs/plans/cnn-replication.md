@@ -129,3 +129,19 @@ re-run.
   hold). Why: the stop is hit inside the first 5m candle on 25-28% of top-2% signals (median
   first-candle range 2.5-2.9%); same-candle TP/SL ambiguity is only 4-5%. A -2% stop sits inside
   normal noise at capitulation moments.
+- 09:40Z B1 results (pre-registered). Top 2%, 5 slots, +5%/-2% bracket, bp per trade 2022..2026:
+  br1h +61/+36/+31/-1/-31, br1h_w2h +30/+10/+21/-2/+8, br1h_mkt +30/+50/+5/+16/+114, br1h_bce
+  +49/+49/+2/-31/-62, br2h +47/+23/+66/+3/-1, br30m +64/+26/+43/+20/-38, ensemble +79/+10/+56/-1/
+  +93; base+bracket +45/+47/+47/+27/-2. Selection rule picks br2h: 2025-26 flat. Looser thresholds
+  (top 5-10%, 10-20 slots: 1,000-8,000 trades a year) lose 0.1-0.25% per trade. Stress (br2h):
+  0.6% cost negative in 2023/25/26; one candle late -26 bp in 2025; placebo -31 to -71 bp. Verdict:
+  the +5%/-2% bracket fails; the CNN ranks (placebo far worse) but the -2% stop is inside noise.
+- 09:55Z POST-HOC (`m17_shapes.py`, results/m17_shapes.csv, m17_tp_only.csv): same scores, other
+  exits. Removing the stop and keeping the +5% target with a 1h time exit: bracket ensemble top 2%,
+  5 slots +153/+172/+185/+111/+157 bp; top 5%, 5 slots +133/+113/+66/+120/+41 bp (106-177 trades
+  a year, returns +58/+26/+24/+34/+4%); top 10%, 20 slots +87/+82/+33/+81/+29 bp (309-841 trades).
+  Positive every year at 0.6% cost; one candle late -31 bp in 2025; placebo -50 to -156 bp
+  (2026 +75 on 22 trades). Worst trade -35% (no stop). Needs a pre-registered confirmation.
+- Simulator note: `SimResult.stats()` total_x / cagr divide by the equity at the end of the first
+  day, so the first day's P&L is left out (per-trade numbers unaffected). New code reports the
+  sum of stake x return instead; `portfolio.py` left unchanged so PR 8 numbers stay comparable.
