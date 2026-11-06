@@ -1,9 +1,9 @@
 # Replicate the PR #8 CNN results on a new computer
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-replication` (from PR #8's `claude/high-volume-trading-strategy-0c5d1e`)
 - **PR:** none yet (report to the user in the session; open a PR only if asked)
-- **Updated:** 2026-11-06T10:45Z
+- **Updated:** 2026-11-06T11:00Z
 
 ## Goal
 
@@ -89,7 +89,7 @@ https://claude.ai/artifact/EwkgNPxbXeNexdbwG2eQGf. Update it as results come in.
 - Stress: 0.6% cost, extra 0.2% slippage on stop fills, entry one candle late, placebo
   (scores shuffled within each day).
 
-### B2: Long shots, $50 a trade, no stop (in progress, asked 2026-11-06)
+### B2: Long shots, $50 a trade, no stop (done, asked 2026-11-06)
 
 User ask: fund $10,000, buy many $50 positions with no stop, aim for +30-50% per winning trade;
 explore a few variations. Up to 30 days holding agreed; delisted coins downloaded first (user OK).
@@ -198,3 +198,12 @@ re-run.
   +4% per trade, hit rate 17-39%, worst trade -90% (LUNA), worst realised drawdown -$2,375.
   +30-50% targets are reached on only 3-20% of trades; the profit is the bounce.
   `Data(mmap=True)` added to m12 (seq2 on "all" is 13.9 GB, 1.85M rows).
+- 10:51Z B2 CNN (`m18_longshot.py cnn_run`, 33 min; results/universe_all/m18_cnn.csv): base rate
+  of "+30% within 7 days" 15.5% of liquid spikes; validation top-2% hit 22-42%. Pre-registered CNN
+  pick (best 2022-24): top 5%, TP +50%, 30 days: $ per year 2022..2026 +1,099 / +361 / +1,404 /
+  +5,850 (ex-cascade -1,445) / -420; hits +50% on 25-46% of trades; worst trades -87..-95%.
+  66-77% of its top 1-2% picks in 2025 were bought on 2025-10-10. Verdict: the CNN does not beat
+  the capitulation rule for long shots. R2 pick book: median 1 open position, mean 9.4, none open
+  42% of hours, 200 (cap) on crash days; mean hold 2.4 days.
+- 11:00Z B2 done; journal section "Study 2" written (chart, target x hold table, CNN table,
+  conclusions). Waiting for the user.
