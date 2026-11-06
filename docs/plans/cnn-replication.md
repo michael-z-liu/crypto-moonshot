@@ -264,3 +264,11 @@ re-run.
   `research/volume_spike/cache_all/logs/m20.log`. Outputs cache_all/wf/quiet_cnn.npz, quiet_gbm.npz,
   results/universe_all/m20_quiet_cls.csv and m20_quiet_book.csv. Judgment call: the 1h branch is
   normalised by the 7-day window's own median (no longer history needed).
+- 13:09Z B3 step 4 (`m21_fillcheck.py longshot`, results/universe_all/m21_fillcheck_longshot_r2_tp20_3d.csv):
+  judgment call: the quiet rules failed, so the fill check runs first on the only surviving
+  strategy, the B2 pick (R2 capitulation, +20% or 3 days); 10,368 of 10,378 symbol-days of 1m
+  data downloaded (cache_all/m1). 3,061 take-profit exits: 2,857 (93%) filled (a 1m close at or
+  above the target, in the same minute as the first touch), 204 touched only (fall back to the
+  3-day exit: +3.3% instead of +19.7%). Filled share by year 89-97%, 2025 83%. Cost ,678 over
+  2020-26 (2022-26 total +$13,285 -> +$12,046, ~+$2,540 a year). Entry: 1m open equals the 5m
+  open on 3,057 of 3,061 trades.
