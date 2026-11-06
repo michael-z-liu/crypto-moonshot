@@ -1,9 +1,9 @@
 # Replicate the PR #8 CNN results on a new computer
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-replication` (from PR #8's `claude/high-volume-trading-strategy-0c5d1e`)
 - **PR:** none yet (report to the user in the session; open a PR only if asked)
-- **Updated:** 2026-11-06T14:17Z
+- **Updated:** 2026-11-06T14:51Z
 
 ## Goal
 
@@ -171,7 +171,7 @@ spike, PR 8 tested the spike without the quiet; the 2019 idea is the two togethe
   quiet-context spikes.
 
 
-### B4: A trigger in the first minute of a spike (in progress, asked 2026-11-07)
+### B4: A trigger in the first minute of a spike (done, asked 2026-11-07)
 
 User ask: react in the first minute of a spike, using 1-minute (or trade-by-trade) data; get the
 data and validate the idea. Report in the journal (new section "Study 4").
@@ -342,3 +342,18 @@ re-run.
   (replayed on 1m candles) +833 / +8,650 / -1,082 / +2,967 / +7,584 / +2,479 / +1,336 (matches B2);
   1m trigger -76 / +5,203 / -2,561 / -758 / +1,220 / +341 / +295. FAILS: in a crash, reacting
   faster buys before the bottom; the end of the 5m crash candle is the better moment.
+- 14:51Z B4 part B (m23_quiet.csv; events cache_all/m23_quiet_events.parquet): 9.24M 1m spikes
+  with a quiet measure. Every rule (quiet or busy, 1m or 5m-late entry, TP 5/10/20% or none,
+  15m..1d) loses about the 0.3% cost per trade in both periods; 1m vs 5m-late entry differs by
+  ~0.01% per trade. Gross 15m return after a quiet 1m spike ~0 (2022-24 -0.02%); +5% within 15m
+  on 1.2-2.7%. Bigger spike minutes fade (top decile -0.3% over 1h). FAILS.
+- 14:51Z B4 exploratory, not pre-registered (m23b_pumps.py, m23b_pumps.csv): pump-start
+  minutes on quiet coins (the minute itself +2% / +5%): 2020-24 mean 15m -0.4..-1.8%, 1d -3..-7%,
+  though ~50% touch +5% within 15m (>= 5% minutes). The book loses every year except 2025, which
+  is the cascade (ex-cascade negative for every setting).
+- 14:51Z B4 part C (m24_trades.py, m24_trades_capitulation_5m.csv): no 1m rule passed, so the
+  trade-level check ran on the surviving strategy (B2 pick, 5m entry); 200 random book trades,
+  daily aggTrades. First trade of the entry minute = backtest open in 200/200. Price after
+  1/2/5/10 s vs open: mean +0.02/+0.05/+0.09/+0.11%, median 0, 90th pct +0.3/+0.4/+0.6/+0.8%.
+  USDT traded in the first 1/5/10 s, median 525 / 4,787 / 10,943. Latency costs ~0.1% a trade.
+- 14:51Z B4 done (report in the journal, "Study 4").
