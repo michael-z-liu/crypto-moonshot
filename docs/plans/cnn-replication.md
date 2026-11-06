@@ -259,3 +259,8 @@ re-run.
   limits make +7..+10% a year in 2025-26 but lose in 2022-24. Verdict: quietness alone, or with
   simple early-buying filters, does not predict up spikes. Going on to step 3 (CNN) as planned:
   the user's idea is that a specific pattern within quiet coins comes before a spike.
+- 12:44Z B3 step 3 started: `build_quiet_seq.py` 1,147,641 quiet snapshots (Q7 d1-3),
+  qseq_h 3.9 GB + qseq_m 4.0 GB; `m20_quiet_cnn.py run` then `gbm` (comparison) then `eval`, log
+  `research/volume_spike/cache_all/logs/m20.log`. Outputs cache_all/wf/quiet_cnn.npz, quiet_gbm.npz,
+  results/universe_all/m20_quiet_cls.csv and m20_quiet_book.csv. Judgment call: the 1h branch is
+  normalised by the 7-day window's own median (no longer history needed).
