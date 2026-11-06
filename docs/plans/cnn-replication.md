@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-replication` (from PR #8's `claude/high-volume-trading-strategy-0c5d1e`)
 - **PR:** none yet (report to the user in the session; open a PR only if asked)
-- **Updated:** 2026-11-06T06:15Z
+- **Updated:** 2026-11-06T06:58Z
 
 ## Goal
 
@@ -34,20 +34,20 @@ enough to trust the setup. Report back when they match.
 
 ## Milestones
 
-### R1: Data (in progress)
+### R1: Data (done)
 
 - `moonshot data sync` of the 198 pool symbols, 5m, 2020-01-01..2026-11-02 into the shared folder.
   Log: `/Users/mike/code/crypto-moonshot/data/logs/sync-5m-pool.log`. Re-run the same command to
   resume (finished months are kept).
 - **Done when:** the sync exits 0 and `moonshot data status` shows all 198 series.
 
-### R2: Rule sanity check (deterministic)
+### R2: Rule sanity check (done)
 
 - `build_events.py`, then `m6_test.py`. **Reference** (`results/m6_test_output.txt`), F2 bp per
   trade by year 2020..2026: +222 / +319 / +223 / +287 / +284 / −44 / +187 (114/243/126/74/156/133/45
   trades). Should match almost exactly if the data matches.
 
-### R3: M7 CNN (fixed split)
+### R3: M7 CNN (fixed split) (in progress)
 
 - `build_seq.py`, `m11_cnn.py train`, `report`, `portfolio`. **Reference**
   (`results/m11_cnn_portfolio.csv`), coin+BTC CNN, 5 slots: valid 2024 +218 bp (118 trades), test
@@ -77,3 +77,9 @@ re-run.
 
 - 2026-11-06 06:10Z Reviewed PR #8. Installed uv (brew), `uv sync --group research` (torch 2.15,
   MPS available). Rebuilt the pool list (198). Started the R1 sync (~65M candles, ETA ~30 min).
+- 06:53Z R1 done: 64.8M candles, 198 series, 2.0 GB, 0 rate-limit hits, 44 min.
+- 06:56Z R2 done: build_events 2,258,333 rows / 1,972,584 spikes (PR 8: ~2M). m6_test: F1, F2, F3
+  identical to PR 8 in every year (trades and bp); only the 2019 reference rule differs by 2-18
+  trades of ~13k a year. Output in `results/replication/`.
+- 06:58Z R3: build_seq (1,972,584 x 8 x 96, no NaN); `m11_cnn.py train` started, log
+  `cache/logs/m11_train.log`.
