@@ -158,7 +158,8 @@ def year_stats(
         tr = res.trades
         n = st["trades"]
         out.append({
-            "year": year, "trades": n, "bp": st.get("mean_bp"), "ret": float((tr["stake"] * tr["ret"]).sum()) if n else 0.0,
+            "year": year, "trades": n, "bp": st.get("mean_bp"),
+            "ret": float((tr["stake"] * tr["ret"]).sum()) if n else 0.0,
             "dd": st.get("max_dd"),
             "tp_rate": float((tr["ret"] > TP - cost - 1e-9).mean()) if n else None,
             "sl_rate": float((tr["ret"] < -sl - cost + 1e-9).mean()) if n else None,
