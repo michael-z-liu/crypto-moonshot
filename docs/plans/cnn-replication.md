@@ -176,3 +176,11 @@ re-run.
   waiting for the user: (1) pre-registered confirmation of a +5% take profit / 1h / no tight stop
   (+ a -8..-10% safety stop) with a CNN trained on that target, tested on the archive coins outside
   the pool; (2) 1m candles around the trades (entry speed, delayed stops); (3) paper trading.
+- 11:30Z B2 setup: archive fetch running (`fetch_archive.py fetch` then `publish`, log
+  `research/volume_spike/cache/logs/archive_fetch.log`; ~140 months a minute, ~2h; re-running
+  `fetch` skips months already stored). `build_long30.py` checked against brute force (600 events,
+  0 mismatches). `m18_longshot.py rules|cnn_run|cnn_eval` written; a pool-only dry run (not the
+  study) showed the 2025-10-10 cascade dominates crash rules (SOLV +1,877% in a day; 55% of R3's
+  2025 trades), so every result now also reports P&L without 2025-10-10/11.
+  Next, in order: publish -> `MOONSHOT_UNIVERSE=all` build_events -> build_long30 -> m18 rules ->
+  build_seq2 (+ fwd) -> m18 cnn_run -> cnn_eval -> journal section b2.
