@@ -1,9 +1,9 @@
 # Replicate the PR #8 CNN results on a new computer
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** done <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-replication` (from PR #8's `claude/high-volume-trading-strategy-0c5d1e`)
 - **PR:** none yet (report to the user in the session; open a PR only if asked)
-- **Updated:** 2026-11-06T06:58Z
+- **Updated:** 2026-11-06T07:30Z
 
 ## Goal
 
@@ -47,7 +47,7 @@ enough to trust the setup. Report back when they match.
   trade by year 2020..2026: +222 / +319 / +223 / +287 / +284 / −44 / +187 (114/243/126/74/156/133/45
   trades). Should match almost exactly if the data matches.
 
-### R3: M7 CNN (fixed split) (in progress)
+### R3: M7 CNN (fixed split) (done)
 
 - `build_seq.py`, `m11_cnn.py train`, `report`, `portfolio`. **Reference**
   (`results/m11_cnn_portfolio.csv`), coin+BTC CNN, 5 slots: valid 2024 +218 bp (118 trades), test
@@ -61,7 +61,7 @@ enough to trust the setup. Report back when they match.
   - path_all: +278 / +206 / +107 / +65 / +101
   - market (optional): +257 / +184 / +89 / +88 / +175
 
-### R5: Report to the user
+### R5: Report to the user (done)
 
 - Table of reference vs replicated numbers, and anything that differs.
 
@@ -92,3 +92,10 @@ re-run.
   trade 2022..2026, same trade counts and drawdowns (training is deterministic with fixed seeds,
   the locked torch and the same M4 chip). Table in `results/replication/m12_variants.csv`;
   committed results/m12_variants.csv restored.
+- 07:30Z R3 done: `m11_cnn.py train` (2 variants x 3 seeds x 8 epochs, 24 min next to R4) and
+  `portfolio`. results/m11_cnn_portfolio.csv is byte-identical to PR 8: coin+BTC CNN valid 2024
+  +218 bp (118 trades), test 2025-26 +114 bp (254 trades; 2025 +120, 2026 +106), DD -11%; boosted
+  trees test +10 bp; F2 +15 bp. Training tables differ only in the `secs` column and float
+  rounding at the 15th digit. Copies in `results/replication/`.
+- 07:30Z R5: replication complete; reported to the user. Heartbeat deleted. Caches for further CNN
+  work are ready in the shared cache folder (events, seq, seq2, fwd2, wf/base, wf/path_all).
