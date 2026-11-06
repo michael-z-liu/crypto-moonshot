@@ -1,9 +1,9 @@
 # Replicate the PR #8 CNN results on a new computer
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-replication` (from PR #8's `claude/high-volume-trading-strategy-0c5d1e`)
 - **PR:** none yet (report to the user in the session; open a PR only if asked)
-- **Updated:** 2026-11-06T08:20Z
+- **Updated:** 2026-11-06T10:15Z
 
 ## Goal
 
@@ -65,7 +65,7 @@ enough to trust the setup. Report back when they match.
 
 - Table of reference vs replicated numbers, and anything that differs.
 
-### B1: Bracket CNN, +5% / -2% (in progress, asked 2026-11-06)
+### B1: Bracket CNN, +5% / -2% (done, asked 2026-11-06)
 
 User ask: a shorter time frame, many small high-conviction trades, each with about +5% upside and a
 -2% stop, using the CNN. Journal (claude.ai doc, the user's page for this line of work):
@@ -145,3 +145,7 @@ re-run.
 - Simulator note: `SimResult.stats()` total_x / cagr divide by the equity at the end of the first
   day, so the first day's P&L is left out (per-trade numbers unaffected). New code reports the
   sum of stake x return instead; `portfolio.py` left unchanged so PR 8 numbers stay comparable.
+- 10:15Z B1 done; journal filled (results chart, volume table, conclusions). Proposed next steps,
+  waiting for the user: (1) pre-registered confirmation of a +5% take profit / 1h / no tight stop
+  (+ a -8..-10% safety stop) with a CNN trained on that target, tested on the archive coins outside
+  the pool; (2) 1m candles around the trades (entry speed, delayed stops); (3) paper trading.
