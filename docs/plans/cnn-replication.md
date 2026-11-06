@@ -1,9 +1,9 @@
 # Replicate the PR #8 CNN results on a new computer
 
-- **Status:** done <!-- building | blocked | review | done -->
+- **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-replication` (from PR #8's `claude/high-volume-trading-strategy-0c5d1e`)
 - **PR:** none yet (report to the user in the session; open a PR only if asked)
-- **Updated:** 2026-11-06T07:30Z
+- **Updated:** 2026-11-06T08:20Z
 
 ## Goal
 
@@ -64,6 +64,30 @@ enough to trust the setup. Report back when they match.
 ### R5: Report to the user (done)
 
 - Table of reference vs replicated numbers, and anything that differs.
+
+### B1: Bracket CNN, +5% / -2% (in progress, asked 2026-11-06)
+
+User ask: a shorter time frame, many small high-conviction trades, each with about +5% upside and a
+-2% stop, using the CNN. Journal (claude.ai doc, the user's page for this line of work):
+https://claude.ai/artifact/EwkgNPxbXeNexdbwG2eQGf. Update it as results come in.
+
+**Pre-registered protocol (written before any bracket model was trained):**
+- Data: the walk-forward dataset (`seq2`, 632k liquid spikes, 24h x 13 channels), folds as M9: for
+  test year Y in 2022..2026 train before Y-1 July, early-stop on Y-1 July-Dec, score Y; 2 seeds.
+- Label: enter at the next candle's open; take profit +5%, stop -2%, time stop H; if both are
+  touched in one 5m candle the stop counts first; 0.3% round trip. Target = that net return (%).
+- Base rates (no model, all spikes): H=1h TP-first 5.5%, stop 24.8%, -29 bp; deep flushes
+  (coin -8% in 4h, BTC volume >= 4x) TP-first 20.3%, stop 47.0%, +23 bp. Break-even win rate
+  (TP vs stop only) 33%.
+- Variants (`m17_bracket.py`): br1h (COIN+BTC, 8h window, H=1h, MSE) = primary; br1h_w2h (2h
+  window); br1h_mkt (+ market channels); br1h_bce (classify TP-first); br2h (H=2h); br30m (H=30m).
+  Comparison without retraining: base and path_all scores traded with the bracket.
+- Default rule: top 2% of the fold's training scores, 5 slots, bracket exit. Selection: only
+  2022-24 decides (mean bp per trade, every year >= 0); 2025-26 is reported, not used to choose.
+  The equal-weight ensemble of all br* variants is the no-selection alternative.
+- Volume vs conviction frontier: thresholds top 0.5/1/2/5/10% x 5/10/20 slots, per year.
+- Stress: 0.6% cost, extra 0.2% slippage on stop fills, entry one candle late, placebo
+  (scores shuffled within each day).
 
 ## Resume
 
