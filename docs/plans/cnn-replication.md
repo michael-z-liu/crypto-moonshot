@@ -187,3 +187,5 @@ re-run.
 - 11:55Z Archive fetched and imported: 18,846 months, 0 problems; delisted.txt 191, outside_pool.txt
   239 in the shared data folder (klines now 6.9 GB). B2 pipeline started on "all", log
   `research/volume_spike/cache_all/logs/b2_pipeline.log` (events -> long30 -> rules -> seq2).
+- 10:12Z (clock check) Times in the entries from 08:20Z on were estimates and ran ahead of the real
+  clock; the order of the entries is right. From here on, times come from `date -u`.
