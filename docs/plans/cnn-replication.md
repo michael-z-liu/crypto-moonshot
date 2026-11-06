@@ -378,3 +378,8 @@ re-run.
   1/2/5/10 s vs open: mean +0.02/+0.05/+0.09/+0.11%, median 0, 90th pct +0.3/+0.4/+0.6/+0.8%.
   USDT traded in the first 1/5/10 s, median 525 / 4,787 / 10,943. Latency costs ~0.1% a trade.
 - 14:51Z B4 done (report in the journal, "Study 4").
+- 21:10Z B5: `build_fwd72.py` (fwd72.npy, 1,853,371 rows; hours 1-8 match fwd2 exactly) and
+  `m25_path3d.py` (run -> charts -> diag, log research/volume_spike/cache_all/logs/m25.log) running.
+  Chart page created: https://claude.ai/artifact/PkX8K25U4KPmipoEqNX5yp (Dashboard type, still empty;
+  page draft in the session scratchpad dash/index.html; datasets trades = m25_charts.json,
+  diag = m25_diag.csv, calib = m25_calibration.csv, uploaded as files once built).
