@@ -1,9 +1,9 @@
 # Replicate the PR #8 CNN results on a new computer
 
-- **Status:** review <!-- building | blocked | review | done -->
+- **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-replication` (from PR #8's `claude/high-volume-trading-strategy-0c5d1e`)
 - **PR:** none yet (report to the user in the session; open a PR only if asked)
-- **Updated:** 2026-11-06T13:19Z
+- **Updated:** 2026-11-06T14:17Z
 
 ## Goal
 
@@ -170,6 +170,33 @@ spike, PR 8 tested the spike without the quiet; the 2019 idea is the two togethe
   over at entry. Secondary: the B2 long-shot CNN scores (cache_all/wf/longshot.npz) restricted to
   quiet-context spikes.
 
+
+### B4: A trigger in the first minute of a spike (in progress, asked 2026-11-07)
+
+User ask: react in the first minute of a spike, using 1-minute (or trade-by-trade) data; get the
+data and validate the idea. Report in the journal (new section "Study 4").
+
+**Pre-registered protocol (written before any 1-minute result was seen):**
+- Data (`fetch_1m.py`): Binance monthly 1m kline archives (data.binance.vision, checksum-verified)
+  for every coin in the "all" universe, every month it has 5m data, 2020-01..2026-10, written with
+  the repo's KlineStore into the shared data folder (`klines/spot/interval=1m`). Months without an
+  archive file are listed, not filled.
+- Part A, speed on the known edge: the B2 pick (R2 capitulation, $50, +20% or 3 days, no stop).
+  For each signal's 5m spike candle (5 one-minute candles), the 1m trigger is the first minute
+  whose volume is >= 10x the median 1m volume of the previous 24 hours (if none, the last minute).
+  Entry at the next 1m open; the trade then runs on 1m candles (+20% first touch, else the close
+  3 days after entry). Compared with the 5m entry (open after the 5m candle), same signals, same
+  book. Passes if the 1m entry earns more in 2022-24 and in 2025-26.
+- Part B, the quiet idea at 1-minute speed: 1m spikes (volume >= 20x the 24h 1m median, an up
+  minute, >= 5k USDT traded in the minute) on coins that were quiet before (latest 4-hourly
+  snapshot that closed before the minute, Q7 decile <= 2). Entry at the next 1m open; exits: take
+  profit +5/+10/+20% or 15 minutes / 1 hour / 4 hours / 1 day, no stop; the $50 book (200 slots,
+  one per coin). Compared with the same events entered 5 minutes later (what 5m data allows) and
+  with 1m spikes on busy coins (Q7 decile >= 5). Chosen on 2022-24, reported for 2025-26; also at
+  0.6% costs (spreads are wider in a spike) and without 2025-10-10/11.
+- Part C, trade-level check on a sample: for 200 random trades of the best Part A or B rule,
+  Binance daily aggTrades files; the first trade price after the trigger minute closes vs the 1m
+  open assumed (slippage), and how many trades print in that first minute.
 
 ## Resume
 
