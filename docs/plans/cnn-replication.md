@@ -247,3 +247,15 @@ re-run.
   42% of hours, 200 (cap) on crash days; mean hold 2.4 days.
 - 11:00Z B2 done; journal section "Study 2" written (chart, target x hold table, CNN table,
   conclusions). Waiting for the user.
+- 12:42Z B3 step 1 (`m19_quiet.py step1`, results/universe_all/m19_step1.csv): 4.53M snapshots,
+  582 coins (3.34M used: liquid, entry before 2026-10-01). FAILS the pre-registered bar. 2022-24,
+  all vs Q1 decile 1 vs Q7 decile 1: +20% in 3d 9.1 / 4.4 / 5.3%; -20% in 3d 5.3 / 3.4 / 4.2%;
+  +20% before -20% 45 / 38 / 40%; mean 7d return +0.2 / -1.7 / -1.0%. Quiet stays quiet and drifts
+  down. Q7 decile 1 beats the average in 2021, 2025, 2026 (2025-26: 45 vs 35% up-first), is worse
+  in 2023; cascade-free numbers barely differ.
+- 12:42Z B3 step 2 (`m19_quiet.py rules`, m19_rules.csv): every quiet rule loses in 2022-24 at
+  every exit (mean trade -0.5..-1.5%) except QD (quiet week + early buying) TP 50-100% / 30d,
+  +3.6..+3.8% of $10k a year; that pre-registered pick loses 28% a year in 2025-26. QB/QC with 7d
+  limits make +7..+10% a year in 2025-26 but lose in 2022-24. Verdict: quietness alone, or with
+  simple early-buying filters, does not predict up spikes. Going on to step 3 (CNN) as planned:
+  the user's idea is that a specific pattern within quiet coins comes before a spike.
