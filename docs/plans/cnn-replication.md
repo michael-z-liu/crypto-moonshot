@@ -83,3 +83,7 @@ re-run.
   trades of ~13k a year. Output in `results/replication/`.
 - 06:58Z R3: build_seq (1,972,584 x 8 x 96, no NaN); `m11_cnn.py train` started, log
   `cache/logs/m11_train.log`.
+- 07:05Z R4: build_seq2 632,082 x 13 x 288 (PR 8: 632k), fwd built. `m12_cnn_wf.py run base
+  path_all` started next to the M7 training (both on MPS), log `cache/logs/m12_run.log`; outputs
+  `cache/wf/base.npz`, `cache/wf/path_all.npz`. Not yet run: `eval` (overwrites
+  results/m12_variants.csv; restore it afterwards).
