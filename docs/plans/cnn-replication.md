@@ -155,6 +155,21 @@ delegated, a detailed report in the journal (claude.ai doc) expected.
   1m files for those days) to check the +20% target would have filled (price at or above the
   target for at least 1 minute, not one tick).
 - Every result also without 2025-10-10/11. Report: journal section "Study 3".
+**Round 2, pre-registered before any result (the judgment call: round 1 tested quiet without the
+spike, PR 8 tested the spike without the quiet; the 2019 idea is the two together):**
+- Events: 10x volume spikes in the "all" events table (cache_all/events.parquet, >= 1k USDT median
+  per 5m candle), joined as-of to the same coin's latest quiet snapshot at least 5 minutes before
+  the spike candle (so the spike is not inside the quiet measure; at most 4 hours old). Entry at
+  the next 5m open (as everywhere), outcomes from cache_all/long30.parquet.
+- Rules (`m22_quiet_spike.py`): S1 quiet before (Q7 decile <= 2) + up candle; S2 = S1 + taker-buy
+  share > 0.6 + run-up in the previous hour <= 2% (the 2019 rule inside a quiet spell); S3 = S1 +
+  first spike for >= 3 days (days_since_spike at the snapshot); S4 quiet before, any candle;
+  baselines: B-busy (Q7 decile >= 5) + up candle, and every up-candle spike.
+- Same $50 book and exit grid as B2 (TP 20/30/50/100% or 1/3/7/30 days, no stop), chosen on 2022-24.
+  Also the mean 1h and 4h return after entry (from fwd.npy) to see how much of the move is already
+  over at entry. Secondary: the B2 long-shot CNN scores (cache_all/wf/longshot.npz) restricted to
+  quiet-context spikes.
+
 
 ## Resume
 
@@ -272,3 +287,11 @@ re-run.
   3-day exit: +3.3% instead of +19.7%). Filled share by year 89-97%, 2025 83%. Cost ,678 over
   2020-26 (2022-26 total +$13,285 -> +$12,046, ~+$2,540 a year). Entry: 1m open equals the 5m
   open on 3,057 of 3,061 trades.
+- 13:16Z B3 step 3 (m20_quiet_cls.csv, m20_quiet_book.csv): base rate of +20% in 3 days among
+  quiet snapshots 6.7%. CNN AUC 0.64/0.62/0.57/0.59/0.56 (2022..26), top-2% hit 19/8/5/11/11% vs
+  base 7.4/3.3/4.4/6.3/5.6%. GBM (scalars only) AUC 0.59-0.64, top-2% 9-15%. Pre-registered CNN
+  pick (best 2022-24: top 5%, TP 20%, 7 days): $ +259 / +16 / +59 / -375 / -111; placebo
+  +587 / +85 / +80 / -1,822 / -513 (CNN beats placebo only in 2025-26; both lose). GBM best
+  (TP 20%, 30d) +1,324 / +384 / +577 / +298 / -136, its placebo better in 2022-24. Top picks are
+  young (median age 245 vs 850 days), deep below the 30-day high (-36..-45% vs -23%), least quiet
+  of the quiet (rv1_rel ~1.0 vs 0.8); taker share barely differs. Verdict: round 1 fails.
