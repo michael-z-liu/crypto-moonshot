@@ -1,9 +1,9 @@
 # Replicate the PR #8 CNN results on a new computer
 
-- **Status:** review <!-- building | blocked | review | done -->
+- **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-replication` (from PR #8's `claude/high-volume-trading-strategy-0c5d1e`)
 - **PR:** none yet (report to the user in the session; open a PR only if asked)
-- **Updated:** 2026-11-06T11:00Z
+- **Updated:** 2026-11-06T12:37Z
 
 ## Goal
 
@@ -115,6 +115,46 @@ explore a few variations. Up to 30 days holding agreed; delisted coins downloade
   7 days", walk-forward as M9 (2 seeds), traded at the top 1/2/5% of scores.
 - Selection: 2022-24 decides (rules also shown for 2020-21); 2025-26 reported, not used to choose.
   Every result is shown next to R0 random with the same exit.
+
+### B3: Quiet coins before a spike (in progress, asked 2026-11-06)
+
+User ask: go back to the original idea. Enter while a coin is quiet (little activity, little price
+movement) and predict an imminent upward spike, instead of entering after a crash. One full round:
+rules first, then a CNN, then a fill check; unattended overnight run authorised, judgment calls
+delegated, a detailed report in the journal (claude.ai doc) expected.
+
+**Pre-registered protocol (written before any quiet-coin result was seen):**
+- Snapshots (`build_quiet.py`, cache_all/quiet.parquet): every coin in the "all" universe, every
+  4 hours (the candle closing at 00:00, 04:00, ... UTC), from 30 days after listing; entry at the
+  next 5m open. Features use candles up to the snapshot only.
+- Quietness, each relative to the coin's own past (ratio to its median over the previous 180 days
+  of snapshots, at least 30 days of history): 1-day and 7-day realised volatility of 5m returns,
+  1-day and 7-day high-low range, 1-day and 7-day quote volume. Plus: share of unchanged 5m
+  closes in the last day, days since the last 10x volume spike, 1/7/30-day returns, distance from
+  the 30-day high, taker-buy share (1 day minus 7 days), trade count and average trade size
+  relative to 30 days, price tick size, coin age, BTC 1-day/7-day return and volatility ratio.
+- Quiet scores: Q1 (1 day) = geometric mean of the 1-day volatility, range and volume ratios;
+  Q7 (7 days) = the same over 7 days. Deciles cut on 2020-2021 snapshots only, applied to all years.
+- Outcomes (same method as build_long30): first time the high reaches +10/+20/+30/+50/+100% and
+  the low reaches -10/-20/-30/-50% within 30 days; close and low/high after 1, 3, 7, 30 days.
+  A touch counts. Only snapshots with entry before 2026-10-01 and >= 1k USDT median per 5m candle
+  over the last day are used.
+- Step 1 (no model): by Q1 and Q7 decile and by year, P(+20% within 3 days), P(-20% within 3 days),
+  P(+20% before -20%), mean 3-day and 7-day return; compared with all snapshots. The idea passes
+  if the quietest 10-20% show more up than down moves than ordinary snapshots in 2022-24, checked
+  in 2025-26.
+- Step 2 (rules, $50 book as B2: $10,000, $50 a trade, <= 200 open, one per coin, no stop, TP
+  +20/30/50/100% or 1/3/7/30 days, 0.3% cost): Q1 decile 1, Q7 decile 1, both, and "quiet + early
+  buying" (Q7 decile 1-2 with taker-buy share up and trade count up). Chosen on 2022-24 only.
+- Step 3 (CNN on quiet snapshots, Q7 deciles 1-3): input 7 days of 1h candles (coin OHLC, volume,
+  taker share, trades, avg trade size; BTC close and volume) plus the last 24h of 5m candles, plus
+  the scalar features; target "+20% within 3 days" (classification); walk-forward as M9 (train
+  before Y-1 July, early-stop on Y-1 July-Dec, score Y), 2 seeds; traded at the top 1/2/5% with
+  the same book. Compared with the quiet rules and with random quiet snapshots.
+- Step 4: 1m candles around the chosen strategy's take-profit hits (data.binance.vision daily
+  1m files for those days) to check the +20% target would have filled (price at or above the
+  target for at least 1 minute, not one tick).
+- Every result also without 2025-10-10/11. Report: journal section "Study 3".
 
 ## Resume
 
