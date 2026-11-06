@@ -123,3 +123,9 @@ re-run.
   rounding at the 15th digit. Copies in `results/replication/`.
 - 07:30Z R5: replication complete; reported to the user. Heartbeat deleted. Caches for further CNN
   work are ready in the shared cache folder (events, seq, seq2, fwd2, wf/base, wf/path_all).
+- 08:50Z B1 interim (br1h, br1h_w2h done): top 2%, 5 slots, bracket: br1h +61/+36/+31/-1/-31 bp
+  per trade 2022..2026 (150-412 trades a year); br1h_w2h +30/+10/+21/-2/+8. PR 8 base CNN traded
+  with the bracket instead of a 1h hold: +45/+47/+47/+27/-2 (vs +334/+170/+57/+67/+53 with the 1h
+  hold). Why: the stop is hit inside the first 5m candle on 25-28% of top-2% signals (median
+  first-candle range 2.5-2.9%); same-candle TP/SL ambiguity is only 4-5%. A -2% stop sits inside
+  normal noise at capitulation moments.
