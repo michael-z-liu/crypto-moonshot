@@ -205,8 +205,8 @@ def speed() -> None:
     print(
         r.select(
             pl.len(),
-            pl.col("trigger_min").mean(),
-            (pl.col("trigger_min") < 4).mean(),
+            pl.col("trigger_min").mean().alias("mean_trigger_minute"),
+            (pl.col("trigger_min") < 4).mean().alias("share_triggered_early"),
             ((pl.col("entry_m1") / pl.col("entry_m5") - 1) * 100).median().alias("m1_vs_m5_pct"),
             (pl.col("r1h_m1") * 100).mean(),
             (pl.col("r1h_m5") * 100).mean(),

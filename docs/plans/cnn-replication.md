@@ -336,3 +336,9 @@ re-run.
   25 GB in the shared data folder (klines/spot/interval=1m), 24 min. Analysis `m23_minute.py`
   speed -> quiet -> report running, log research/volume_spike/cache_all/logs/m23.log. Tested on
   AAVE: the "m5" entry equals the 5m backtest entry exactly.
+- 14:49Z B4 part A (m23_speed.csv): 49,409 R2 signals. The 1m trigger fires in the spike
+  candle's first minute (mean minute 0.22; 99.7% before the last minute); its entry is a median
+  0.23% above the 5m entry; mean 1h return +2.5% vs +3.5%. $ a year 2020..2026, 5m entry
+  (replayed on 1m candles) +833 / +8,650 / -1,082 / +2,967 / +7,584 / +2,479 / +1,336 (matches B2);
+  1m trigger -76 / +5,203 / -2,561 / -758 / +1,220 / +341 / +295. FAILS: in a crash, reacting
+  faster buys before the bottom; the end of the 5m crash candle is the better moment.
