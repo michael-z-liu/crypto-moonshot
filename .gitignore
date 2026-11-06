@@ -41,3 +41,4 @@ htmlcov/
 /research/**/cache
 /research/**/report/index.html
 /research/**/report/data.json
+/research/**/cache_*

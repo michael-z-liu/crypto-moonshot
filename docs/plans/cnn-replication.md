@@ -1,9 +1,9 @@
 # Replicate the PR #8 CNN results on a new computer
 
-- **Status:** review <!-- building | blocked | review | done -->
+- **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-replication` (from PR #8's `claude/high-volume-trading-strategy-0c5d1e`)
 - **PR:** none yet (report to the user in the session; open a PR only if asked)
-- **Updated:** 2026-11-06T10:15Z
+- **Updated:** 2026-11-06T10:45Z
 
 ## Goal
 
@@ -88,6 +88,33 @@ https://claude.ai/artifact/EwkgNPxbXeNexdbwG2eQGf. Update it as results come in.
 - Volume vs conviction frontier: thresholds top 0.5/1/2/5/10% x 5/10/20 slots, per year.
 - Stress: 0.6% cost, extra 0.2% slippage on stop fills, entry one candle late, placebo
   (scores shuffled within each day).
+
+### B2: Long shots, $50 a trade, no stop (in progress, asked 2026-11-06)
+
+User ask: fund $10,000, buy many $50 positions with no stop, aim for +30-50% per winning trade;
+explore a few variations. Up to 30 days holding agreed; delisted coins downloaded first (user OK).
+
+**Pre-registered protocol (written before any long-horizon result was seen):**
+- Universe: "all" = pool + 191 delisted + 239 listed outside the pool (archive, imported into the
+  shared data folder); pegged coins and tokenised stocks excluded. Cache: `cache_all/` (symlink
+  into the shared folder).
+- Outcomes (`build_long30.py`): for every event row (spikes + random bars), entry at the next 5m
+  open; on the gap-free 5m grid (missing candles carry the last close; after a series ends, the
+  last close holds), the first time the high reaches +20/+30/+50/+100%, and the close and lowest
+  low after 1, 3, 7 and 30 days. Entries after 2026-10-01 are dropped (30 days must fit).
+- Exits: take profit TP in {20, 30, 50, 100%} or the time limit H in {1, 3, 7, 30 days},
+  whichever comes first; no stop. Reference: no TP, hold H. Cost 0.3% round trip.
+- Book: $10,000, $50 per trade, at most 200 open positions, one per coin; signals in time order,
+  same-candle ties by priority; signals that find no room are skipped. P&L summed (no compounding).
+  Report by entry year: trades, hit rate, mean net % per trade, P&L in $ and % of $10k, worst
+  realised drawdown in $.
+- Entries: R0 random 5m bars (baseline); R1 every spike (volume >= 10x its 24h median) with
+  >= 1k USDT median per candle; R2 capitulation: R1 + coin -10% in 4h + BTC volume >= 6x; R3 deep
+  crash: R1 + coin -30% in 24h; R4 breakout: R1 on an up candle at a 7-day high. CNN: liquid spikes
+  (>= 5k USDT, the `seq2` dataset on "all"), all 13 channels, 24h window, classifying "+30% within
+  7 days", walk-forward as M9 (2 seeds), traded at the top 1/2/5% of scores.
+- Selection: 2022-24 decides (rules also shown for 2020-21); 2025-26 reported, not used to choose.
+  Every result is shown next to R0 random with the same exit.
 
 ## Resume
 
