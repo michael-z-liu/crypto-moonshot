@@ -53,7 +53,7 @@ enough to trust the setup. Report back when they match.
   (`results/m11_cnn_portfolio.csv`), coin+BTC CNN, 5 slots: valid 2024 +218 bp (118 trades), test
   2025–26 +114 bp (254 trades; 2025 +120, 2026 +106).
 
-### R4: Walk-forward CNNs
+### R4: Walk-forward CNNs (done)
 
 - `build_seq2.py` (+ `fwd`), `m12_cnn_wf.py run base path_all`, then `eval`. **Reference**
   (`results/m12_variants.csv`, 5 slots, top 2%, 1h), bp per trade 2022..2026:
@@ -87,3 +87,8 @@ re-run.
   path_all` started next to the M7 training (both on MPS), log `cache/logs/m12_run.log`; outputs
   `cache/wf/base.npz`, `cache/wf/path_all.npz`. Not yet run: `eval` (overwrites
   results/m12_variants.csv; restore it afterwards).
+- 07:20Z R4 done: base (~9 min) and path_all (~10 min) re-trained from scratch on MPS. `eval`
+  reproduces PR 8 exactly: base +334/+170/+57/+67/+53, path_all +278/+206/+107/+65/+101 bp per
+  trade 2022..2026, same trade counts and drawdowns (training is deterministic with fixed seeds,
+  the locked torch and the same M4 chip). Table in `results/replication/m12_variants.csv`;
+  committed results/m12_variants.csv restored.
