@@ -1,9 +1,9 @@
 # Replicate the PR #8 CNN results on a new computer
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-replication` (from PR #8's `claude/high-volume-trading-strategy-0c5d1e`)
 - **PR:** none yet (report to the user in the session; open a PR only if asked)
-- **Updated:** 2026-11-06T21:05Z
+- **Updated:** 2026-11-06T21:44Z
 
 ## Goal
 
@@ -198,7 +198,7 @@ data and validate the idea. Report in the journal (new section "Study 4").
   Binance daily aggTrades files; the first trade price after the trigger minute closes vs the 1m
   open assumed (slippage), and how many trades print in that first minute.
 
-### B5: What the network forecasts vs what happened (in progress, asked 2026-11-07)
+### B5: What the network forecasts vs what happened (done, asked 2026-11-07)
 
 User ask: ~20 charts of the network's price forecast vs reality for the surviving edge (B2 pick:
 R2 capitulation, $50, +20% or 3 days), with the hours before entry, to understand how the network
@@ -383,3 +383,12 @@ re-run.
   Chart page created: https://claude.ai/artifact/PkX8K25U4KPmipoEqNX5yp (Dashboard type, still empty;
   page draft in the session scratchpad dash/index.html; datasets trades = m25_charts.json,
   diag = m25_diag.csv, calib = m25_calibration.csv, uploaded as files once built).
+- 21:44Z B5 done. Path forecaster walk-forward 2022-26 (35 min; early stopping keeps epoch 0-1).
+  4,503 capitulation trades (book, in seq2): band coverage 66-70% (meant 80%; at 1 h 24% above q90,
+  at 24-72 h 18-20% below q10); median forecast vs real: 1 h +0.77 vs +1.85%, 4 h +1.38 vs +2.91%,
+  24 h +3.66 vs +4.11%, 72 h +4.03 vs +3.36%; rank corr 0.30-0.32 to 12 h, 0.20-0.28 after; MAE vs
+  a zero forecast 4.22 vs 4.66 (1 h), 11.02 vs 11.45 (72 h). 72 h calibration: top tenth forecast
+  +13.5% -> real +13.9%, 35% of them above +20% (others 6-15%); middle tenths noisy. All liquid
+  spikes: coverage 81% at 1 h falling to 71%. Page filled: https://claude.ai/artifact/PkX8K25U4KPmipoEqNX5yp
+  (20 trade charts, 4 accuracy charts, five ways to improve the network). The page's own check
+  returned "checking" and then nothing in 5 reads; no runs failures recorded.

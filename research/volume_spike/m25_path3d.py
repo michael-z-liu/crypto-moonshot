@@ -211,7 +211,9 @@ def charts() -> None:
 def diag() -> None:
     p = np.load(OUT, mmap_mode="r")
     y = target()
-    meta = pl.read_parquet(CACHE / "seq2_meta.parquet", columns=["year"])
+    meta = pl.read_parquet(CACHE / "seq2_meta.parquet", columns=["open_time"]).with_columns(
+        year=pl.col("open_time").dt.year()
+    )
     test = np.flatnonzero(meta["year"].to_numpy() >= 2022)
     tr = pick_trades()
     sets = {
