@@ -1,9 +1,9 @@
 # Replicate the PR #8 CNN results on a new computer
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-replication` (from PR #8's `claude/high-volume-trading-strategy-0c5d1e`)
 - **PR:** none yet (report to the user in the session; open a PR only if asked)
-- **Updated:** 2026-11-06T12:37Z
+- **Updated:** 2026-11-06T13:19Z
 
 ## Goal
 
@@ -116,7 +116,7 @@ explore a few variations. Up to 30 days holding agreed; delisted coins downloade
 - Selection: 2022-24 decides (rules also shown for 2020-21); 2025-26 reported, not used to choose.
   Every result is shown next to R0 random with the same exit.
 
-### B3: Quiet coins before a spike (in progress, asked 2026-11-06)
+### B3: Quiet coins before a spike (done, asked 2026-11-06)
 
 User ask: go back to the original idea. Enter while a coin is quiet (little activity, little price
 movement) and predict an imminent upward spike, instead of entering after a crash. One full round:
@@ -295,3 +295,13 @@ re-run.
   (TP 20%, 30d) +1,324 / +384 / +577 / +298 / -136, its placebo better in 2022-24. Top picks are
   young (median age 245 vs 850 days), deep below the 30-day high (-36..-45% vs -23%), least quiet
   of the quiet (rv1_rel ~1.0 vs 0.8); taker share barely differs. Verdict: round 1 fails.
+- 13:19Z B3 round 2 (`m22_quiet_spike.py`, m22_quiet_spike.csv, m22_quiet_spike_context.csv):
+  4.23M spikes with a quiet measure. Best 2022-24 / same setting 2025-26, $ a year: S1 -739 / -3,840;
+  S2 (2019 rule in a quiet spell) -390 / -3,762; S3 (first spike in 3 days, ~60 trades a year)
+  -35 / -9; S4 -735 / -3,873; busy + up candle +1,507 / -6,019; every up-candle spike +1,514 /
+  -6,035. Mean return 1h / 4h after entry, 2022-24: quiet -0.12 / -0.18%, busy -0.25 / -0.41%;
+  median spike candle out of quiet +0.4%. Secondary (B2 CNN on quiet-context spikes): 4-47 trades
+  a year, +368 / -4 / +66 / +345 (ex-cascade +43) / -51 -> noise. Verdict: study 3 fails in every
+  form tested.
+- 13:19Z B3 done. Journal: "Where we stand after three studies" summary at the top, Study 3
+  section (charts, tables, conclusions), journal rows. Waiting for the user.
