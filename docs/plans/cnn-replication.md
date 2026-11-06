@@ -1,9 +1,9 @@
 # Replicate the PR #8 CNN results on a new computer
 
-- **Status:** review <!-- building | blocked | review | done -->
+- **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-replication` (from PR #8's `claude/high-volume-trading-strategy-0c5d1e`)
 - **PR:** none yet (report to the user in the session; open a PR only if asked)
-- **Updated:** 2026-11-06T14:51Z
+- **Updated:** 2026-11-06T21:05Z
 
 ## Goal
 
@@ -197,6 +197,27 @@ data and validate the idea. Report in the journal (new section "Study 4").
 - Part C, trade-level check on a sample: for 200 random trades of the best Part A or B rule,
   Binance daily aggTrades files; the first trade price after the trigger minute closes vs the 1m
   open assumed (slippage), and how many trades print in that first minute.
+
+### B5: What the network forecasts vs what happened (in progress, asked 2026-11-07)
+
+User ask: ~20 charts of the network's price forecast vs reality for the surviving edge (B2 pick:
+R2 capitulation, $50, +20% or 3 days), with the hours before entry, to understand how the network
+could be better and how far its forecasts are from reality.
+
+Plan (a diagnostic, not a strategy test; judgment calls noted):
+- Model: the PR 8 path forecaster (`path_all` design: all 13 channels, quantile loss 10/50/90%),
+  extended to the strategy's 3-day hold: hourly steps 1..72 h (`build_fwd72.py`: close path from
+  the 5m grid; a delisted coin holds its last close), 24h input window, walk-forward on "all"
+  (train before Y-1 July, early stop on Y-1 H2 pinball loss, score Y; 2 seeds), `m25_path3d.py`.
+- Charts: 20 B2-pick trades taken by the book in 2022-26 that are in the liquid-spike dataset,
+  stratified random (seed fixed): 4 per year, 2 that hit +20% and 2 that did not where possible.
+  Each: 24 h before entry (15m closes), the 72 h after (hourly high/low/close), the forecast
+  median and 10-90% band, entry, +20% target, actual exit.
+- Accuracy over all B2-pick trades in the dataset and all liquid spikes: band coverage by horizon,
+  forecast median vs realised median and mean by horizon, rank correlation by horizon, and
+  calibration by forecast decile (forecast vs realised at 24 h and 72 h).
+- Output: an interactive page (artifact) with the 20 charts and the diagnostics; a short section
+  and link in the journal.
 
 ## Resume
 
