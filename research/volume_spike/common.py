@@ -10,7 +10,7 @@ from pathlib import Path
 import polars as pl
 
 DATA_DIR = Path(
-    os.environ.get("MOONSHOT_DATA_DIR", "/Users/michael/Documents/code/crypto-moonshot/data")
+    os.environ.get("MOONSHOT_DATA_DIR", "/Users/mike/code/crypto-moonshot/data")
 )
 KLINES_5M = DATA_DIR / "klines" / "spot" / "interval=5m"
 HERE = Path(__file__).resolve().parent

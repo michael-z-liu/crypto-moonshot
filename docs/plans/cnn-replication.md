@@ -14,7 +14,13 @@ enough to trust the setup. Report back when they match.
 ## Ground rules
 
 - Shared data folder: `MOONSHOT_DATA_DIR=/Users/mike/code/crypto-moonshot/data` (the main
-  checkout's gitignored `./data`). Every research command in this plan sets it.
+  checkout's gitignored `./data`), now also the default in `research/volume_spike/common.py`.
+- Shared research caches: in each worktree, `research/volume_spike/cache` is a symlink (gitignored)
+  to `/Users/mike/code/crypto-moonshot/data/cache/volume_spike`, so the event table and sequence
+  datasets are built once per computer. Create it in a new worktree with
+  `ln -s /Users/mike/code/crypto-moonshot/data/cache/volume_spike research/volume_spike/cache`.
+  Two sessions must not rebuild the same cache file at the same time; walk-forward runs write
+  one `cache/wf/<variant>.npz` each, so use distinct variant names in parallel sessions.
 - The old pool list (`top200.txt`) was never committed. It was rebuilt from today's exchange info
   minus `results/archive_groups.json` (198 symbols, 152 after pegged/stocks, the same count as
   PR #8), and saved as `research/volume_spike/results/pool_symbols.txt` and in the data folder.

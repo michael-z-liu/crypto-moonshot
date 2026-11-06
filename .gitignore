@@ -38,6 +38,6 @@ htmlcov/
 .claude/worktrees/
 
 # Research caches
-/research/**/cache/
+/research/**/cache
 /research/**/report/index.html
 /research/**/report/data.json
