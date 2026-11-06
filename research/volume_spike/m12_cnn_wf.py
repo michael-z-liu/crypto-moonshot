@@ -189,12 +189,13 @@ def make(cfg: Cfg, n_s: int, n_out: int) -> nn.Module:
 
 # ----------------------------------------------------------------------------- data
 class Data:
-    def __init__(self) -> None:
+    def __init__(self, mmap: bool = False) -> None:
         t0 = time.time()
         self.meta = pl.read_parquet(CACHE / "seq2_meta.parquet").with_columns(
             year=pl.col("open_time").dt.year(), day=pl.col("open_time").dt.date()
         )
-        self.seq = np.load(CACHE / "seq2.npy")
+        # mmap: read sequences from disk on demand (for datasets larger than memory)
+        self.seq = np.load(CACHE / "seq2.npy", mmap_mode="r" if mmap else None)
         self.fwd = np.load(CACHE / "fwd2.npy", mmap_mode="r")
         self.t = self.meta["open_time"].to_numpy()
         m = self.meta

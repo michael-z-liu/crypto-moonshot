@@ -189,3 +189,12 @@ re-run.
   `research/volume_spike/cache_all/logs/b2_pipeline.log` (events -> long30 -> rules -> seq2).
 - 10:12Z (clock check) Times in the entries from 08:20Z on were estimates and ran ahead of the real
   clock; the order of the entries is right. From here on, times come from `date -u`.
+- 10:16Z B2 rules on "all" (11.05M event rows, 4.54M spikes; results/universe_all/m18_rules.csv).
+  % of $10k a year, 2022-24 / 2025-26 (ex 2025-10-10/11): R0 random +42 / -38 at best (TP20 30d);
+  R1 every spike and R4 breakout lose in 2025-26 at every exit; R2 capitulation positive with
+  1-7 day limits; R3 deep crash 2025-26 is the cascade (ex-cascade +2..+10). Pre-registered pick
+  (best 2022-24 P&L among R1-R4): R2, TP +20%, 3 days: $ per year 2020..2026 +845 / +8,651 /
+  -1,082 / +2,967 / +7,584 / +2,479 (ex-cascade +879) / +1,337; 1,000-2,300 trades a year, mean
+  +4% per trade, hit rate 17-39%, worst trade -90% (LUNA), worst realised drawdown -$2,375.
+  +30-50% targets are reached on only 3-20% of trades; the profit is the bounce.
+  `Data(mmap=True)` added to m12 (seq2 on "all" is 13.9 GB, 1.85M rows).

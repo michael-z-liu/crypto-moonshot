@@ -226,7 +226,7 @@ def cnn_run(seeds: int = 2) -> None:
         scalars=("liq", "age", "hour"),
         epochs=6,
     )
-    data = Data()
+    data = Data(mmap=True)
     lo = pl.read_parquet(CACHE / "long30.parquet", columns=["row", CNN_TARGET[0]])
     hit = (
         data.meta.select("event")
