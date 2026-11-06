@@ -332,3 +332,7 @@ re-run.
   form tested.
 - 13:19Z B3 done. Journal: "Where we stand after three studies" summary at the top, Study 3
   section (charts, tables, conclusions), journal rows. Waiting for the user.
+- 14:42Z B4 data: `fetch_1m.py` 25,711 symbol-months, 0 problems, 1,111,441,287 1m candles,
+  25 GB in the shared data folder (klines/spot/interval=1m), 24 min. Analysis `m23_minute.py`
+  speed -> quiet -> report running, log research/volume_spike/cache_all/logs/m23.log. Tested on
+  AAVE: the "m5" entry equals the 5m backtest entry exactly.
