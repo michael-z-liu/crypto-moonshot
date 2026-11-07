@@ -249,6 +249,11 @@ history (about 25 GB) cannot be loaded whole.
   from the initial capital, so the first day's P&L counts, CAGR, max drawdown, Sharpe on daily
   returns annualised with 365, time in market, calendar-year returns) come from the curve.
   Writing them under `results/` comes with the `moonshot backtest` command.
+- **Validation:** golden tests (`tests/test_golden.py`, opt-in with `uv run pytest -m golden`)
+  reproduce the research's F2, capitulation (5m and 1m fills) and walk-forward CNN results on the
+  real data; [`backtest-validation.md`](backtest-validation.md) gives the numbers and explains
+  every difference (cash checks, the research's look-ahead filters, the cost model, re-running
+  the book on 1m fills).
 
 ### Live engine
 
