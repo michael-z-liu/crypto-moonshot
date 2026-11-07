@@ -114,7 +114,7 @@ def parse_when(text: str, *, option: str) -> datetime:
     return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
 
 
-def _resolve_settings(data_dir: Path | None) -> Settings:
+def resolve_settings(data_dir: Path | None) -> Settings:
     settings = Settings()
     if data_dir is not None:
         settings = settings.model_copy(update={"data_dir": data_dir})
@@ -249,7 +249,7 @@ def sync(
         msg = "--verbose and --quiet cannot be used together"
         raise typer.BadParameter(msg, param_hint="--verbose")
 
-    settings = _resolve_settings(data_dir)
+    settings = resolve_settings(data_dir)
     series = [(symbol, interval_) for symbol in wanted_symbols for interval_ in intervals]
     renderer = make_renderer(ProgressMode.NONE if quiet else progress)
     console = renderer.console if isinstance(renderer, BarsProgress) else None
@@ -311,7 +311,7 @@ def status(
     """Show what is stored: range, candle counts, gaps and invalid files. Reads disk only."""
     wanted_symbols = parse_symbols(symbols) if symbols else []
     intervals = parse_intervals(interval, [])
-    settings = _resolve_settings(data_dir)
+    settings = resolve_settings(data_dir)
     reports = store_report(KlineStore(settings.data_dir), wanted_symbols, intervals)
     if json_output:
         typer.echo(json.dumps([report.to_dict() for report in reports]))
@@ -361,7 +361,7 @@ def import_(
 
     Exit codes: 0 done (even if some files were skipped), 2 usage error.
     """
-    settings = _resolve_settings(data_dir)
+    settings = resolve_settings(data_dir)
     try:
         check_source(source, settings.data_dir)
         report = import_store(

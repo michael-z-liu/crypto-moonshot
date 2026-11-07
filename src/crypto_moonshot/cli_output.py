@@ -1,4 +1,6 @@
-"""Human-readable output of `moonshot data`: a rich table in a terminal, aligned text otherwise.
+"""Human-readable output of `moonshot data` and `moonshot backtest`.
+
+Tables are rich in a terminal and aligned text otherwise.
 
 Everything here writes to stdout. Plain output is ASCII only and has no escape codes, so an agent
 or a log file can read it.
@@ -7,9 +9,10 @@ or a log file can read it.
 from __future__ import annotations
 
 import sys
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
 
+import polars as pl
 from rich import box
 from rich.console import Console
 from rich.table import Table
@@ -272,3 +275,64 @@ def print_import_report(report: ImportReport, *, tty: bool | None = None) -> Non
     if report.dry_run:
         line += "; dry run: nothing written"
     print_notice(line, tty=tty, style="")
+
+
+# --------------------------------------------------------------------------------------
+# backtest
+# --------------------------------------------------------------------------------------
+
+
+def _num(value: float, spec: str) -> str:
+    return "-" if value != value else format(value, spec)  # NaN != NaN
+
+
+def print_backtest_summary(
+    metrics: Mapping[str, float],
+    skipped: Mapping[str, int],
+    yearly: pl.DataFrame,
+    *,
+    tty: bool | None = None,
+) -> None:
+    """Overall metrics, skipped signals by reason, then one row per calendar year."""
+    tty = stdout_is_tty() if tty is None else tty
+    m = metrics
+    print_table(
+        ["METRIC", "VALUE"],
+        [
+            ["trades", f"{m['trades']:,.0f}"],
+            ["mean bp per trade", _num(m["mean_bp"], "+,.1f")],
+            ["win rate", _num(100 * m["win_rate"], ".1f") + " %"],
+            ["P&L (USDT)", _num(m["pnl"], "+,.2f")],
+            ["worst trade (bp)", _num(m["worst_bp"], "+,.0f")],
+            ["avg hold (hours)", _num(m["avg_hold_hours"], ".1f")],
+            ["final equity (USDT)", _num(m["final_equity"], ",.2f")],
+            ["total return", _num(100 * m["total_return"], "+.1f") + " %"],
+            ["CAGR", _num(100 * m["cagr"], "+.1f") + " %"],
+            ["max drawdown", _num(100 * m["max_drawdown"], ".1f") + " %"],
+            ["Sharpe (daily, 365)", _num(m["sharpe"], ".2f")],
+            ["time in market", _num(100 * m["time_in_market"], ".1f") + " %"],
+        ],
+        tty=tty,
+        right={1},
+    )
+    reasons = ", ".join(f"{reason} {count:,}" for reason, count in skipped.items() if count)
+    print_notice(f"skipped signals: {reasons or 'none'}", tty=tty, style="")
+    rows = [
+        [
+            str(row["year"]),
+            f"{row['trades']:,.0f}",
+            _num(row["mean_bp"], "+,.0f"),
+            _num(100 * row["win_rate"], ".1f"),
+            _num(row["pnl"], "+,.0f"),
+            _num(row["worst_bp"], "+,.0f"),
+            _num(row["avg_hold_hours"], ".1f"),
+            _num(100 * row["return"], "+.1f"),
+        ]
+        for row in yearly.iter_rows(named=True)
+    ]
+    print_table(
+        ["YEAR", "TRADES", "BP/TRADE", "WIN %", "P&L", "WORST BP", "HOLD H", "RETURN %"],
+        rows,
+        tty=tty,
+        right={1, 2, 3, 4, 5, 6, 7},
+    )

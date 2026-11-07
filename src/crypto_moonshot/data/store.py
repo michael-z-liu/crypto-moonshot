@@ -542,6 +542,36 @@ class KlineStore:
             raise InvalidMonthFileError(msg)
         return frame
 
+    def read_series(
+        self,
+        symbol: str,
+        interval: Interval,
+        *,
+        end: datetime | None = None,
+        columns: Iterable[str] | None = None,
+    ) -> pl.DataFrame:
+        """Every stored candle of a series opening before `end` (all if None), sorted.
+
+        Reads only the month files that start before `end`, and only `columns` (default: all
+        of `KLINE_SCHEMA`; `open_time` is always included). Files are read as stored, without
+        the format checks of `read_month`: readers that need them use `check_month_file`.
+        An empty frame with the requested columns when nothing is stored.
+        """
+        wanted = list(KLINE_SCHEMA) if columns is None else list(columns)
+        if "open_time" not in wanted:
+            wanted.insert(0, "open_time")
+        months = self.list_months(symbol, interval)
+        if end is not None:
+            end = as_utc(end)
+            months = [m for m in months if m < end]
+        if not months:
+            return pl.DataFrame(schema={c: KLINE_SCHEMA[c] for c in wanted})
+        paths = [self.month_path(symbol, interval, m) for m in months]
+        scan = pl.scan_parquet(paths).select(wanted)
+        if end is not None:
+            scan = scan.filter(pl.col("open_time") < end)
+        return scan.collect().sort("open_time")
+
     def stored_open_times(
         self, symbol: str, interval: Interval, *, months: Iterable[datetime] | None = None
     ) -> pl.Series:
