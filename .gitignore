@@ -27,6 +27,7 @@ htmlcov/
 # Local market data, backtest output, logs
 /data/
 /logs/
+/results/
 
 # Editors / OS
 .vscode/
