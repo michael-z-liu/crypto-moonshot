@@ -1,7 +1,8 @@
 # Architecture
 
 > **This is a living document, not a fixed spec.** It records the design as first agreed on
-> 2026-10-31, before any of it was built. Needs will change and the design should change with
+> 2026-10-31 and has been revised as the data layer, strategies, simulated broker and backtest
+> engine were built (live trading is still design only). Needs will change and the design should change with
 > them. If a requirement shifts, or building something shows part of this design is wrong or
 > awkward, change the design and update this document in the same PR. Each decision below gives
 > its reason; when the reason stops holding, the decision is open. The binding rules for this
@@ -36,16 +37,22 @@ Binance REST ──► data.sync ──► data.store (Parquet)
                                   │                    │          (all symbols, one connection)
                                   └────────┬───────────┘
                                            ▼
-                        Strategy → Position sizing → Risk checks
-                                           │
-                                ┌──────────┴──────────┐
-                                ▼                     ▼
-                         SimulatedBroker        BinanceBroker
-                       (backtest, paper)     (testnet, mainnet)
+                 Strategy ──► Position sizing ──► Risk checks
+                 (entry signals + ExitPlan,         │
+                  or targets: what to hold)         │
+                                           ┌────────┴────────┐
+                                           ▼                 ▼
+                                    SimulatedBroker     BinanceBroker
+                                  (backtest, paper)   (testnet, mainnet)
+                                  entry + bracket exit (take profit, stop,
+                                  trailing stop, time exit) as orders
 ```
 
 The backtester and the live trader share everything from the strategy to the broker interface.
-They differ only in where candles come from and which broker fills orders.
+They differ only in where candles come from and which broker fills orders. Exits are orders at
+the broker (a bracket attached to the entry), not later decisions of the strategy; the
+alternative style, where the strategy states what it wants to hold and the engine trades the
+difference, is described under Strategy and not built.
 
 ## Components
 
@@ -248,7 +255,21 @@ history (about 25 GB) cannot be loaded whole.
   average hold) are grouped by entry year, as the research reports; equity metrics (total return
   from the initial capital, so the first day's P&L counts, CAGR, max drawdown, Sharpe on daily
   returns annualised with 365, time in market, calendar-year returns) come from the curve.
-  Writing them under `results/` comes with the `moonshot backtest` command.
+- **Data end:** the engine asks the source for its data end (`CandleSource.data_end`) and never
+  loads a position's window past it; a window that reaches it counts as ended. A position still
+  open there (an exit plan without `max_hold`, or a time exit beyond the data) closes at the last
+  close with reason `series_end`, the same reason as a delisting; its exit time is the data end.
+- **CLI** (`backtest_cli.py`): `moonshot backtest f2|capitulation|scores` run the engine with the
+  presets' defaults (F2: pool, 5 equal slots, 1 hour; capitulation: all coins, $50 stakes, +20%
+  or 3 days, signals before `R2_LAST_ENTRY`; scores: top 2%, 5 slots, 1 hour) and options for
+  the data end, signal range, sizing (`--slots` or `--stake`), exits (`--hold`, `--take-profit`,
+  `--stop`, `--trailing`, `--tp-fill`), costs, 1m fills (`--fine`) and entry delay. A run writes
+  `trades.parquet` and `.csv`, `equity.csv`, `yearly.csv` and `metrics.json` (metrics, skipped
+  signals, the full configuration and the data end used) into `results/<strategy>-<UTC
+  timestamp>/` (gitignored) and prints the overall metrics and the yearly table; `--json` prints
+  the `metrics.json` document instead. `moonshot backtest convert-scores NPZ META OUT` turns a
+  research walk-forward `.npz` into a score file. Signal caches stay in `.cache/` of the working
+  directory, never in the data folder.
 - **Validation:** golden tests (`tests/test_golden.py`, opt-in with `uv run pytest -m golden`)
   reproduce the research's F2, capitulation (5m and 1m fills) and walk-forward CNN results on the
   real data; [`backtest-validation.md`](backtest-validation.md) gives the numbers and explains
@@ -271,7 +292,7 @@ history (about 25 GB) cannot be loaded whole.
 
 | Mode                           | Candles             | Order fills                           |
 | ------------------------------ | ------------------- | ------------------------------------- |
-| `backtest`                     | Stored history      | `SimulatedBroker`                     |
+| `backtest` (built)             | Stored history      | `SimulatedBroker`                     |
 | `paper`                        | Live mainnet stream | `SimulatedBroker`                     |
 | `testnet` (default for orders) | Live mainnet stream | Binance spot testnet                  |
 | `live`                         | Live mainnet stream | Binance mainnet; requires `--mainnet` |
@@ -280,8 +301,8 @@ history (about 25 GB) cannot be loaded whole.
 
 ```
 src/crypto_moonshot/
-├── cli.py              # Typer app; data_cli.py holds the `data` commands
-├── cli_output.py       # summary and status tables (rich in a terminal, plain text otherwise)
+├── cli.py              # Typer app; data_cli.py holds the `data` commands, backtest_cli.py `backtest`
+├── cli_output.py       # summary, status and backtest tables (rich in a terminal, plain text otherwise)
 ├── progress.py         # sync progress renderers: bars and lines
 ├── config.py           # API keys from env/.env; per-run settings (symbols, params, limits) from a file
 ├── models.py           # Interval, kline schema, Target
@@ -289,8 +310,8 @@ src/crypto_moonshot/
 ├── strategy/           # base.py, features.py, compute.py, capitulation.py, scores.py
 ├── portfolio.py        # the book and position sizing
 ├── risk.py
-├── broker/             # base.py (interface, orders), candles.py, simulated.py, binance.py
-├── backtest/           # engine.py, metrics.py, source.py (candle windows)
+├── broker/             # base.py (orders, ExitPlan, Costs), candles.py, simulated.py (built); binance.py
+├── backtest/           # engine.py, metrics.py, source.py (candle windows; Parquet-backed and in-memory)
 └── live/               # engine.py, state.py (SQLite)
 ```
 
@@ -299,10 +320,12 @@ Commands:
 - `moonshot data sync`: download missing candles
 - `moonshot data status`: show coverage and gaps
 - `moonshot data import <folder>`: reuse candles downloaded into another data folder
-- `moonshot backtest <strategy>`
+- `moonshot backtest f2|capitulation|scores`: backtest a strategy and write `results/`
+- `moonshot backtest convert-scores NPZ META OUT`: make a score file from a research CNN output
 - `moonshot live <strategy> --mode paper|testnet|live`
 
-Dependencies so far: polars, numpy, httpx, pydantic-settings, rich. Expected later: duckdb, websockets.
+Dependencies so far: polars, numpy (the broker and engine work on arrays), httpx, pydantic-settings,
+rich, typer. Expected later: duckdb, websockets.
 
 ## Key decisions and why
 
@@ -318,6 +341,15 @@ Dependencies so far: polars, numpy, httpx, pydantic-settings, rich. Expected lat
   finer-grained data.
 - **One strategy for backtest and live.** Strategies that do well in backtests and lose live often
   calculate their signal differently on the two paths. Sharing the code removes that cause.
+- **Exits are orders at the broker.** A strategy returns entries plus an `ExitPlan`; take profit,
+  stop, trailing stop and time exit are bracket orders. Live, the exchange can then protect a
+  position while the bot is down, and the backtest resolves exits with the same order semantics
+  (stop first on a candle touching both, gaps fill at the open) instead of the strategy
+  re-deciding each bar.
+- **The backtest walks signals, not bars.** With bracket exits only the candles around each
+  position matter, so the engine loads one window per position (1m only where fills need it)
+  and 25 GB of 1m history never has to fit in memory. A strategy that must act on every bar
+  (the targets style) would need a bar loop; that is the cost of adding it.
 - **Only sync and import write candles.** Few writers, all using atomic renames, mean the live
   trader and a backtest can read while data is being updated. Running two writers on the same
   data folder at once is not supported.
@@ -337,8 +369,9 @@ Dependencies so far: polars, numpy, httpx, pydantic-settings, rich. Expected lat
 
 1. Models and config
 2. Data layer: REST client, store, sync, `data sync` and `data status`
-3. Strategy interface, plus a simple moving-average crossover strategy to test the plumbing
-4. Backtest engine and metrics
+3. Strategy interface and the capitulation rules (done; the moving-average crossover was
+   dropped in favour of the research strategies)
+4. Backtest engine, metrics, `moonshot backtest` and golden validation (done)
 5. Live engine in paper mode
 6. Binance broker on testnet, with risk checks
 7. Mainnet with small position sizes
