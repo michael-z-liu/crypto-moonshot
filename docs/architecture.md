@@ -125,15 +125,35 @@ class Strategy(Protocol):
 
 ### Position sizing
 
-Turns "hold this symbol" into a USDT amount, for example equal weights with a cap on open
-positions. With several symbols, this is where capital is split between them.
+Turns "hold this symbol" into a USDT amount (`portfolio.py`). The engines keep a `Book`: cash,
+the cost basis of each open position (entry fee included) and the realised P&L of the current
+UTC day. Sizing and risk decisions use *realised* equity, cash plus open cost basis: open
+positions are not marked to market for them, as in the research simulators, so a decision never
+depends on prices after the entries already made.
+
+- `FixedStake(usdt)`: the same amount per entry; no compounding, P&L simply adds up.
+- `EqualSlots(slots)`: realised equity / slots per entry (compounding).
+
+The stake is the USDT spent including the entry fee. An entry whose stake exceeds the cash is
+skipped.
 
 ### Risk checks
 
-- Maximum order size, maximum total exposure, maximum open positions.
-- Daily loss limit that halts trading.
-- No trading on a symbol whose latest candle is more than about two intervals old.
-- Kill switch: `moonshot live stop`.
+Pre-trade checks in `risk.py`, shared by the backtest and live engines. Each is a small object
+with a `reason` and `allows(book, symbol, stake)`; an engine runs a list of them and skips an
+entry at the first that refuses (`first_rejection`). They read only the book, never prices.
+
+- `MaxPositions`: open positions below the limit.
+- `OnePerSymbol`: no second position in a symbol (the brokers hold one position per symbol, so
+  the backtest always applies it).
+- `MaxExposure`: open cost basis, the new stake included, at most a fraction of realised equity.
+- `DailyLossLimit`: no new entries for the rest of the UTC day once the day's *realised* P&L has
+  fallen below `-limit x` the realised equity at the start of the day. A position that is down
+  but still open does not count until it closes; once hit, the halt lasts until midnight UTC
+  even if later exits recover the loss.
+
+Still to come with the live engine: maximum order size, no trading on a symbol whose latest
+candle is more than about two intervals old, and a kill switch (`moonshot live stop`).
 
 ### Brokers
 
@@ -156,11 +176,37 @@ positions. With several symbols, this is where capital is split between them.
 
 ### Backtest engine
 
-- Lines up candles across symbols by open time. Signals use the close of candle *t*; orders fill at
-  the open of candle *t+1*.
-- Tracks USDT cash and holdings.
-- Outputs an equity curve, a trade list, and metrics (return, CAGR, max drawdown, Sharpe, win rate,
-  time in market) under `results/`.
+`backtest/engine.py` is event-driven over *signals*, not a bar-by-bar loop over every candle:
+long-only strategies with bracket exits only need candles around each position, and the 1m
+history (about 25 GB) cannot be loaded whole.
+
+- **Signals in:** a polars frame with `symbol`, `open_time` (the signal candle *t*, whose close
+  the signal uses) and `priority` (lower first), plus any extra columns, which are carried into
+  the trade list. One `ExitPlan` per run, in `BacktestConfig`.
+- **Candles in:** a `CandleSource` (`backtest/source.py`) returns a symbol's `Candles` window at an
+  interval for a time span, so a Parquet-backed source can read lazily, one window per position
+  (at the signal interval, and at 1m with `use_fine`). A window that reaches the end of an ended
+  series must say so (`Candles.ended`). `InMemoryCandleSource` serves tests.
+- **Timing:** entry is a market buy at the open of candle *t+1* (plus `entry_delay` candles). If
+  that exact candle is missing (a hole, or the series ended) the signal is skipped.
+- **Event order:** signals are processed by entry time, then priority, then symbol. Before each
+  entry, every position whose exit time is at or before the entry time is closed, so its cash and
+  slot are free (as in the research books).
+- **Orders through the broker:** each entry is placed with a `SimulatedBroker` and carries the
+  exit plan; the broker resolves the bracket exit over the position's window with
+  `resolve_exit` and applies it when the engine settles to that time. The window starts at
+  `max_hold` (or `BacktestConfig.window` without one) and doubles until the exit is known. The
+  engine reads the resolved exit (`SimulatedBroker.pending_exit`) only to size windows and to mark
+  the position, never to decide. About 60k positions from 250k signals run in a few seconds.
+- **Outputs** (`BacktestResult`): the trade list; a mark-to-market equity curve at every
+  `mark_every` boundary (midnight UTC by default) from the start of the first entry's day to the
+  end of the last exit's day, valuing open positions at the last close at or before each point
+  (a hole or an ended series carries the last close); counts of skipped signals by reason; and
+  metrics (`backtest/metrics.py`). Trade metrics (trades, mean bp, win rate, P&L, worst trade,
+  average hold) are grouped by entry year, as the research reports; equity metrics (total return
+  from the initial capital, so the first day's P&L counts, CAGR, max drawdown, Sharpe on daily
+  returns annualised with 365, time in market, calendar-year returns) come from the curve.
+  Writing them under `results/` comes with the `moonshot backtest` command.
 
 ### Live engine
 
@@ -194,10 +240,10 @@ src/crypto_moonshot/
 ├── models.py           # Interval, kline schema, Target
 ├── data/               # binance.py (REST), store.py, sync.py, importer.py, status.py, stream.py (WebSocket)
 ├── strategy/           # base.py + algorithms
-├── portfolio.py        # position sizing
+├── portfolio.py        # the book and position sizing
 ├── risk.py
 ├── broker/             # base.py (interface, orders), candles.py, simulated.py, binance.py
-├── backtest/           # engine.py, metrics.py
+├── backtest/           # engine.py, metrics.py, source.py (candle windows)
 └── live/               # engine.py, state.py (SQLite)
 ```
 
