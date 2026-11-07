@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import sys
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 
@@ -179,7 +180,14 @@ class MLP(nn.Module):
         return self.head(torch.cat([self.net(x), s], 1))
 
 
+# Extra architectures registered by other scripts (S4: networks with more input branches), keyed
+# by `Cfg.arch`. The built-in archs below are never looked up here.
+ARCHS: dict[str, Callable[[Cfg, int, int], nn.Module]] = {}
+
+
 def make(cfg: Cfg, n_s: int, n_out: int) -> nn.Module:
+    if cfg.arch in ARCHS:
+        return ARCHS[cfg.arch](cfg, n_s, n_out)
     ch = len(cfg.channels)
     if cfg.arch == "tcn":
         return TCN(ch, n_s, n_out, cfg.width)
