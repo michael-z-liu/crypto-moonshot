@@ -137,8 +137,19 @@ positions. With several symbols, this is where capital is split between them.
 
 ### Brokers
 
-- One interface: place order, cancel order, balances, open orders.
-- `SimulatedBroker` fills at the next candle's open, with fees (0.1% by default) and slippage.
+- One interface (`broker/base.py`): place order, cancel order, balances, open orders. The
+  order models live there too: `Order`, `Fill`, `ExitPlan` (take profit, stop, trailing stop,
+  time exit) and `Costs` (fee, slippage, latency per side).
+- A buy can carry an `ExitPlan`; the broker turns it into a bracket sell whose first exit to
+  fill cancels the rest (OCO). Exits are orders at the broker, not decisions of the strategy.
+- `SimulatedBroker` (`broker/simulated.py`) fills a market buy at the open of the first candle at
+  or after the order time, with fees (0.1% by default), slippage (0.05%) and an optional latency
+  cost. Its core is `resolve_exit`, a pure function that simulates a position's whole exit over
+  its candle window in one vectorised numpy pass (stop first when a candle touches both stop and
+  target, gaps fill at the open, 1m candles replace a coarser candle they fully cover, a series
+  that ends closes at its last close). The module docstring is the exact rule set. Candles are
+  passed as numpy arrays (`broker/candles.py`), not frames, because a backtest resolves tens of
+  thousands of positions.
 - `BinanceBroker` rounds price and quantity to each symbol's trading rules (tick size, step size,
   minimum notional) from a cached `exchangeInfo`, and sets a client order ID on every order so a
   retry can't place it twice.
@@ -180,12 +191,12 @@ src/crypto_moonshot/
 ├── cli_output.py       # summary and status tables (rich in a terminal, plain text otherwise)
 ├── progress.py         # sync progress renderers: bars and lines
 ├── config.py           # API keys from env/.env; per-run settings (symbols, params, limits) from a file
-├── models.py           # Interval, Candle, Order, Fill, Position, Target
+├── models.py           # Interval, kline schema, Target
 ├── data/               # binance.py (REST), store.py, sync.py, importer.py, status.py, stream.py (WebSocket)
 ├── strategy/           # base.py + algorithms
 ├── portfolio.py        # position sizing
 ├── risk.py
-├── broker/             # base.py, simulated.py, binance.py
+├── broker/             # base.py (interface, orders), candles.py, simulated.py, binance.py
 ├── backtest/           # engine.py, metrics.py
 └── live/               # engine.py, state.py (SQLite)
 ```
@@ -198,7 +209,7 @@ Commands:
 - `moonshot backtest <strategy>`
 - `moonshot live <strategy> --mode paper|testnet|live`
 
-Dependencies so far: polars, httpx, pydantic-settings, rich. Expected later: duckdb, websockets.
+Dependencies so far: polars, numpy, httpx, pydantic-settings, rich. Expected later: duckdb, websockets.
 
 ## Key decisions and why
 
