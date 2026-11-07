@@ -106,6 +106,41 @@ They differ only in where candles come from and which broker fills orders.
 
 ### Strategy
 
+A strategy decides *when to enter*; it never sizes positions or places orders. There are two
+styles; only the first is built.
+
+**Entry signals plus an exit plan** (`strategy/`). The strategy produces entry signals from
+closed candles and an `ExitPlan` (take profit, stop, trailing stop, time exit) that the broker
+attaches to every entry as a bracket, so exits are orders at the broker, not later decisions:
+
+- **Signals** (`strategy/base.py`, `Signals`): a polars frame with `symbol`, `open_time` (the
+  signal candle *t*; entry is at the open of *t+1*), `priority` (lower first when signals compete
+  for a slot in one candle) and any extra columns, carried into the trade list.
+- **Rule strategies** (`SignalRule`) compute in three vectorised, backward-looking steps, so a
+  universe can be computed in parallel: `candidates(candles)` turns one symbol's whole series
+  into the rows it might trade, with their features; `context(series)` builds cross-symbol
+  context by open time from `context_symbols` (e.g. BTC); `select(candidates)` takes every
+  symbol's candidates with the context joined on and returns the signals.
+- `strategy/compute.py` runs a rule over a universe: one process per symbol at a time (spawned,
+  8 by default), reading each whole series from the store up to an optional data end
+  (`until`), then caches the signal frame under a cache folder (`.cache/signals/`, gitignored),
+  keyed by the rule's parameters, the symbols, the data end and a signature of the month files
+  read. The pool universe (152 coins) takes ~6 s, `all` (582) ~20 s on 10 cores.
+- **Features** (`strategy/features.py`) are ported from the volume-spike research with the same
+  formulas and windows, on a gap-free grid where a missing candle is a row of nulls; a parity
+  test checks them against a direct loop over the research formulas.
+- **Rules**: `strategy/capitulation.py`, one parameterised rule (volume spike after a 4-hour
+  fall while BTC spikes) with the research's F2 and R2 picks as presets.
+- **Model scores** (`strategy/scores.py`): `ScoreStrategy` reads precomputed per-candle scores
+  (format in `docs/data-format.md`, "Score files") and enters where `score >= threshold`, with
+  `priority = -score`. `convert_wf_npz` turns the research's walk-forward CNN outputs into
+  that format. Training models is out of scope.
+- **Universes** (`data/universe.py`): `pool` (the data root's `top200.txt` minus pegged assets
+  and tokenised stocks) and `all` (plus `delisted.txt` and `outside_pool.txt`).
+
+**Targets** (not built yet): the strategy says only which symbols it wants to hold (LONG or
+FLAT) at the newest candle, and the engine trades the difference:
+
 ```python
 class Strategy(Protocol):
     symbols: list[str]
@@ -119,9 +154,9 @@ class Strategy(Protocol):
     def decide(self, latest: pl.DataFrame, positions: Positions) -> dict[str, Target]: ...
 ```
 
-- The strategy says only what it wants to hold. It doesn't size positions or place orders.
-- `compute` is vectorised and may only look backwards. Backtests run it once over the full history;
-  the live engine runs it over a rolling window. A parity test checks both produce the same signals.
+In both styles `compute` is vectorised and may only look backwards. Backtests run it once over
+the full history; the live engine will run it over a rolling window, and a parity test will
+check both produce the same signals.
 
 ### Position sizing
 
@@ -187,6 +222,13 @@ history (about 25 GB) cannot be loaded whole.
   interval for a time span, so a Parquet-backed source can read lazily, one window per position
   (at the signal interval, and at 1m with `use_fine`). A window that reaches the end of an ended
   series must say so (`Candles.ended`). `InMemoryCandleSource` serves tests.
+  `ParquetCandleSource` reads the store lazily: only the month files a window touches, kept as
+  numpy arrays in an LRU cache bounded by memory (2 GB by default). An optional `until` hides
+  candles at or after a data end, so a run can reproduce a fixed data range. A window that
+  reaches past a series' last candle is `ended` when that candle closes before the data end (a
+  delisting); a series still trading at the data end is not. With no month file at an interval
+  (often 1m) the window is `None` and fills use the signal candles. About 50k R2 positions over
+  582 coins with 1m fills run in ~30 s.
 - **Timing:** entry is a market buy at the open of candle *t+1* (plus `entry_delay` candles). If
   that exact candle is missing (a hole, or the series ended) the signal is skipped.
 - **Event order:** signals are processed by entry time, then priority, then symbol. Before each
@@ -238,8 +280,8 @@ src/crypto_moonshot/
 ├── progress.py         # sync progress renderers: bars and lines
 ├── config.py           # API keys from env/.env; per-run settings (symbols, params, limits) from a file
 ├── models.py           # Interval, kline schema, Target
-├── data/               # binance.py (REST), store.py, sync.py, importer.py, status.py, stream.py (WebSocket)
-├── strategy/           # base.py + algorithms
+├── data/               # binance.py (REST), store.py, sync.py, importer.py, status.py, universe.py, stream.py (WebSocket)
+├── strategy/           # base.py, features.py, compute.py, capitulation.py, scores.py
 ├── portfolio.py        # the book and position sizing
 ├── risk.py
 ├── broker/             # base.py (interface, orders), candles.py, simulated.py, binance.py
@@ -281,8 +323,9 @@ Dependencies so far: polars, numpy, httpx, pydantic-settings, rich. Expected lat
 
 ## Open questions
 
-- **Cross-symbol signals.** The strategy receives all symbols together, so signals that use other
-  symbols (for example BTC's trend as a filter) are possible, but no requirement for them exists yet.
+- **Cross-symbol signals in the live engine.** Rule strategies take cross-symbol context
+  (`SignalRule.context`, e.g. BTC's volume for the capitulation rules); the live engine will need
+  the context symbols' windows too.
 - **Position sizing scheme.** Equal weight is a placeholder until a strategy needs something else.
 
 ## Build order
