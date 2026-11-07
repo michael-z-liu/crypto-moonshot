@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/backtest-engine`
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-07T01:10Z
+- **Updated:** 2026-11-07T01:15Z
 
 ## Goal
 
@@ -45,7 +45,7 @@ own caches stay inside the worktree (gitignored).
 
 ## Milestones
 
-### M1: Orders and SimulatedBroker (todo)
+### M1: Orders and SimulatedBroker (in progress)
 
 - **Delivers:** order and position models; `SimulatedBroker` that fills market entries, take-profit
   limits, stops, trailing stops and time exits against candles; stop-first when one candle touches
