@@ -36,7 +36,8 @@ def main() -> None:
                     tin=pl.Series(tns + lag * MIN_NS),
                     tout=pl.Series(tns + (lag + off) * MIN_NS),
                 )
-                label = f"spike minute >= {floor:.0%} | TP {'none' if tp is None else f'{tp:.0%}'} | {h}"
+                tp_text = "none" if tp is None else f"{tp:.0%}"
+                label = f"spike minute >= {floor:.0%} | TP {tp_text} | {h}"
                 rows += book_stats(d, "r", "tin", "tout", label)
                 rows += book_stats(d, "r", "tin", "tout", label + " | 0.6% cost", 0.006)
     df = pl.DataFrame(rows)

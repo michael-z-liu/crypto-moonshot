@@ -9,9 +9,7 @@ from pathlib import Path
 
 import polars as pl
 
-DATA_DIR = Path(
-    os.environ.get("MOONSHOT_DATA_DIR", "/Users/mike/code/crypto-moonshot/data")
-)
+DATA_DIR = Path(os.environ.get("MOONSHOT_DATA_DIR", "/Users/mike/code/crypto-moonshot/data"))
 KLINES_5M = DATA_DIR / "klines" / "spot" / "interval=5m"
 HERE = Path(__file__).resolve().parent
 # Which coins (M13): "pool" = the main data folder (today's top ~200, the default);
