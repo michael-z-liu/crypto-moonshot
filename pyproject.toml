@@ -62,7 +62,10 @@ mypy_path = "src"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-ra", "--strict-markers", "--strict-config"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not golden"]
+markers = [
+    "golden: reproduces research results on the real data folder (opt in: pytest -m golden)",
+]
 
 [tool.coverage.run]
 source = ["crypto_moonshot"]
