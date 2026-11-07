@@ -581,6 +581,7 @@ def day_bootstrap_bp(trades: pl.DataFrame, years: tuple[int, ...], seed: int = 0
         trades.filter(pl.col("entry_time").dt.year().is_in(years))
         .group_by(day=pl.col("entry_time").dt.date())
         .agg(year=pl.col("entry_time").dt.year().first(), s=pl.col("net_return").sum(), n=pl.len())
+        .sort("day")  # group_by order is not stable; the draws must be reproducible
     )
     rng = np.random.default_rng(seed)
     s_tot = np.zeros(sc.BOOT_DRAWS)
@@ -658,6 +659,8 @@ def dsr() -> None:
             **{k: p[k] for k in ("sr_daily", "sr_annual", "skew", "kurt", "n_days")},
             "rank_of_sr_among_trials": int((t["sr_annual"] > p["sr_annual"]).sum()) + 1,
             "dsr": psr(p["sr_daily"], sr0, p["n_days"], p["skew"], p["kurt"]),
+            # sensitivity: the same with normal returns (skew 0, kurtosis 3)
+            "dsr_normal": psr(p["sr_daily"], sr0, p["n_days"], 0.0, 3.0),
             "psr_vs_0": psr(p["sr_daily"], 0.0, p["n_days"], p["skew"], p["kurt"]),
         }
         # out of sample: the full book (2025-26 entries and equity), as `reveal` saved it
@@ -778,7 +781,9 @@ def report() -> None:
         f" {p['rank_of_sr_among_trials']} of {ds['n_trials']} by Sharpe), skew {p['skew']:.2f},"
         f" kurtosis {p['kurt']:.1f}.",
         f"- **Deflated Sharpe ratio: P(true Sharpe > {ds['expected_max_sr_annual']:.2f}) ="
-        f" {p['dsr']:.3f}** (PSR against 0: {p['psr_vs_0']:.3f}).",
+        f" {p['dsr']:.3f}** (PSR against 0: {p['psr_vs_0']:.3f}). With normal returns (skew 0,"
+        f" kurtosis 3) instead of the pick's own: {p['dsr_normal']:.3f}. The large positive skew"
+        " comes from a few crash days and raises the DSR, so the normal figure is the safer one.",
         f"- Out of sample 2025-26 (2025-01-01..2026-11-02, {o['n_days']:.0f} days): annualised"
         f" Sharpe {o['sr_annual']:.2f} (PSR against 0: {o['psr_vs_0']:.3f}); bp per trade"
         f" day-bootstrap 95% CI [{o['bp_ci95'][0]:+.0f}, {o['bp_ci95'][1]:+.0f}].",
@@ -786,7 +791,8 @@ def report() -> None:
     r2 = ds["runner_up"]
     lines.append(
         f"- Runner-up `{r2['variant']}`: 2022-24 Sharpe {r2['sr_annual']:.2f}, DSR"
-        f" {r2['dsr']:.3f}; 2025-26 Sharpe {r2['oos_2025_26']['sr_annual']:.2f}, bp CI"
+        f" {r2['dsr']:.3f} (normal returns {r2['dsr_normal']:.3f}); 2025-26 Sharpe"
+        f" {r2['oos_2025_26']['sr_annual']:.2f}, bp CI"
         f" [{r2['oos_2025_26']['bp_ci95'][0]:+.0f}, {r2['oos_2025_26']['bp_ci95'][1]:+.0f}]."
     )
     del led
