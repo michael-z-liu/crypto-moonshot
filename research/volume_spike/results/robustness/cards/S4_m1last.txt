@@ -1,0 +1,11 @@
+S4:m1last [dc8bd960f400] pct>=0.98, 5 slots, sizing EqualSlots(slots=5), hold 1:00:00, fee 0.001 slip 0.0005 lat 0 per side
+  candidates 2022-24 23471, 13s
+  year  trades     bp   win     pnl$    ret%    dd%  | bp 0.6%  bp late
+  2022     310  +90.1  0.59    +1716   +17.2  -56.8  |   +59.9   +106.0
+  2023     169 +194.0  0.68   +10079   +86.0   -8.6  |  +163.4    +56.9
+  2024     306  +71.5  0.65   +10671   +49.0  -13.8  |   +41.3    +40.2
+  mean 2022-24 +118.5 bp (worst year +71.5); 0.6% +88.2; late +67.7
+  placebo mean -79.4, p95 -64.6; day-bootstrap 95% CI [+6.2, +221.0]; without 5 best days +50.0
+  without each year's best trade -28/+182/+68 bp: FRAGILE
+  verdict: QUALIFIES -- c1 yearly bp +90/+194/+71 all > 0; c2 0.6% cost mean +88.2 bp > 0; c3 one candle late mean +67.7 bp > 0; c4 mean +118.5 vs placebo p95 -64.6 bp beats
+  source: m12_cnn_wf s4_m1last {'channels': (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 'seq': 96, 'target': 'path', 'loss': 'quantile', 'arch': 'cnn+m1', 'scalars': ('liq',), 'universe': 'all', 'seeds': 2, 'epochs': 6, 'width': 1} + s4_inputs seq_1m60.npy (7 ch x 60 1m candles t-55m..t+4m, mask channel) folds yearly (cache_all/wf/s4_m1last.npz)

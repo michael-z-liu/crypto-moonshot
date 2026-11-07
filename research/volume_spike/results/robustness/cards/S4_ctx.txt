@@ -1,0 +1,11 @@
+S4:ctx [9b4c26008fe9] pct>=0.98, 5 slots, sizing EqualSlots(slots=5), hold 1:00:00, fee 0.001 slip 0.0005 lat 0 per side
+  candidates 2022-24 23809, 12s
+  year  trades     bp   win     pnl$    ret%    dd%  | bp 0.6%  bp late
+  2022     208 +268.0  0.62    +9296   +93.0  -16.1  |  +239.6   +203.6
+  2023     122 +218.3  0.62   +12706   +65.8   -3.8  |  +189.4    +90.8
+  2024     347  +78.9  0.63   +21399   +66.9  -14.3  |   +48.7    +39.7
+  mean 2022-24 +188.4 bp (worst year +78.9); 0.6% +159.2; late +111.4
+  placebo mean -81.6, p95 -61.5; day-bootstrap 95% CI [+97.3, +280.3]; without 5 best days +111.5
+  without each year's best trade +93/+201/+75 bp: not fragile
+  verdict: QUALIFIES -- c1 yearly bp +268/+218/+79 all > 0; c2 0.6% cost mean +159.2 bp > 0; c3 one candle late mean +111.4 bp > 0; c4 mean +188.4 vs placebo p95 -61.5 bp beats
+  source: m12_cnn_wf s4_ctx {'channels': (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 'seq': 96, 'target': 'path', 'loss': 'quantile', 'arch': 'cnn', 'scalars': ('liq', 'age', 'ctx'), 'universe': 'all', 'seeds': 2, 'epochs': 6, 'width': 1} + s4_inputs s4_ctx.parquet folds yearly (cache_all/wf/s4_ctx.npz)

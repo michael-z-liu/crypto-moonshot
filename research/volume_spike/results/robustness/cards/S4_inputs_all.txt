@@ -1,0 +1,11 @@
+S4:inputs_all [c44f031a68bc] pct>=0.98, 5 slots, sizing EqualSlots(slots=5), hold 1:00:00, fee 0.001 slip 0.0005 lat 0 per side
+  candidates 2022-24 24434, 12s
+  year  trades     bp   win     pnl$    ret%    dd%  | bp 0.6%  bp late
+  2022     247 +153.2  0.60    +4295   +42.9  -43.8  |  +120.4   +139.6
+  2023     171 +184.6  0.65   +11838   +82.8   -9.5  |  +154.1    +73.1
+  2024     301  +48.1  0.63    +6953   +26.6  -16.7  |   +18.0     +7.9
+  mean 2022-24 +128.6 bp (worst year +48.1); 0.6% +97.5; late +73.6
+  placebo mean -81.9, p95 -65.8; day-bootstrap 95% CI [+11.8, +227.0]; without 5 best days +57.9
+  without each year's best trade +6/+172/+44 bp: not fragile
+  verdict: QUALIFIES -- c1 yearly bp +153/+185/+48 all > 0; c2 0.6% cost mean +97.5 bp > 0; c3 one candle late mean +73.6 bp > 0; c4 mean +128.6 vs placebo p95 -65.8 bp beats
+  source: m12_cnn_wf s4_inputs_all {'channels': (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 'seq': 96, 'target': 'path', 'loss': 'quantile', 'arch': 'cnn+h1+m1', 'scalars': ('liq', 'age', 'ctx'), 'universe': 'all', 'seeds': 2, 'epochs': 6, 'width': 1} + s4_inputs s4_ctx.parquet, seq_1h7d.npy (8 ch x 168 1h bars anchored at the spike close), seq_1m60.npy (7 ch x 60 1m candles t-55m..t+4m, mask channel) folds yearly (cache_all/wf/s4_inputs_all.npz)
