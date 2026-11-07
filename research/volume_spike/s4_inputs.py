@@ -225,7 +225,8 @@ def score(names: list[str]) -> None:
 
 LOGS = CACHE / "logs"
 S3_DONE = sc.OUT / "S3.md"
-DEADLINE = datetime(2026, 11, 7, 13, 30, tzinfo=UTC)  # about 4.5 h after S4 started (08:59Z)
+# 4.5 h after S4 started (08:59Z), moved to 15:30Z by the master after a 3 h usage-limit pause
+DEADLINE = datetime(2026, 11, 7, 15, 30, tzinfo=UTC)
 # minutes; path_all took 21. After the first training they are scaled by its actual / estimate.
 ESTIMATE_MIN = {"s4_ctx": 23, "s4_long7d": 28, "s4_m1last": 27, "s4_inputs_all": 34}
 POLL = 180
