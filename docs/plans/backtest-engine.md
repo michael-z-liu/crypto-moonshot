@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/backtest-engine`
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-07T01:15Z
+- **Updated:** 2026-11-07T01:35Z
 
 ## Goal
 
@@ -45,7 +45,7 @@ own caches stay inside the worktree (gitignored).
 
 ## Milestones
 
-### M1: Orders and SimulatedBroker (in progress)
+### M1: Orders and SimulatedBroker (done)
 
 - **Delivers:** order and position models; `SimulatedBroker` that fills market entries, take-profit
   limits, stops, trailing stops and time exits against candles; stop-first when one candle touches
@@ -55,9 +55,9 @@ own caches stay inside the worktree (gitignored).
   price.
 - **Done when:** unit tests on synthetic candles cover each rule; full check passes.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** d487c8c, 5ccedc2, 129a23a, 36a942d
 
-### M2: Engine, sizing, risk checks and outputs (todo)
+### M2: Engine, sizing, risk checks and outputs (in progress)
 
 - **Delivers:** backtest engine (signal at close of t, entry at open of t+1 plus configurable
   delay); sizing: fixed stake and equal-slot compounding; risk checks: max open positions, one
@@ -110,6 +110,15 @@ own caches stay inside the worktree (gitignored).
 - 2026-11-07 Golden tests opt-in via a `golden` pytest marker. (user)
 - 2026-11-07 Include a base-CNN golden test from precomputed scores. (user)
 - 2026-11-07 Include a minimal `moonshot backtest` CLI. (user)
+- 2026-11-07 Costs are per fill and multiplicative (fee on each side's notional, slippage on
+  price, latency on market orders only); research subtracted 0.3% additively. Explained in M4.
+- 2026-11-07 (M1) Order, Fill, ExitPlan, Costs live in `broker/base.py`; `resolve_exit` is a pure
+  vectorised resolver over a mixed 5m/1m fill path. Exits inside a candle happen at its close
+  time, gap fills at its open time; time exit at entry + max_hold at the last close before it.
+- 2026-11-07 (M1) Fixed and trailing stop together: the higher level applies (research picked the
+  fixed stop on ties). No golden setup uses both.
+- 2026-11-07 (M1) `close` take-profit rule: a candle opening at or above the target fills at the
+  open, as with `touch` (m21 required a close); may show in the 1m golden comparison.
 
 ## Blocked on
 
