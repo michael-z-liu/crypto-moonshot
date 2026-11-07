@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/backtest-engine`
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-07T03:20Z
+- **Updated:** 2026-11-07T03:50Z
 
 ## Goal
 
@@ -95,13 +95,13 @@ own caches stay inside the worktree (gitignored).
 - **Worker:** opus
 - **Commits:**
 
-### M5: CLI and docs (in progress)
+### M5: CLI and docs (done)
 
 - **Delivers:** `moonshot backtest f2|capitulation|scores` with the main options, writing results
   under `results/`; `docs/architecture.md` updated (order-level exits alongside targets, etc.).
 - **Done when:** CLI tests; docs updated; full check passes.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** 62aeaa4, da6875b, f7ceaeb, 2287858, bd31ff1, fc85541, 2a0770e
 
 ## Decisions
 
@@ -148,10 +148,15 @@ own caches stay inside the worktree (gitignored).
   Flagged in the PR for the user.
 - 2026-11-07 (M4) CNN golden runs one book per signal year, as the research; a continuous run
   gives 2024 +78 bp instead of +57 (a position held over New Year).
+- 2026-11-07 (M5) `moonshot backtest f2|capitulation|scores|convert-scores`; preset defaults
+  reproduce golden cases 1-3; the CLI's scores run is one continuous book (2024 +71 bp vs +50 in
+  the per-year golden), documented. Positions open at the data end close as `series_end`.
 
 ## Blocked on
 
 ## Follow-ups
 
-- Cap the engine's exit window at the source's data end, so a plan without `max_hold` cannot raise
-  for positions still open at the data end (M5 if small).
+- ~~Cap the engine's exit window at the data end~~ (done in M5: such positions close as
+  `series_end` at the data end).
+- Score files are not clipped by `--until` (only candles are); harmless, but could be clearer.
+- Live engine (paper mode) reusing the strategy, sizing, risk checks and `SimulatedBroker`.
