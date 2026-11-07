@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-robustness` (from `claude/cnn-replication`, with `feat/backtest-engine` merged in)
 - **PR:** none (research branch; report in the session, open a PR only if asked)
-- **Updated:** 2026-11-07T10:40Z
+- **Updated:** 2026-11-07T12:17Z
 
 ## Goal
 
@@ -165,6 +165,10 @@ in PR #8; that is noted, not hidden.
   ens3 gain is one LUNA entry); score-weighted sizing adds nothing; 10 slots x q 0.99 +291 / +378
   on 105-137 trades a year (late +126 / +247); q 0.97 poor; day caps mixed.
 - 10:40Z S5 combination rule written into the plan (see S5), before S3/S4 results.
+- 12:17Z Usage limit paused both workers from ~10:50Z to 12:00Z. S3's GPU chain finished
+  meanwhile (allch_y1h, allch_xs, allch_cost, path_all5, path_all_h6 trained; stack_gbm and
+  gbm_scalars built). Workers resumed; S4 GPU budget moved to end by 15:30Z (cut inputs_all,
+  then m1last, if needed).
 
 ## Blocked on
 
