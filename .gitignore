@@ -46,3 +46,6 @@ htmlcov/
 
 # Local caches (signal tables, converted scores)
 /.cache/
+
+# Robustness study: 2025-26 results sealed until S5 (rebuilt from local scores)
+/research/volume_spike/results/robustness/sealed/
