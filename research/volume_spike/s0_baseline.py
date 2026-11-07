@@ -5,9 +5,10 @@
     uv run --group research python s0_baseline.py score base market path_all ens3
     uv run --group research python s0_baseline.py sanity
 
-`score` puts each variant in the ledger (results/robustness/ledger.csv) and appends its 2022-24
-card to results/robustness/S0_cards.txt. `ens3` is the equal-weight mean of the base, market and
-path_all percentiles where all three are present, traded with the same rule (mean >= 0.98).
+`score` puts each variant in the ledger (results/robustness/ledger.csv) and writes its 2022-24
+card to results/robustness/cards/<variant>.txt. `ens3` is the equal-weight mean of the base,
+market and path_all percentiles where all three are present, traded with the same rule
+(mean >= 0.98).
 
 `sanity` compares, for base, the research simulator (`m12_cnn_wf.portfolio_years`: one book per
 signal year, additive 0.3% cost, no cash check) with the engine: per-year books without the cash
@@ -30,13 +31,7 @@ from common import CACHE
 from crypto_moonshot.backtest.engine import BacktestConfig, run_backtest
 from crypto_moonshot.portfolio import Book, EqualSlots, Sizing
 
-WF = CACHE / "wf"
 MEMBERS = ("base", "market", "path_all")
-
-
-def pct_of(name: str) -> np.ndarray:
-    with np.load(WF / f"{name}.npz") as f:
-        return np.asarray(f["pct"], dtype=np.float64)
 
 
 def scores(name: str) -> tuple[np.ndarray, str]:
@@ -44,22 +39,22 @@ def scores(name: str) -> tuple[np.ndarray, str]:
     from m12_cnn_wf import VARIANTS
 
     if name == "ens3":
-        ens = np.mean(np.stack([pct_of(n) for n in MEMBERS]), 0)  # NaN unless all present
+        ens = np.mean(np.stack([sc.wf_scores(n) for n in MEMBERS]), 0)  # NaN unless all present
         return ens, "mean pct of m12 " + ", ".join(MEMBERS) + " (cache_all/wf, 2 seeds each)"
     cfg = asdict(VARIANTS[name])
     cfg.pop("note")
-    return pct_of(name), f"m12_cnn_wf {name} {cfg} (cache_all/wf/{name}.npz)"
+    return sc.wf_scores(name), f"m12_cnn_wf {name} {cfg} (cache_all/wf/{name}.npz)"
 
 
 def score(names: list[str]) -> None:
-    out = sc.OUT / "S0_cards.txt"
+    cards = sc.OUT / "cards"
+    cards.mkdir(parents=True, exist_ok=True)
     for name in names:
         s, source = scores(name)
         card = sc.scorecard(name, s, sc.Rule(), stage="S0", source=source)
         text = sc.show(card)
         print(text, flush=True)
-        with out.open("a") as f:
-            f.write(f"{datetime.now(UTC):%Y-%m-%dT%H:%MZ}\n{text}\n\n")
+        (cards / f"{name}.txt").write_text(text + "\n")
 
 
 # ----------------------------------------------------------------------------- sanity
@@ -94,7 +89,7 @@ def engine_years(sig: pl.DataFrame, sizing: Sizing) -> dict[int, tuple[int, floa
 def sanity() -> None:
     from m12_cnn_wf import portfolio_years
 
-    pct = pct_of("base")
+    pct = sc.wf_scores("base")
     meta = pl.read_parquet(CACHE / "seq2_meta.parquet").with_columns(
         year=pl.col("open_time").dt.year(), day=pl.col("open_time").dt.date()
     )

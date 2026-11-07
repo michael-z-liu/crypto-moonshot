@@ -4,8 +4,9 @@ One call scores a variant: a per-row score array aligned with `seq2_meta.parquet
 scored) plus a trading rule. Every book is the production engine (`crypto_moonshot.backtest`) on
 5m candles, as one continuous book from 2022-01-01 to the data end (`UNTIL`).
 
-    from scorecard import Rule, scorecard
-    card = scorecard("base", pct, Rule(), source="m12 base, 2 seeds")
+    from scorecard import Rule, scorecard, show, wf_scores
+    card = scorecard("base", wf_scores("base"), Rule(), stage="S0", source="m12 base, 2 seeds")
+    print(show(card))
 
 Per calendar year (entry year, the engine's yearly table) it gives trades, bp per trade, win
 rate, $ P&L, % return and the year's max drawdown, plus:
@@ -127,6 +128,14 @@ class Meta:
 
 
 _META: Meta | None = None
+WF = CACHE / "wf"
+
+
+def wf_scores(name: str, key: str = "pct") -> np.ndarray:
+    """A walk-forward score array from `cache_<universe>/wf/<name>.npz` (row-aligned with
+    `seq2_meta.parquet`; NaN outside the test years)."""
+    with np.load(WF / f"{name}.npz") as f:
+        return np.asarray(f[key], dtype=np.float64)
 
 
 def meta() -> Meta:
