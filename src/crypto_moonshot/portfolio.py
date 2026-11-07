@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from crypto_moonshot.models import EPOCH
 
@@ -40,6 +40,8 @@ class Book:
     """Realised P&L since the start of the current UTC day."""
     day_worst_pnl: float = 0.0
     """The lowest `day_pnl` reached so far today (0 or below), so a halt lasts all day."""
+    day_entries: int = 0
+    """Entries opened since the start of the current UTC day."""
 
     @property
     def equity(self) -> float:
@@ -61,6 +63,7 @@ class Book:
             self.day_start_equity = self.equity
             self.day_pnl = 0.0
             self.day_worst_pnl = 0.0
+            self.day_entries = 0
 
     def open(self, symbol: str, cost: float, time: datetime) -> None:
         """Record an entry that spent `cost` USDT (fee included)."""
@@ -71,6 +74,7 @@ class Book:
         self.cash -= cost
         self.costs[symbol] = cost
         self.open_cost += cost
+        self.day_entries += 1
 
     def close(self, symbol: str, proceeds: float, time: datetime) -> float:
         """Record an exit that returned `proceeds` USDT (fee deducted); returns its P&L."""
@@ -118,3 +122,52 @@ class EqualSlots:
 
     def stake(self, book: Book) -> float:
         return book.equity / self.slots
+
+
+@dataclass(frozen=True, slots=True)
+class CashCapped:
+    """Equal slots, but never more than the cash left.
+
+    The engine skips an entry whose stake exceeds the cash (after a loss, `equity / slots` can).
+    Capping the stake at the cash takes every entry the signals offer, which is what the research
+    books did (they never checked cash). The bp per trade, an unweighted mean, does not depend on
+    the stake.
+    """
+
+    slots: int
+
+    def __post_init__(self) -> None:
+        if self.slots < 1:
+            msg = f"slots must be at least 1, got {self.slots}"
+            raise ValueError(msg)
+
+    def stake(self, book: Book) -> float:
+        return min(book.equity / self.slots, book.cash)
+
+
+@runtime_checkable
+class WeightedSizing(Protocol):
+    """A sizing that also reads a per-signal weight (the signal frame's `weight` column)."""
+
+    def stake(self, book: Book) -> float: ...
+
+    def stake_weighted(self, book: Book, weight: float) -> float: ...
+
+
+@dataclass(frozen=True, slots=True)
+class WeightedSlots:
+    """Equal slots scaled by the signal's weight, capped at the cash left:
+    `min(realised equity / slots x weight, cash)`. Without a weight the weight is 1."""
+
+    slots: int
+
+    def __post_init__(self) -> None:
+        if self.slots < 1:
+            msg = f"slots must be at least 1, got {self.slots}"
+            raise ValueError(msg)
+
+    def stake(self, book: Book) -> float:
+        return self.stake_weighted(book, 1.0)
+
+    def stake_weighted(self, book: Book, weight: float) -> float:
+        return min(book.equity / self.slots * weight, book.cash)

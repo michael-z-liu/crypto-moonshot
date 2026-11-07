@@ -22,7 +22,7 @@ Each case has two kinds of test:
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -32,7 +32,7 @@ import pytest
 from crypto_moonshot.backtest.engine import BacktestConfig, BacktestResult, run_backtest
 from crypto_moonshot.backtest.source import ParquetCandleSource
 from crypto_moonshot.data.universe import universe_symbols
-from crypto_moonshot.portfolio import Book, EqualSlots, FixedStake, Sizing
+from crypto_moonshot.portfolio import CashCapped, EqualSlots, FixedStake, Sizing
 from crypto_moonshot.strategy.base import Signals
 from crypto_moonshot.strategy.capitulation import F2, R2, R2_LAST_ENTRY, CapitulationRule
 from crypto_moonshot.strategy.compute import compute_signals
@@ -73,21 +73,6 @@ def require(*paths: str) -> None:
     missing = [p for p in paths if not (ROOT / p).exists()]
     if missing:
         pytest.skip(f"MOONSHOT_DATA_DIR={ROOT} lacks {', '.join(missing)}")
-
-
-@dataclass(frozen=True, slots=True)
-class CashCapped:
-    """Diagnostic sizing: equal slots, but never more than the cash left.
-
-    The engine skips an entry whose stake exceeds the cash (after a loss, `equity / slots` can);
-    the research books never checked cash. Capping the stake at the cash takes every entry the
-    research took while the bp per trade, an unweighted mean, does not depend on the stake.
-    """
-
-    slots: int
-
-    def stake(self, book: Book) -> float:
-        return min(book.equity / self.slots, book.cash)
 
 
 def per_year(

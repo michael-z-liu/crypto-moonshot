@@ -14,7 +14,7 @@ from crypto_moonshot.backtest.engine import (
 from crypto_moonshot.backtest.source import CandleSource
 from crypto_moonshot.broker.base import Costs, ExitPlan
 from crypto_moonshot.models import Interval
-from crypto_moonshot.portfolio import EqualSlots, FixedStake
+from crypto_moonshot.portfolio import EqualSlots, FixedStake, WeightedSlots
 
 M5 = timedelta(minutes=5)
 H1 = timedelta(hours=1)
@@ -195,6 +195,43 @@ def test_entry_short_of_cash_is_skipped() -> None:
     result = run(sigs, src, sizing=FixedStake(600), initial_capital=1_000.0)
     assert taken(result) == ["AUSDT"]
     assert nonzero(result.skipped) == {"cash": 1}
+
+
+def test_weighted_sizing_uses_the_signal_weight() -> None:
+    src = source({s: flat(20) for s in ("AUSDT", "BUSDT", "CUSDT")})
+    sigs = signals(("AUSDT", 0, 0), ("BUSDT", 0, 1), ("CUSDT", 0, 2), weight=[0.5, 1.5, 1.0])
+    result = run(sigs, src, sizing=WeightedSlots(4), initial_capital=1_000.0)
+    assert result.trades["stake"].to_list() == [125, 375, 250]
+
+
+def test_weighted_sizing_caps_at_the_cash_and_ignores_missing_weights() -> None:
+    src = source({s: flat(20) for s in ("AUSDT", "BUSDT")})
+    sigs = signals(("AUSDT", 0, 0), ("BUSDT", 0, 1), weight=[1.5, 1.5])
+    result = run(sigs, src, sizing=WeightedSlots(1), initial_capital=1_000.0)
+    assert result.trades["stake"].to_list() == [1_000]  # capped at the cash
+    assert nonzero(result.skipped) == {"cash": 1}
+    plain = run(signals(("AUSDT", 0, 0)), src, sizing=WeightedSlots(4), initial_capital=1_000.0)
+    assert plain.trades["stake"].to_list() == [250]
+    # a plain sizing ignores the weight column
+    ignored = run(sigs[:1], src, sizing=EqualSlots(4), initial_capital=1_000.0)
+    assert ignored.trades["stake"].to_list() == [250]
+
+
+def test_max_entries_per_day_is_first_come_and_resets_daily() -> None:
+    src = source({s: flat(60) for s in ("AUSDT", "BUSDT", "CUSDT", "DUSDT")}, interval=Interval.H1)
+    sigs = signals(
+        ("AUSDT", 1, 0), ("BUSDT", 2, 0), ("CUSDT", 3, 0), ("DUSDT", 25, 0), interval=Interval.H1
+    )
+    result = run(
+        sigs,
+        src,
+        exit=ExitPlan(max_hold=H1),
+        interval=Interval.H1,
+        sizing=FixedStake(100),
+        max_entries_per_day=2,
+    )
+    assert taken(result) == ["AUSDT", "BUSDT", "DUSDT"]
+    assert nonzero(result.skipped) == {"day_cap": 1}
 
 
 # 5. Risk checks

@@ -90,6 +90,24 @@ class DailyLossLimit:
         return book.day_worst_pnl >= -self.limit * book.day_start_equity
 
 
+@dataclass(frozen=True, slots=True)
+class MaxEntriesPerDay:
+    """At most `limit` entries per UTC day, first come first served. It reads the book's count
+    of today's entries (`Book.day_entries`), so the book must be rolled to the entry time
+    (`Book.roll_day`) before checking. Causal: nothing about the rest of the day is used."""
+
+    limit: int
+    reason: ClassVar[str] = "day_cap"
+
+    def __post_init__(self) -> None:
+        if self.limit < 1:
+            msg = f"max entries per day must be at least 1, got {self.limit}"
+            raise ValueError(msg)
+
+    def allows(self, book: Book, symbol: str, stake: float) -> bool:
+        return book.day_entries < self.limit
+
+
 def first_rejection(
     checks: Iterable[RiskCheck], book: Book, symbol: str, stake: float
 ) -> str | None:

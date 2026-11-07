@@ -35,9 +35,10 @@ from crypto_moonshot.broker.base import Costs, ExitPlan, Fill, Order, Side
 from crypto_moonshot.broker.candles import Candles, from_us, to_us
 from crypto_moonshot.broker.simulated import ExitFill, SimulatedBroker
 from crypto_moonshot.models import Interval, as_utc
-from crypto_moonshot.portfolio import Book, FixedStake, Sizing
+from crypto_moonshot.portfolio import Book, FixedStake, Sizing, WeightedSizing
 from crypto_moonshot.risk import (
     DailyLossLimit,
+    MaxEntriesPerDay,
     MaxExposure,
     MaxPositions,
     OnePerSymbol,
@@ -58,6 +59,7 @@ class SkipReason(StrEnum):
     BEFORE_START = "before_start"
     AFTER_END = "after_end"
     DAILY_LOSS_LIMIT = "daily_loss_limit"
+    DAY_CAP = "day_cap"
     SLOTS_FULL = "slots_full"
     SYMBOL_HELD = "symbol_held"
     EXPOSURE = "exposure"
@@ -71,9 +73,12 @@ class BacktestConfig:
 
     - `entry_delay`: extra candles between the signal candle and the entry candle (0: enter at
       the open of the next candle).
-    - `sizing`: USDT spent per entry, fee included (`FixedStake` or `EqualSlots`).
+    - `sizing`: USDT spent per entry, fee included (`FixedStake`, `EqualSlots`, ...). A sizing
+      with `stake_weighted` (`WeightedSizing`) gets the signal's `weight` column, if the signal
+      frame has one.
     - `max_positions`, `max_exposure` (open cost basis over realised equity), `daily_loss_limit`
-      (fraction of the day's starting realised equity): risk checks; `None` disables one. One
+      (fraction of the day's starting realised equity), `max_entries_per_day` (entries per UTC
+      day, first come first served): risk checks; `None` disables one. One
       position per symbol always applies (the broker holds one position per symbol).
     - `start`, `end`: take signals whose `open_time` is in `[start, end)`.
     - `use_fine`: fill exits on `fine_interval` candles where they cover a signal candle.
@@ -91,6 +96,7 @@ class BacktestConfig:
     max_positions: int | None = None
     max_exposure: float | None = None
     daily_loss_limit: float | None = None
+    max_entries_per_day: int | None = None
     initial_capital: float = 10_000.0
     start: datetime | None = None
     end: datetime | None = None
@@ -120,6 +126,8 @@ class BacktestConfig:
         checks: list[RiskCheck] = []
         if self.daily_loss_limit is not None:
             checks.append(DailyLossLimit(self.daily_loss_limit))
+        if self.max_entries_per_day is not None:
+            checks.append(MaxEntriesPerDay(self.max_entries_per_day))
         if self.max_positions is not None:
             checks.append(MaxPositions(self.max_positions))
         checks.append(OnePerSymbol())
@@ -255,13 +263,21 @@ class _Run:
         rows = frame["_row"].to_list()
         symbols = frame["symbol"].to_list()
         entries = frame["_entry"].to_list()
-        for row, symbol, entry_us in zip(rows, symbols, entries, strict=True):
+        sizing = self.config.sizing
+        weighted = sizing if isinstance(sizing, WeightedSizing) else None
+        weights: list[float] = []
+        if weighted is not None and "weight" in frame.columns:
+            weights = frame["weight"].cast(pl.Float64).to_list()
+        for i, (row, symbol, entry_us) in enumerate(zip(rows, symbols, entries, strict=True)):
             entry_time = from_us(entry_us)
             if entry_us != last_settled:
                 self._settle(entry_time)
                 last_settled = entry_us
             self.book.roll_day(entry_time)
-            stake = self.config.sizing.stake(self.book)
+            if weighted is not None and weights:
+                stake = weighted.stake_weighted(self.book, weights[i])
+            else:
+                stake = sizing.stake(self.book)
             reason = first_rejection(self.checks, self.book, symbol, stake)
             if reason is None and not 0 < stake <= self.book.cash * (1 + 1e-9):
                 reason = SkipReason.CASH

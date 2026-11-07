@@ -2,7 +2,15 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from crypto_moonshot.portfolio import Book, EqualSlots, FixedStake, utc_day
+from crypto_moonshot.portfolio import (
+    Book,
+    CashCapped,
+    EqualSlots,
+    FixedStake,
+    WeightedSizing,
+    WeightedSlots,
+    utc_day,
+)
 
 DAY1 = datetime(2024, 1, 1, 12, tzinfo=UTC)
 DAY2 = DAY1 + timedelta(days=1)
@@ -57,3 +65,37 @@ def test_equal_slots_uses_realised_equity() -> None:
     assert EqualSlots(4).stake(book) == 300
     with pytest.raises(ValueError, match="at least 1"):
         EqualSlots(0)
+
+
+def test_cash_capped_never_exceeds_the_cash() -> None:
+    book = Book(cash=1_000.0)
+    book.open("AUSDT", 900.0, DAY1)
+    assert EqualSlots(2).stake(book) == 500
+    assert CashCapped(2).stake(book) == 100
+    with pytest.raises(ValueError, match="at least 1"):
+        CashCapped(0)
+
+
+def test_weighted_slots_scale_by_weight_and_cap_at_cash() -> None:
+    sizing = WeightedSlots(4)
+    book = Book(cash=1_000.0)
+    assert isinstance(sizing, WeightedSizing)
+    assert sizing.stake(book) == 250
+    assert sizing.stake_weighted(book, 0.5) == 125
+    assert sizing.stake_weighted(book, 1.5) == 375
+    book.open("AUSDT", 800.0, DAY1)
+    assert sizing.stake_weighted(book, 1.5) == 200  # cash left
+    with pytest.raises(ValueError, match="at least 1"):
+        WeightedSlots(0)
+    assert not isinstance(EqualSlots(4), WeightedSizing)
+
+
+def test_book_counts_entries_per_utc_day() -> None:
+    book = Book(cash=1_000.0)
+    book.open("AUSDT", 10.0, DAY1)
+    book.open("BUSDT", 10.0, DAY1)
+    assert book.day_entries == 2
+    book.roll_day(DAY1 + timedelta(days=1))
+    assert book.day_entries == 0
+    book.open("CUSDT", 10.0, DAY1 + timedelta(days=1))
+    assert book.day_entries == 1

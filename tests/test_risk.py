@@ -1,10 +1,11 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
 from crypto_moonshot.portfolio import Book
 from crypto_moonshot.risk import (
     DailyLossLimit,
+    MaxEntriesPerDay,
     MaxExposure,
     MaxPositions,
     OnePerSymbol,
@@ -63,3 +64,18 @@ def test_first_rejection_returns_the_first_failing_reason() -> None:
     assert first_rejection(checks, book_with(), "S0USDT", 1) is None
     assert first_rejection(checks, book_with(1), "S0USDT", 1) == "slots_full"
     assert first_rejection(checks[1:], book_with(1), "S0USDT", 1) == "symbol_held"
+
+
+def test_max_entries_per_day_resets_at_utc_midnight() -> None:
+    check = MaxEntriesPerDay(2)
+    book = book_with(10, 10)
+    assert not check.allows(book, "XUSDT", 10)
+    assert check.reason == "day_cap"
+    book.roll_day(T + timedelta(days=1))
+    assert check.allows(book, "XUSDT", 10)
+    # exits do not give the day's entries back
+    book2 = book_with(10, 10)
+    book2.close("S0USDT", 10, T)
+    assert not check.allows(book2, "XUSDT", 10)
+    with pytest.raises(ValueError, match="at least 1"):
+        MaxEntriesPerDay(0)
