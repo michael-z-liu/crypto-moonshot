@@ -31,6 +31,7 @@ BATCH = 1024
 PATH_STEPS = np.arange(3, 97, 3) - 1  # 15m, 30m, ... 8h (bar index of the close)
 QUANTILES = (0.1, 0.5, 0.9)
 COST = 0.003
+MMAP_BYTES = 6 * 2**30
 
 COIN = (0, 1, 2, 3, 4, 5)
 BTC = (7, 8)
@@ -189,12 +190,15 @@ def make(cfg: Cfg, n_s: int, n_out: int) -> nn.Module:
 
 # ----------------------------------------------------------------------------- data
 class Data:
-    def __init__(self, mmap: bool = False) -> None:
+    def __init__(self, mmap: bool | None = None) -> None:
         t0 = time.time()
         self.meta = pl.read_parquet(CACHE / "seq2_meta.parquet").with_columns(
             year=pl.col("open_time").dt.year(), day=pl.col("open_time").dt.date()
         )
-        # mmap: read sequences from disk on demand (for datasets larger than memory)
+        # mmap: read sequences from disk on demand (for datasets larger than memory). By default
+        # it is used when seq2 is larger than MMAP_BYTES ("all": 13.9 GB on a 24 GB machine).
+        if mmap is None:
+            mmap = (CACHE / "seq2.npy").stat().st_size > MMAP_BYTES
         self.seq = np.load(CACHE / "seq2.npy", mmap_mode="r" if mmap else None)
         self.fwd = np.load(CACHE / "fwd2.npy", mmap_mode="r")
         self.t = self.meta["open_time"].to_numpy()
@@ -214,7 +218,7 @@ class Data:
         ).fill_null(False).to_numpy()  # fmt: skip
         fw = np.asarray(self.fwd[:, 2, :], dtype=np.float32)
         self.path = np.clip(fw[:, PATH_STEPS] - COST, -0.3, 0.3) * 100  # percent, net of cost
-        print(f"data loaded in {time.time() - t0:.0f}s", flush=True)
+        print(f"data loaded in {time.time() - t0:.0f}s (mmap={mmap})", flush=True)
 
     def target(self, cfg: Cfg) -> np.ndarray:
         if cfg.target == "path":
