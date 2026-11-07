@@ -259,9 +259,12 @@ def test_position_open_at_the_data_end_closes_at_the_last_close() -> None:
         (102, 104, 101, 103),
     ]
     end = T0 + 5 * M5
-    kwargs = {"exit": ExitPlan(stop=0.5), "costs": COSTS}
+    plan = ExitPlan(stop=0.5)
     result = run(
-        signals(("AUSDT", 1, 0)), source({"AUSDT": bars}, ended=False, data_end=end), **kwargs
+        signals(("AUSDT", 1, 0)),
+        source({"AUSDT": bars}, ended=False, data_end=end),
+        plan,
+        costs=COSTS,
     )
     [trade] = result.trades.iter_rows(named=True)
     assert trade["exit_reason"] == "series_end"
@@ -269,7 +272,7 @@ def test_position_open_at_the_data_end_closes_at_the_last_close() -> None:
     assert trade["exit_price"] == pytest.approx(103 * 0.9995)
     # A source that does not know its data end cannot tell, and says so.
     with pytest.raises(RuntimeError, match="no exit"):
-        run(signals(("AUSDT", 1, 0)), source({"AUSDT": bars}, ended=False), **kwargs)
+        run(signals(("AUSDT", 1, 0)), source({"AUSDT": bars}, ended=False), plan)
 
 
 def test_data_end_also_caps_a_time_exit_that_lies_beyond_it() -> None:
