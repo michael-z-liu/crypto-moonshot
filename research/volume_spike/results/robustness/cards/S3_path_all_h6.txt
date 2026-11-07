@@ -1,0 +1,11 @@
+S3:path_all_h6 [b81584798a9b] pct>=0.98, 5 slots, sizing EqualSlots(slots=5), hold 1:00:00, fee 0.001 slip 0.0005 lat 0 per side
+  candidates 2022-24 21091, 12s
+  year  trades     bp   win     pnl$    ret%    dd%  | bp 0.6%  bp late
+  2022     297 +115.1  0.55    +2879   +28.8  -32.6  |   +85.0    +80.9
+  2023     145 +279.9  0.68   +15170  +117.8   -2.9  |  +249.1   +137.5
+  2024     383  +52.9  0.55   +11499   +41.0  -32.2  |   +21.5    -13.3
+  mean 2022-24 +149.3 bp (worst year +52.9); 0.6% +118.5; late +68.4
+  placebo mean -78.0, p95 -65.7; day-bootstrap 95% CI [+71.3, +231.1]; without 5 best days +86.4
+  without each year's best trade -8/+266/+43 bp: FRAGILE
+  verdict: QUALIFIES -- c1 yearly bp +115/+280/+53 all > 0; c2 0.6% cost mean +118.5 bp > 0; c3 one candle late mean +68.4 bp > 0; c4 mean +149.3 vs placebo p95 -65.7 bp beats
+  source: m12_cnn_wf path_all_h6 {'channels': (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 'seq': 96, 'target': 'path', 'loss': 'quantile', 'arch': 'cnn', 'scalars': ('liq',), 'universe': 'all', 'seeds': 2, 'epochs': 6, 'width': 1} folds half (cache_all/wf/path_all_h6.npz)

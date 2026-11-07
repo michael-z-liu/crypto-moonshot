@@ -1,0 +1,10 @@
+S3:gbm_scalars [a80412ec35c3] pct>=0.98, 5 slots, sizing EqualSlots(slots=5), hold 1:00:00, fee 0.001 slip 0.0005 lat 0 per side
+  candidates 2022-24 20710, 11s
+  year  trades     bp   win     pnl$    ret%    dd%  | bp 0.6%  bp late
+  2023     328  +83.1  0.61    +6607   +66.1   -9.4  |   +52.9     +2.6
+  2024     680  +29.0  0.55    +6695   +40.3  -20.9  |    -1.0     +5.3
+  mean 2022-24 +nan bp (worst year +nan); 0.6% +nan; late +nan
+  placebo mean +nan, p95 +nan; day-bootstrap 95% CI [+nan, +nan]; without 5 best days +nan
+  without each year's best trade +nan/+77/+25 bp: not fragile
+  verdict: fails -- c1 yearly bp +nan/+83/+29 not all > 0; c2 0.6% cost mean +nan bp <= 0; c3 one candle late mean +nan bp <= 0; c4 mean +nan vs placebo p95 +nan bp does not beat
+  source: s3_train gbm_scalars: HistGradientBoostingRegressor {'loss': 'squared_error', 'learning_rate': 0.05, 'max_iter': 200, 'max_leaf_nodes': 15, 'min_samples_leaf': 1000, 'l2_regularization': 1.0, 'early_stopping': False, 'random_state': 0} on y1h, features ['qv_base', 'listed_days', 'hour', 'ret_4h', 'ret_24h', 'btc_vol_mult', 'btc_ret_4h', 'vol_mult'] (m12 pct), fit 2022..Y-1 (2h purge), score Y in 2023-26; pct of in-sample training predictions; 2023-24 only (2022 unscored) (cache_all/wf/gbm_scalars.npz)
