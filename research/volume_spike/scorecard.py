@@ -463,7 +463,8 @@ def scorecard(
         msg = f"score has {len(score)} rows, seq2_meta has {len(m)}"
         raise ValueError(msg)
     score = np.asarray(score, dtype=np.float64)
-    stress = replace(rule, costs=STRESS_COSTS)
+    # keep the rule's fee and latency; only slippage rises to the 0.6% round trip
+    stress = replace(rule, costs=replace(rule.costs, slippage=STRESS_COSTS.slippage))
     late = replace(rule, entry_delay=rule.entry_delay + 1)
     sig = signals(score, rule, row_filter, priority)
     scored = np.isfinite(score) & in_range(m, SELECT_END)
