@@ -3,17 +3,18 @@
     cd research/volume_spike
     export MOONSHOT_UNIVERSE=all
     uv run --group research python s0_baseline.py score base market path_all ens3
-    uv run --group research python s0_baseline.py sanity
+    uv run --group research python s0_baseline.py sanity base market path_all
 
 `score` puts each variant in the ledger (results/robustness/ledger.csv) and writes its 2022-24
 card to results/robustness/cards/<variant>.txt. `ens3` is the equal-weight mean of the base,
 market and path_all percentiles where all three are present, traded with the same rule
 (mean >= 0.98).
 
-`sanity` compares, for base, the research simulator (`m12_cnn_wf.portfolio_years`: one book per
-signal year, additive 0.3% cost, no cash check) with the engine: per-year books without the cash
-check (parity), per-year books as designed, and the scorecard's continuous book. Writes
-results/robustness/S0_sanity.csv. 2022-24 only.
+`sanity` compares, for each variant (default base), the research simulator
+(`m12_cnn_wf.portfolio_years`: one book per signal year, additive 0.3% cost, no cash check) with
+the engine: per-year books without the cash check (parity), per-year books as designed, and the
+scorecard's continuous book. Writes results/robustness/S0_sanity.csv (the 2022-24 row averages
+the three years, trades included).
 """
 
 from __future__ import annotations
@@ -86,50 +87,54 @@ def engine_years(sig: pl.DataFrame, sizing: Sizing) -> dict[int, tuple[int, floa
     return out
 
 
-def sanity() -> None:
+def _avg(years: tuple[int, ...], d: dict[int, tuple[int, float]], i: int) -> float:
+    return float(np.mean([d[y][i] for y in years]))
+
+
+def sanity(names: list[str]) -> None:
     from m12_cnn_wf import portfolio_years
 
-    pct = sc.wf_scores("base")
     meta = pl.read_parquet(CACHE / "seq2_meta.parquet").with_columns(
         year=pl.col("open_time").dt.year(), day=pl.col("open_time").dt.date()
     )
     data = SimpleNamespace(meta=meta, fwd=np.load(CACHE / "fwd2.npy", mmap_mode="r"))
-    research = {}
-    for r in portfolio_years(data, np.nan_to_num(pct, nan=-1), 12, q=0.98):  # type: ignore[arg-type]
-        if r["year"] in sc.SELECT_YEARS:
-            research[int(str(r["year"]))] = (int(str(r["trades"])), float(str(r["mean_bp"])))
-    sig = sc.signals(pct, sc.Rule())
-    parity = engine_years(sig, CashCapped(5))
-    per_year = engine_years(sig, EqualSlots(5))
-    cont = sc.run_book(sig, sc.Rule(), sc.SELECT_END).years
     rows = []
-    for y in sc.SELECT_YEARS:
-        rows.append(
-            {
-                "year": y,
-                "research_trades": research[y][0],
-                "research_bp": round(research[y][1], 1),
-                "parity_trades": parity[y][0],
-                "parity_bp": round(parity[y][1], 1),
-                "per_year_trades": per_year[y][0],
-                "per_year_bp": round(per_year[y][1], 1),
-                "continuous_trades": int(cont[y]["trades"]),
-                "continuous_bp": round(cont[y]["bp"], 1),
-            }
-        )
+    for name in names:
+        pct = sc.wf_scores(name)
+        research = {}
+        for r in portfolio_years(data, np.nan_to_num(pct, nan=-1), 12, q=0.98):  # type: ignore[arg-type]
+            if r["year"] in sc.SELECT_YEARS:
+                research[int(str(r["year"]))] = (int(str(r["trades"])), float(str(r["mean_bp"])))
+        sig = sc.signals(pct, sc.Rule())
+        parity = engine_years(sig, CashCapped(5))
+        per_year = engine_years(sig, EqualSlots(5))
+        cont = sc.run_book(sig, sc.Rule(), sc.SELECT_END).years
+        for y in [*sc.SELECT_YEARS, 0]:  # 0: the mean over 2022-24
+            ys = sc.SELECT_YEARS if y == 0 else (y,)
+            rows.append(
+                {
+                    "variant": name,
+                    "year": "2022-24" if y == 0 else str(y),
+                    "research_trades": _avg(ys, research, 0),
+                    "research_bp": round(_avg(ys, research, 1), 1),
+                    "parity_trades": _avg(ys, parity, 0),
+                    "parity_bp": round(_avg(ys, parity, 1), 1),
+                    "per_year_trades": _avg(ys, per_year, 0),
+                    "per_year_bp": round(_avg(ys, per_year, 1), 1),
+                    "continuous_trades": float(np.mean([cont[x]["trades"] for x in ys])),
+                    "continuous_bp": round(float(np.mean([cont[x]["bp"] for x in ys])), 1),
+                }
+            )
     table = pl.DataFrame(rows)
-    bp = [c for c in table.columns if c.endswith("_bp")]
-    mean = {c: round(float(table.select(pl.col(c).mean()).item()), 1) for c in bp}
     table.write_csv(sc.OUT / "S0_sanity.csv")
-    with pl.Config(tbl_cols=12, tbl_width_chars=200):
+    with pl.Config(tbl_rows=40, tbl_cols=12, tbl_width_chars=220):
         print(table)
-    print("mean 2022-24:", mean)
 
 
 if __name__ == "__main__":
     if sys.argv[1] == "score":
         score(sys.argv[2:])
     elif sys.argv[1] == "sanity":
-        sanity()
+        sanity(sys.argv[2:] or ["base"])
     else:
         raise SystemExit(__doc__)
