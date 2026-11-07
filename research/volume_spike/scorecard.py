@@ -542,16 +542,25 @@ def ledger_row(card: Card) -> dict[str, object]:
 
 
 def write_ledger(card: Card) -> None:
-    """Upsert the card's row (same variant and config hash: replaced)."""
+    """Upsert the card's row (same variant and config hash: replaced).
+
+    Several stages run at once, so the read-modify-write holds an exclusive lock on a side file.
+    """
+    import fcntl
+
     OUT.mkdir(parents=True, exist_ok=True)
     new = pl.DataFrame([ledger_row(card)])
-    if LEDGER.exists():
-        old = pl.read_csv(LEDGER, infer_schema_length=None)
-        same = (pl.col("variant") == card.variant) & (pl.col("config_hash") == card.config_hash)
-        old = old.filter(~same)
-        if old.height:
-            new = pl.concat([old, new], how="diagonal_relaxed")
-    new.write_csv(LEDGER)
+    with (OUT / "ledger.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if LEDGER.exists():
+            old = pl.read_csv(LEDGER, infer_schema_length=None)
+            same = (pl.col("variant") == card.variant) & (pl.col("config_hash") == card.config_hash)
+            old = old.filter(~same)
+            if old.height:
+                new = pl.concat([old, new], how="diagonal_relaxed")
+        tmp = LEDGER.with_suffix(".tmp")
+        new.write_csv(tmp)
+        tmp.replace(LEDGER)
 
 
 def show(card: Card) -> str:
