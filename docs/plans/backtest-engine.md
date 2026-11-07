@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/backtest-engine`
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-07T01:35Z
+- **Updated:** 2026-11-07T02:05Z
 
 ## Goal
 
@@ -57,7 +57,7 @@ own caches stay inside the worktree (gitignored).
 - **Worker:** opus
 - **Commits:** d487c8c, 5ccedc2, 129a23a, 36a942d
 
-### M2: Engine, sizing, risk checks and outputs (in progress)
+### M2: Engine, sizing, risk checks and outputs (done)
 
 - **Delivers:** backtest engine (signal at close of t, entry at open of t+1 plus configurable
   delay); sizing: fixed stake and equal-slot compounding; risk checks: max open positions, one
@@ -65,9 +65,9 @@ own caches stay inside the worktree (gitignored).
   mark-to-market equity curve, yearly and overall metrics, total return including the first day.
 - **Done when:** synthetic end-to-end tests cover each item; full check passes.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** 5d44b5c, ccb5c2b, 2144ca9, 6a4846d, fe26230, fd65027, 1628124, 2b4ae5b
 
-### M3: Data and strategies (todo)
+### M3: Data and strategies (in progress)
 
 - **Delivers:** candle loading for a universe (5m; 1m only for open-position windows; gaps and
   ended series); strategy interface returning signals plus an exit plan; F2 and capitulation (R2)
@@ -75,7 +75,7 @@ own caches stay inside the worktree (gitignored).
   a converter from the research cache's `wf/*.npz` files.
 - **Done when:** unit tests, incl. feature parity with the research formulas on fixtures; full
   check passes.
-- **Worker:** sonnet
+- **Worker:** opus (raised from sonnet: exact parity with the research features is subtle)
 - **Commits:**
 
 ### M4: Golden validation (todo)
@@ -119,6 +119,16 @@ own caches stay inside the worktree (gitignored).
   fixed stop on ties). No golden setup uses both.
 - 2026-11-07 (M1) `close` take-profit rule: a candle opening at or above the target fills at the
   open, as with `touch` (m21 required a close); may show in the 1m golden comparison.
+
+- 2026-11-07 (M2) The engine places every order through `SimulatedBroker` (~62k positions in
+  3.3 s, in memory). Signals ordered by entry time, priority, symbol; exits at or before an entry
+  settle first. Equal-slot stake = realised equity / slots (as PR #8).
+- 2026-11-07 (M2) Entries are skipped when cash is short of the stake; the research books never
+  checked cash. Kept (realistic); M4 measures its effect on the golden numbers.
+- 2026-11-07 (M2) Daily loss limit uses realised P&L; equity curve marks open positions at the last
+  close at or before each mark; total return is from initial capital.
+- 2026-11-07 (M3) Research dropped events whose next 4h crossed a data gap or the series' last 4h
+  (look-ahead). The production rules do not; M4 explains the difference.
 
 ## Blocked on
 
