@@ -319,6 +319,19 @@ class SimulatedBroker:
     def open_orders(self) -> list[Order]:
         return [b.order for b in self._brackets.values()]
 
+    def pending_exit(self, symbol: str) -> ExitFill | None:
+        """The resolved exit of the open bracket on `symbol`, not yet applied.
+
+        `None` if the symbol has no open bracket, or its exit is still unknown because the
+        candles given end before it (give a longer window with `set_candles`). A backtest uses
+        this to size candle windows and to mark positions; it is a simulation detail that a
+        live broker cannot offer.
+        """
+        position = self.positions.get(symbol)
+        if position is None or position.bracket_id is None:
+            return None
+        return self._brackets[position.bracket_id].exit
+
     def settle(self, until: datetime) -> list[Fill]:
         """Apply every bracket exit due at or before `until`, in time order."""
         due = sorted(
