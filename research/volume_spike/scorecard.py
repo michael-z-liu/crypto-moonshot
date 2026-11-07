@@ -84,6 +84,8 @@ class Rule:
     - `weights`: `(lo, hi)` makes the stake `equity / slots x w` (capped at the cash), `w` linear
       from `lo` at `score = q` to `hi` at `score = 1` (`WeightedSlots`, S1).
     - `max_per_day`: at most this many entries per UTC day, first come first served (S1).
+    - `use_fine`: fill exits on 1m candles where they cover a 5m candle (S5); described only
+      when on, so the config hashes of earlier rules are unchanged.
     """
 
     q: float = 0.98
@@ -94,6 +96,7 @@ class Rule:
     entry_delay: int = 0
     weights: tuple[float, float] | None = None
     max_per_day: int | None = None
+    use_fine: bool = False
 
     def book_sizing(self) -> Sizing:
         if self.sizing is not None:
@@ -119,6 +122,8 @@ class Rule:
             parts.append(f"weight {self.weights[0]:g}..{self.weights[1]:g} over pct q..1")
         if self.max_per_day is not None:
             parts.append(f"max {self.max_per_day} entries per day")
+        if self.use_fine:
+            parts.append("exits filled on 1m candles")
         return ", ".join(parts)
 
 
@@ -235,6 +240,7 @@ def book(sig: pl.DataFrame, rule: Rule, end: datetime | None = None) -> Backtest
         max_entries_per_day=rule.max_per_day,
         start=START,
         end=end,
+        use_fine=rule.use_fine,
     )
     return run_backtest(sig, source(), config)
 
