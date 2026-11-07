@@ -249,6 +249,40 @@ def test_position_in_an_ended_series_closes_at_the_last_close() -> None:
     assert result.equity["equity"][-1] == pytest.approx(10_000 + trade["pnl"])
 
 
+def test_position_open_at_the_data_end_closes_at_the_last_close() -> None:
+    """The series is still trading (not `ended`) but the data stops: no `max_hold`, so without
+    the data-end cap the engine would widen its window forever and raise."""
+    bars: list[Bar | None] = [
+        *flat(2),
+        (100, 101, 99, 100),
+        (100, 103, 99, 102),
+        (102, 104, 101, 103),
+    ]
+    end = T0 + 5 * M5
+    kwargs = {"exit": ExitPlan(stop=0.5), "costs": COSTS}
+    result = run(
+        signals(("AUSDT", 1, 0)), source({"AUSDT": bars}, ended=False, data_end=end), **kwargs
+    )
+    [trade] = result.trades.iter_rows(named=True)
+    assert trade["exit_reason"] == "series_end"
+    assert trade["exit_time"] == end
+    assert trade["exit_price"] == pytest.approx(103 * 0.9995)
+    # A source that does not know its data end cannot tell, and says so.
+    with pytest.raises(RuntimeError, match="no exit"):
+        run(signals(("AUSDT", 1, 0)), source({"AUSDT": bars}, ended=False), **kwargs)
+
+
+def test_data_end_also_caps_a_time_exit_that_lies_beyond_it() -> None:
+    bars: list[Bar | None] = [*flat(2), (100, 101, 99, 100), (100, 103, 99, 102)]
+    result = run(
+        signals(("AUSDT", 1, 0)),
+        source({"AUSDT": bars}, ended=False, data_end=T0 + 4 * M5),
+        exit=ExitPlan(max_hold=timedelta(days=1)),
+    )
+    assert result.trades["exit_reason"].to_list() == ["series_end"]
+    assert result.trades["exit_price"].to_list() == [102]
+
+
 # 7. Mark-to-market equity curve
 
 

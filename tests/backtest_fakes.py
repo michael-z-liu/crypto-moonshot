@@ -22,16 +22,17 @@ def source(
     start: datetime = T0,
     ended: bool = True,
     fine: Mapping[str, Sequence[Bar | None]] | None = None,
+    data_end: datetime | None = None,
 ) -> InMemoryCandleSource:
     """One series per symbol from (open, high, low, close) bars starting at `start`; `fine`
-    adds 1m series for the same symbols."""
+    adds 1m series for the same symbols; `data_end` is the data end the source reports."""
     out = {
         (symbol, interval): candles(bars, interval=interval, start=start, ended=ended)
         for symbol, bars in series.items()
     }
     for symbol, bars in (fine or {}).items():
         out[symbol, Interval.M1] = candles(bars, interval=Interval.M1, start=start, ended=ended)
-    return InMemoryCandleSource(out)
+    return InMemoryCandleSource(out, data_end=data_end)
 
 
 def signals(

@@ -14,14 +14,15 @@ carried into the trade list. A run:
    must exist at exactly the entry time; otherwise the signal is skipped (`no_entry_candle`).
 4. Places a market buy carrying the run's `ExitPlan` with a `SimulatedBroker`, which fills it at
    the entry candle's open and resolves the bracket exit over the window (on 1m candles where
-   available with `use_fine`). A window too short to know the exit is extended.
+   available with `use_fine`). A window too short to know the exit is extended, but never past
+   the source's data end: a position still open there closes at the last close (`series_end`).
 
 Every skipped signal is counted by reason in `BacktestResult.skipped`.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 
@@ -79,7 +80,7 @@ class BacktestConfig:
     - `mark_every`: spacing of the equity curve's points, aligned to the Unix epoch (midnight
       UTC for whole days).
     - `window`: the first candle window loaded per position when the exit plan has no
-      `max_hold`; doubled until the exit is known.
+      `max_hold`; doubled until the exit is known or the source's data end is reached.
     """
 
     exit: ExitPlan
@@ -279,10 +280,20 @@ class _Run:
     def _load(
         self, symbol: str, start: datetime, span: timedelta
     ) -> tuple[Candles | None, Candles | None]:
-        coarse = self.source.window(symbol, self.config.interval, start, start + span)
+        end = start + span
+        data_end = self.source.data_end(self.config.interval)
+        capped = data_end is not None and end >= data_end
+        if data_end is not None and capped:
+            end = data_end
+        coarse = self.source.window(symbol, self.config.interval, start, end)
         fine = None
         if self.config.use_fine:
-            fine = self.source.window(symbol, self.config.fine_interval, start, start + span)
+            fine = self.source.window(symbol, self.config.fine_interval, start, end)
+        if capped:
+            # The window reaches the data end: nothing more can come, so a position still open
+            # there closes at the last close (`series_end`) rather than waiting for candles.
+            coarse = None if coarse is None else replace(coarse, ended=True)
+            fine = None if fine is None else replace(fine, ended=True)
         return coarse, fine
 
     def _enter(self, row: int, symbol: str, entry_time: datetime, stake: float) -> bool:

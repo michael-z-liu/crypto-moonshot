@@ -38,12 +38,30 @@ class CandleSource(Protocol):
         """
         ...
 
+    def data_end(self, interval: Interval) -> datetime | None:
+        """The end of the data at `interval` (exclusive), or `None` if not known.
+
+        The engine ends a position still open there at the last close (exit reason
+        `series_end`) instead of looking for candles that do not exist.
+        """
+        ...
+
 
 class InMemoryCandleSource:
-    """A `CandleSource` over whole series held in memory (tests and small universes)."""
+    """A `CandleSource` over whole series held in memory (tests and small universes).
 
-    def __init__(self, series: Mapping[tuple[str, Interval], Candles]) -> None:
+    `data_end`: the data end reported to the engine (`None`: not known, so only a series' own
+    `ended` flag closes a position at its last close).
+    """
+
+    def __init__(
+        self, series: Mapping[tuple[str, Interval], Candles], *, data_end: datetime | None = None
+    ) -> None:
         self._series = dict(series)
+        self._data_end = None if data_end is None else as_utc(data_end)
+
+    def data_end(self, interval: Interval) -> datetime | None:
+        return self._data_end
 
     @classmethod
     def from_frames(
