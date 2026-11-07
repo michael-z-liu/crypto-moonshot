@@ -55,7 +55,7 @@ from common import CACHE, DATA_DIR, UNIVERSE
 from crypto_moonshot.backtest.engine import BacktestConfig, BacktestResult, run_backtest
 from crypto_moonshot.backtest.source import ParquetCandleSource
 from crypto_moonshot.broker.base import Costs, ExitPlan
-from crypto_moonshot.portfolio import EqualSlots, Sizing
+from crypto_moonshot.portfolio import EqualSlots, Sizing, WeightedSlots
 
 HERE = Path(__file__).resolve().parent
 OUT = HERE / "results" / "robustness"
@@ -81,6 +81,9 @@ class Rule:
     - `q`: enter rows with `score >= q` (scores are fold percentiles for m12 outputs).
     - `slots`: positions at most; `sizing` defaults to `EqualSlots(slots)`.
     - `priority` (an array passed to `scorecard`) defaults to `-score`: best score first.
+    - `weights`: `(lo, hi)` makes the stake `equity / slots x w` (capped at the cash), `w` linear
+      from `lo` at `score = q` to `hi` at `score = 1` (`WeightedSlots`, S1).
+    - `max_per_day`: at most this many entries per UTC day, first come first served (S1).
     """
 
     q: float = 0.98
@@ -89,9 +92,13 @@ class Rule:
     sizing: Sizing | None = None
     costs: Costs = COSTS
     entry_delay: int = 0
+    weights: tuple[float, float] | None = None
+    max_per_day: int | None = None
 
     def book_sizing(self) -> Sizing:
-        return EqualSlots(self.slots) if self.sizing is None else self.sizing
+        if self.sizing is not None:
+            return self.sizing
+        return EqualSlots(self.slots) if self.weights is None else WeightedSlots(self.slots)
 
     def describe(self) -> str:
         e = self.exit
@@ -108,6 +115,10 @@ class Rule:
         parts.append(f"fee {c.fee:g} slip {c.slippage:g} lat {c.latency:g} per side")
         if self.entry_delay:
             parts.append(f"entry_delay {self.entry_delay}")
+        if self.weights is not None:
+            parts.append(f"weight {self.weights[0]:g}..{self.weights[1]:g} over pct q..1")
+        if self.max_per_day is not None:
+            parts.append(f"max {self.max_per_day} entries per day")
         return ", ".join(parts)
 
 
@@ -176,14 +187,17 @@ def signals(
         ok &= row_filter
     k = np.flatnonzero(ok)
     pr = -score[k] if priority is None else priority[k]
-    return pl.DataFrame(
-        {
-            "symbol": m.symbol[k],
-            "open_time": m.open_time.gather(k),
-            "priority": np.asarray(pr, dtype=np.float64),
-            "row": k.astype(np.int64),
-        }
-    )
+    cols: dict[str, object] = {
+        "symbol": m.symbol[k],
+        "open_time": m.open_time.gather(k),
+        "priority": np.asarray(pr, dtype=np.float64),
+        "row": k.astype(np.int64),
+    }
+    if rule.weights is not None:
+        lo, hi = rule.weights
+        frac = np.clip((score[k] - rule.q) / (1.0 - rule.q), 0.0, 1.0)
+        cols["weight"] = lo + (hi - lo) * frac
+    return pl.DataFrame(cols)
 
 
 def day_shuffle(score: np.ndarray, mask: np.ndarray, rng: np.random.Generator) -> np.ndarray:
@@ -218,6 +232,7 @@ def book(sig: pl.DataFrame, rule: Rule, end: datetime | None = None) -> Backtest
         costs=rule.costs,
         sizing=rule.book_sizing(),
         max_positions=rule.slots,
+        max_entries_per_day=rule.max_per_day,
         start=START,
         end=end,
     )
@@ -231,6 +246,16 @@ class Run:
     years: dict[int, dict[str, float]]
     trades: pl.DataFrame  # entry_time, net_return, pnl
     skipped: dict[str, int]
+    ex_best: dict[int, float]  # bp per trade by year without that year's single best trade
+
+
+def ex_best_trade(trades: pl.DataFrame) -> dict[int, float]:
+    """Per entry year: mean bp per trade without the year's single best trade."""
+    out: dict[int, float] = {}
+    for year in SELECT_YEARS:
+        r = trades.filter(pl.col("entry_time").dt.year() == year)["net_return"].sort()
+        out[year] = float(r[:-1].mean()) * 1e4 if len(r) > 1 else float("nan")  # type: ignore[arg-type]
+    return out
 
 
 def year_drawdowns(equity: pl.DataFrame, initial: float) -> dict[int, float]:
@@ -266,7 +291,7 @@ def run_book(sig: pl.DataFrame, rule: Rule, end: datetime | None = None) -> Run:
             "dd": dd.get(y, float("nan")),
         }
     trades = res.trades.select("entry_time", "net_return", "pnl")
-    return Run(years, trades, dict(res.skipped))
+    return Run(years, trades, dict(res.skipped), ex_best_trade(trades))
 
 
 def _f(v: object) -> float:
@@ -373,6 +398,7 @@ class Card:
     placebo: list[float]  # each draw's mean bp 2022-24
     ci: tuple[float, float]
     ex5_bp: float
+    ex_best: dict[int, float]  # 2022-24 bp by year without that year's best trade
     verdict: Verdict
     seconds: float
     sealed: Path
@@ -380,6 +406,11 @@ class Card:
     @property
     def mean_bp(self) -> float:
         return mean_bp(self.years)
+
+    @property
+    def fragile(self) -> bool:
+        """Some 2022-24 year turns negative without that year's single best trade."""
+        return any(v < 0 for v in self.ex_best.values())
 
     @property
     def placebo_mean(self) -> float:
@@ -491,6 +522,7 @@ def scorecard(
         placebo=placebo,
         ci=bootstrap_ci(base.trades),
         ex5_bp=without_best_days(base.trades),
+        ex_best=base.ex_best,
         verdict=v,
         seconds=time.time() - t0,
         sealed=sealed,
@@ -532,6 +564,8 @@ def ledger_row(card: Card) -> dict[str, object]:
         "ci_lo_bp": round(card.ci[0], 2),
         "ci_hi_bp": round(card.ci[1], 2),
         "ex5_bp": round(card.ex5_bp, 2),
+        **{f"exbest_{yr}": round(card.ex_best[yr], 2) for yr in SELECT_YEARS},
+        "fragile": card.fragile,
         **card.verdict.criteria,
         "qualifies": card.verdict.qualifies,
         "reasons": "; ".join(card.verdict.reasons),
@@ -582,6 +616,9 @@ def show(card: Card) -> str:
         f"  placebo mean {card.placebo_mean:+.1f}, p95 {card.placebo_p95:+.1f};"
         f" day-bootstrap 95% CI [{card.ci[0]:+.1f}, {card.ci[1]:+.1f}];"
         f" without 5 best days {card.ex5_bp:+.1f}",
+        "  without each year's best trade "
+        + "/".join(f"{card.ex_best[y]:+.0f}" for y in SELECT_YEARS)
+        + f" bp: {'FRAGILE' if card.fragile else 'not fragile'}",
         f"  verdict: {'QUALIFIES' if card.verdict.qualifies else 'fails'} -- "
         + "; ".join(card.verdict.reasons),
     ]
