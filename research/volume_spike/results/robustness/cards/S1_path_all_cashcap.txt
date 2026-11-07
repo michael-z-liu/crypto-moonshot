@@ -1,0 +1,10 @@
+S1:path_all:cashcap [f077382ab383] pct>=0.98, 5 slots, sizing CashCapped(slots=5), hold 1:00:00, fee 0.001 slip 0.0005 lat 0 per side
+  candidates 2022-24 22027, 25s
+  year  trades     bp   win     pnl$    ret%    dd%  | bp 0.6%  bp late
+  2022     279 +157.3  0.55    +3088   +30.9  -29.1  |  +126.9   +122.3
+  2023     138 +216.3  0.63   +10079   +77.0   -5.7  |  +185.7   +122.9
+  2024     317  +72.1  0.58   +11329   +48.9  -27.1  |   +42.0    +12.7
+  mean 2022-24 +148.6 bp (worst year +72.1); 0.6% +118.2; late +86.0
+  placebo mean -82.7, p95 -71.5; day-bootstrap 95% CI [+68.0, +228.1]; without 5 best days +84.9
+  without each year's best trade +27/+201/+60 bp: not fragile
+  verdict: QUALIFIES -- c1 yearly bp +157/+216/+72 all > 0; c2 0.6% cost mean +118.2 bp > 0; c3 one candle late mean +86.0 bp > 0; c4 mean +148.6 vs placebo p95 -71.5 bp beats

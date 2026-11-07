@@ -121,7 +121,9 @@ def report() -> None:
                 f" {'yes' if frag else 'no' if frag is not None else 'n/a'} ({ex}) |"
             )
         out.append("")
-    out += ["## Conclusion", "", "(see below)", ""]
+    conclusion = sc.OUT / "S1_conclusion.md"
+    if conclusion.exists():
+        out += [conclusion.read_text()]
     (sc.OUT / "S1.md").write_text("\n".join(out))
     print("wrote", sc.OUT / "S1.md")
 

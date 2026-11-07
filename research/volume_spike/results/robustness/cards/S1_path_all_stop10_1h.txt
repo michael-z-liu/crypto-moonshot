@@ -1,0 +1,10 @@
+S1:path_all:stop10_1h [d3a50b6e86bd] pct>=0.98, 5 slots, sizing EqualSlots(slots=5), hold 1:00:00, stop 0.1, fee 0.001 slip 0.0005 lat 0 per side
+  candidates 2022-24 22027, 25s
+  year  trades     bp   win     pnl$    ret%    dd%  | bp 0.6%  bp late
+  2022     360 +124.6  0.43    +4724   +47.2  -29.3  |   +94.3   +112.3
+  2023     141 +200.4  0.65   +10587   +71.9   -2.3  |  +169.8   +127.6
+  2024     333  +73.4  0.60   +13217   +52.2  -18.1  |   +43.2     +5.3
+  mean 2022-24 +132.8 bp (worst year +73.4); 0.6% +102.4; late +81.7
+  placebo mean -66.5, p95 -54.1; day-bootstrap 95% CI [+62.8, +204.9]; without 5 best days +75.7
+  without each year's best trade +25/+186/+61 bp: not fragile
+  verdict: QUALIFIES -- c1 yearly bp +125/+200/+73 all > 0; c2 0.6% cost mean +102.4 bp > 0; c3 one candle late mean +81.7 bp > 0; c4 mean +132.8 vs placebo p95 -54.1 bp beats
