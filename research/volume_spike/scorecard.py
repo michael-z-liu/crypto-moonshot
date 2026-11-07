@@ -535,8 +535,13 @@ def scorecard(
 # ----------------------------------------------------------------------------- output
 
 
+_NO_TRADES = {"trades": 0.0, "bp": float("nan"), "win": float("nan"), "pnl": 0.0,
+              "ret": float("nan"), "dd": float("nan")}  # fmt: skip
+
+
 def ledger_row(card: Card) -> dict[str, object]:
-    y = card.years
+    # A year without trades (e.g. a stacker that starts in 2023) is a row of NaN, not an error.
+    y = {yr: card.years.get(yr, _NO_TRADES) for yr in SELECT_YEARS}
     row: dict[str, object] = {
         "stage": card.stage,
         "variant": card.variant,
@@ -553,7 +558,10 @@ def ledger_row(card: Card) -> dict[str, object]:
         row |= {f"ret_{yr}": round(y[yr]["ret"], 4), f"dd_{yr}": round(y[yr]["dd"], 4)}
     trades = sum(y[yr]["trades"] for yr in SELECT_YEARS)
     row |= {
-        "win_2224": round(sum(y[yr]["win"] * y[yr]["trades"] for yr in SELECT_YEARS) / trades, 4),
+        "win_2224": round(
+            sum(y[yr]["win"] * y[yr]["trades"] for yr in SELECT_YEARS if y[yr]["trades"]) / trades,
+            4,
+        ),
         "pnl_2224": round(sum(y[yr]["pnl"] for yr in SELECT_YEARS), 2),
         "mean_bp": round(card.mean_bp, 2),
         "worst_bp": round(card.verdict.rank_key[1], 2),

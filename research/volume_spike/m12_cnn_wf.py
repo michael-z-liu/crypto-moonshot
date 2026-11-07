@@ -45,7 +45,9 @@ class Cfg:
     channels: tuple[int, ...] = COIN + BTC
     seq: int = 96  # candles, ending at the spike candle
     target: str = "y1h"  # y15m..y4h, or "path" (quantile forecast of the 8h close path)
-    loss: str = "mse"  # mse | huber | bce | xs (minus the same day's mean) | quantile (path)
+    # mse | huber | bce | xs (minus the same day's mean) | quantile (path) | asym (y - cost,
+    # over-forecasts weighted 2x)
+    loss: str = "mse"
     arch: str = "cnn"  # cnn | tcn | gru | mlp
     scalars: tuple[str, ...] = ("liq",)
     universe: str = "all"  # all | crash (only spikes in a crash context are trained and traded)
@@ -229,6 +231,8 @@ class Data:
             _, inv = np.unique(day, return_inverse=True)
             mean = np.bincount(inv, y) / np.bincount(inv)
             y = y - mean[inv]
+        if cfg.loss == "asym":
+            y = y - COST * 100  # net of the round trip
         return y.astype(np.float32)
 
     def batch(self, idx: np.ndarray, cfg: Cfg) -> tuple[torch.Tensor, torch.Tensor]:
@@ -257,6 +261,9 @@ def loss_fn(cfg: Cfg, out: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return nn.functional.huber_loss(o, y, delta=2.0)
     if cfg.loss == "bce":
         return nn.functional.binary_cross_entropy_with_logits(o, (y > 0).float())
+    if cfg.loss == "asym":  # forecasting too high (e.g. on a loser) costs twice as much
+        r = o - y
+        return (torch.where(r > 0, 2.0, 1.0) * r * r).mean()
     return nn.functional.mse_loss(o, y)
 
 
@@ -271,13 +278,23 @@ def predict(net: nn.Module, data: Data, cfg: Cfg, rows: np.ndarray) -> np.ndarra
 
 
 def fit_fold(
-    data: Data, cfg: Cfg, y: np.ndarray, year: int, seed: int
-) -> tuple[nn.Module, list[dict[str, float]]]:
+    data: Data,
+    cfg: Cfg,
+    y: np.ndarray,
+    year: int,
+    seed: int,
+    cuts: tuple[datetime, datetime] | None = None,
+    fold: str = "",
+) -> tuple[nn.Module, list[dict[str, object]]]:
+    """Train on rows before `cuts[0]`, early-stop on [cuts[0], cuts[1]). Default (yearly): train
+    before Y-1 July, validate on Y-1 July..December. `fold` labels the log rows if given."""
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     t = data.meta["open_time"]
     cut_tr = datetime(year - 1, 7, 1, tzinfo=UTC)
     cut_va = datetime(year, 1, 1, tzinfo=UTC)
+    if cuts is not None:
+        cut_tr, cut_va = cuts
     uni = data.crash if cfg.universe == "crash" else np.ones(len(y), dtype=bool)
     tr = np.flatnonzero((t < cut_tr).to_numpy() & uni)
     va = np.flatnonzero(((t >= cut_tr) & (t < cut_va)).to_numpy() & uni)
@@ -286,7 +303,8 @@ def fit_fold(
     opt = torch.optim.AdamW(net.parameters(), lr=1e-3, weight_decay=1e-4)
     yt = torch.from_numpy(y)
     y1h = np.clip(data.meta["y1h"].to_numpy(), -0.2, 0.2)
-    best, best_state, log, bad = -np.inf, None, [], 0
+    best, best_state, bad = -np.inf, None, 0
+    log: list[dict[str, object]] = []
     for epoch in range(cfg.epochs):
         net.train()
         t0 = time.time()
@@ -307,15 +325,16 @@ def fit_fold(
             else pv[:, 0]
         )
         corr = float(np.corrcoef(sv, y1h[va])[0, 1]) if len(va) > 10 else 0.0
-        log.append(
-            {
-                "year": year,
-                "seed": seed,
-                "epoch": epoch,
-                "valid_corr": corr,
-                "secs": time.time() - t0,
-            }
-        )
+        entry: dict[str, object] = {
+            "year": year,
+            "seed": seed,
+            "epoch": epoch,
+            "valid_corr": corr,
+            "secs": time.time() - t0,
+        }
+        if fold:
+            entry["fold"] = fold
+        log.append(entry)
         if corr > best:
             best, bad = corr, 0
             best_state = {k: v.detach().clone() for k, v in net.state_dict().items()}
@@ -328,12 +347,45 @@ def fit_fold(
     return net, log
 
 
-def run(name: str, data: Data) -> None:
+Fold = tuple[str, np.ndarray, datetime, datetime | None]  # label, test mask, train cut, valid end
+
+
+def folds_of(schedule: str, data: Data, years: tuple[int, ...]) -> list[Fold]:
+    """Walk-forward folds. "yearly" (the default): fold Y trains before Y-1 July, early-stops on
+    Y-1 H2, scores Y. "half": fold H (a half-year) trains before H - 6 months, early-stops on the
+    6 months before H, scores H."""
+    t = data.meta["open_time"]
+    if schedule == "yearly":
+        y = data.meta["year"].to_numpy()
+        return [(str(Y), y == Y, datetime(Y - 1, 7, 1, tzinfo=UTC), None) for Y in years]
+    if schedule != "half":
+        raise ValueError(schedule)
+    out: list[Fold] = []
+    for Y in years:
+        prev, h1, h2, nxt = (
+            datetime(Y + d // 12, 1 + d % 12, 1, tzinfo=UTC) for d in (-6, 0, 6, 12)
+        )
+        out.append((f"{Y}H1", ((t >= h1) & (t < h2)).to_numpy(), prev, h1))
+        out.append((f"{Y}H2", ((t >= h2) & (t < nxt)).to_numpy(), h1, h2))
+    return out
+
+
+def run(
+    name: str,
+    data: Data,
+    schedule: str = "yearly",
+    years: tuple[int, ...] = YEARS,
+    out_name: str | None = None,
+) -> None:
+    """Train `name` walk-forward and save its scores to `WF/<out_name or name>.npz`.
+
+    `schedule` is "yearly" (the default) or "half" (retrain every 6 months, see `folds_of`).
+    `years` limits the folds (e.g. a reproduction check of one year)."""
     cfg = VARIANTS[name]
+    out_name = out_name or name
     WF.mkdir(exist_ok=True)
     y = data.target(cfg)
     n = len(y)
-    years = data.meta["year"].to_numpy()
     t = data.meta["open_time"]
     uni = data.crash if cfg.universe == "crash" else np.ones(n, dtype=bool)
     pct = np.full(n, np.nan, dtype=np.float32)
@@ -346,13 +398,17 @@ def run(name: str, data: Data) -> None:
     )
     logs = []
     t_start = time.time()
-    for year in YEARS:
-        test = np.flatnonzero((years == year) & uni)
-        train_rows = np.flatnonzero((t < datetime(year - 1, 7, 1, tzinfo=UTC)).to_numpy() & uni)
+    for label, test_mask, train_cut, valid_end in folds_of(schedule, data, years):
+        year = int(label[:4])
+        test = np.flatnonzero(test_mask & uni)
+        train_rows = np.flatnonzero((t < train_cut).to_numpy() & uni)
         ref = np.sort(train_rows[:: max(1, len(train_rows) // 50_000)])
         outs_test, outs_ref = [], []
         for seed in range(cfg.seeds):
-            net, log = fit_fold(data, cfg, y, year, seed)
+            if valid_end is None:
+                net, log = fit_fold(data, cfg, y, year, seed)
+            else:
+                net, log = fit_fold(data, cfg, y, year, seed, (train_cut, valid_end), label)
             logs += log
             outs_test.append(predict(net, data, cfg, test))
             outs_ref.append(predict(net, data, cfg, ref))
@@ -376,12 +432,13 @@ def run(name: str, data: Data) -> None:
                     orf.reshape(len(ref), -1, 3)[:, 3, 1:2],
                 )
             pct_seed[j, test] = np.searchsorted(np.sort(orf[:, 0]), ot[:, 0]) / len(orf)
-        print(f"{name} {year}: {len(test)} scored, {time.time() - t_start:.0f}s", flush=True)
+        print(f"{name} {label}: {len(test)} scored, {time.time() - t_start:.0f}s", flush=True)
     out = {"pct": pct, "raw": raw, "pct_seed": pct_seed}
     if path is not None:
         out["path"] = path
-    np.savez(WF / f"{name}.npz", **out)
-    pl.DataFrame(logs).with_columns(variant=pl.lit(name)).write_csv(WF / f"{name}_log.csv")
+    np.savez(WF / f"{out_name}.npz", **out)
+    log_df = pl.DataFrame(logs).with_columns(variant=pl.lit(out_name))
+    log_df.write_csv(WF / f"{out_name}_log.csv")
 
 
 # ----------------------------------------------------------------------------- evaluation
