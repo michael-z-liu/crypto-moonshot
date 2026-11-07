@@ -1,9 +1,9 @@
 # CNN robustness study: deeper and wider on the capitulation CNN
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-robustness` (from `claude/cnn-replication`, with `feat/backtest-engine` merged in)
 - **PR:** none (research branch; report in the session, open a PR only if asked)
-- **Updated:** 2026-11-07T14:45Z
+- **Updated:** 2026-11-07T15:20Z
 
 ## Goal
 
@@ -97,7 +97,7 @@ in PR #8; that is noted, not hidden.
 - **Worker:** opus
 - **Commits:** 8f97af8, d110db8, f327413, b05826e, 8b51b3e, b137130, 14fe609
 
-### S5: Combine and confirm (in progress)
+### S5: Combine and confirm (done)
 
 - **Delivers:** a combination of qualified winners by a rule written here before it runs;
   finalists through the engine with 1m fills, latency and cash limits; 2025-26 opened once;
@@ -121,7 +121,7 @@ in PR #8; that is noted, not hidden.
     losers); the pick's 2025-26 is the headline. The pick and runner-up are also run with 1m
     fills. A deflated Sharpe ratio over the full ledger trial count is reported for the pick.
 - **Worker:** opus (report: master)
-- **Commits:**
+- **Commits:** 5f210d6, 730eb0a (pick, before the reveal), 4a59a1f, 8d7ec65
 
 ## Decisions
 
@@ -181,7 +181,23 @@ in PR #8; that is noted, not hidden.
   +129, m1last +119 (fragile): longer or finer history doesn't help. ctx overlaps the S2 BTC gates.
 - 14:45Z S5 score sets by the fixed rule: path_all (reference), S4:ctx (+188), S3:path_all5 (+154).
   Ledger: 91 trials before S5.
+- 15:20Z S5 (24 trials, 115 in the ledger; results/robustness/S5.md, report
+  docs/research/cnn-robustness.md). All 24 combinations qualified on 2022-24. Pick (committed in
+  730eb0a before any 2025-26 number): path_all5, 10 slots, q 0.99, 1h, +462 bp on 2022-24. Reveal:
+  2025 -58 bp (-12,832 bp summed on 2025-10-10 alone), 2026 +559 on 36 trades, 2025-26 +80 bp (161
+  trades, +7%, DD -16%, day-bootstrap CI [-136, +384], Sharpe 0.33). Runner-up (ctx + BTC vol >= 6x
+  + 2h) +79 bp; S0 path_all +94 bp. Spearman(2022-24 mean, 2025 bp) = -0.20 over the 24 runs; the
+  BTC gates lost most of their edge in 2025, the 2h-hold rules held up best. DSR 0.97 (0.84 with
+  normal returns) over 115 trials. 1m fills equal 5m for these time-exit rules. Verdict: the CNN
+  still ranks within crash days (every S5 run positive over 2025-26), but no robustness gain from
+  this study was confirmed out of sample. Recommendation: don't adopt the pick; if anything, paper
+  trade path_all or ctx with a 2h hold on the testnet as the real test.
 
 ## Blocked on
 
 ## Follow-ups
+
+- A loss limit per crash day (2025-10-10 cascade refilled slots).
+- A pre-registered test on data after 2026-11-02; paper trading on the spot testnet.
+- Measure real entry slippage at the spike-candle close.
+- The ctx day-count scalars drift as the universe grows; a share-of-universe version is untested.
