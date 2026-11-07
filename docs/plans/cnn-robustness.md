@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-robustness` (from `claude/cnn-replication`, with `feat/backtest-engine` merged in)
 - **PR:** none (research branch; report in the session, open a PR only if asked)
-- **Updated:** 2026-11-07T12:17Z
+- **Updated:** 2026-11-07T12:30Z
 
 ## Goal
 
@@ -80,13 +80,13 @@ in PR #8; that is noted, not hidden.
 - **Worker:** sonnet
 - **Commits:** ff4118a, 14ec347
 
-### S3: Training and ensembles (in progress)
+### S3: Training and ensembles (done)
 
 - **Delivers:** rank-within-crash-day loss, net-of-cost / downside-aware targets, 6-monthly
   retraining, 5 seeds, gradient-boosted stacker on CNN outputs + scalars, ensembles of the
   baseline and new variants. Each in the ledger.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** 2c336e6, c91ae75, 1a9110c, 3ca481f, 68203d0, 2f8e46b, 64f9729
 
 ### S4: Inputs (in progress)
 
@@ -169,6 +169,12 @@ in PR #8; that is noted, not hidden.
   meanwhile (allch_y1h, allch_xs, allch_cost, path_all5, path_all_h6 trained; stack_gbm and
   gbm_scalars built). Workers resumed; S4 GPU budget moved to end by 15:30Z (cut inputs_all,
   then m1last, if needed).
+- 12:30Z S3 (9 trials; results/robustness/S3.md), 2022-24 mean bp (path_all +152): path_all5
+  +154 (2024 late +6), ens_top (path_all5 + path_all + path_all_h6) +151, ens_s3 (all CNNs) +151
+  (best worst year +89, best ex-5-days +118, CI low +86, but late +61), path_all_h6 +149
+  (fragile), allch_xs +116, allch_y1h +114, allch_cost +82 (fragile); the GBM stacker (+43 on
+  2023-24) and scalars-only GBM (+56) are worse and unscored for 2022. Nothing beats path_all
+  beyond seed noise (~10-20 bp a year); training changes buy robustness (ensembles), not edge.
 
 ## Blocked on
 
