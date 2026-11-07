@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-robustness` (from `claude/cnn-replication`, with `feat/backtest-engine` merged in)
 - **PR:** none (research branch; report in the session, open a PR only if asked)
-- **Updated:** 2026-11-07T09:00Z
+- **Updated:** 2026-11-07T10:05Z
 
 ## Goal
 
@@ -72,13 +72,13 @@ in PR #8; that is noted, not hidden.
 - **Worker:** sonnet
 - **Commits:**
 
-### S2: Regime and execution (in progress)
+### S2: Regime and execution (done)
 
 - **Delivers:** gates (BTC flush depth, market breadth / share of coins spiking, the strategy's
   own trailing hit rate), liquidity and tick-size filters, latency cost, entry delay, entry timing
   inside the spike candle on 1m candles for CNN signals. Each row in the ledger.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** ff4118a, 14ec347
 
 ### S3: Training and ensembles (in progress)
 
@@ -130,6 +130,16 @@ in PR #8; that is noted, not hidden.
   (+149), market +84/+183/+24 (+97), base +18/+174/+72 (+88); all four qualify. Base 2022 is
   -74 bp vs the research simulator because the engine's cash check skips one LUNA entry
   (+36,437 bp) and the slot chain then differs. Weakest: 2024 one candle late (+15..+28 bp).
+- 10:05Z S2 (28 trials; results/robustness/S2.md). 2022-24 mean bp per trade, path_all / ens3
+  (baseline +152 / +149): BTC volume >= 6x +291 / +275 (every year above the baseline mean, removes
+  ens3's fragility); BTC 4h <= -2% +222 / +227; BTC 4h <= -4% +300 / +356 but 66-80 trades a year
+  and +81 / +93 without the 5 best days; spike share >= p75 +222 / +204; own-performance pause
+  hurts path_all (+40, fails). Liquidity / tick filters: no reliable gain. Latency 0.05-0.1% per
+  side costs 10-20 bp; two candles late leaves +7 / +6 bp in 2024. Entry inside the spike candle
+  on 1m (diagnostic): t+4m -90 bp, t+3m -190 bp vs the engine's t+5m entry, every year: wait for
+  the close. Note: the gates select the same market-wide flushes that F2 used, which decayed in
+  2025; only the S5 reveal can tell.
+- Known scorecard gap: the 0.6% stress replaces a rule's costs, dropping latency; fix before S5.
 
 ## Blocked on
 
