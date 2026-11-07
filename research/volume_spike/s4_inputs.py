@@ -226,7 +226,8 @@ def score(names: list[str]) -> None:
 LOGS = CACHE / "logs"
 S3_DONE = sc.OUT / "S3.md"
 DEADLINE = datetime(2026, 11, 7, 13, 30, tzinfo=UTC)  # about 4.5 h after S4 started (08:59Z)
-ESTIMATE_MIN = {"s4_ctx": 25, "s4_long7d": 32, "s4_m1last": 30, "s4_inputs_all": 40}
+# minutes; path_all took 21. After the first training they are scaled by its actual / estimate.
+ESTIMATE_MIN = {"s4_ctx": 23, "s4_long7d": 28, "s4_m1last": 27, "s4_inputs_all": 34}
 POLL = 180
 
 
@@ -244,11 +245,11 @@ def gpu_busy() -> bool:
     return r.returncode == 0
 
 
-def plan(now: datetime, todo: list[str]) -> tuple[list[str], list[str]]:
-    """Cut from the end of `todo` until the estimates fit before the deadline."""
+def plan(now: datetime, todo: list[str], scale: float = 1.0) -> tuple[list[str], list[str]]:
+    """Cut from the end of `todo` until the (scaled) estimates fit before the deadline."""
     keep = list(todo)
     cut = []
-    while keep and now + timedelta(minutes=sum(ESTIMATE_MIN[n] for n in keep)) > DEADLINE:
+    while keep and now + timedelta(minutes=scale * sum(ESTIMATE_MIN[n] for n in keep)) > DEADLINE:
         cut.insert(0, keep.pop())
     return keep, cut
 
@@ -262,24 +263,30 @@ def chain() -> None:
         time.sleep(POLL)
     log("GPU free")
     ran: list[str] = []
+    scale = 1.0
     for i, name in enumerate(ORDER):
         if name == "s4_inputs_all" and len(ran) < 2:
             log(f"cut {name}: only {len(ran)} of the three single-input variants ran")
             break
-        keep, cut = plan(datetime.now(UTC), list(ORDER[i:]))
+        keep, cut = plan(datetime.now(UTC), list(ORDER[i:]), scale)
         if name not in keep:
+            est = [round(scale * ESTIMATE_MIN[n]) for n in keep + cut]
             for c in cut:
-                log(f"cut {c}: estimates {[ESTIMATE_MIN[n] for n in cut]} min run past {DEADLINE}")
+                log(f"cut {c}: estimates {est} min for {keep + cut} run past {DEADLINE:%H:%M}Z")
             break
-        log(f"start {name} (estimate {ESTIMATE_MIN[name]} min; plan {keep}, would cut {cut})")
+        est_min = scale * ESTIMATE_MIN[name]
+        log(f"start {name} (estimate {est_min:.0f} min; plan {keep}, would cut {cut})")
         t0 = time.time()
         with (LOGS / f"s4_{name}.log").open("w") as out:
             rc = subprocess.run(
                 [sys.executable, __file__, "train", name], stdout=out, stderr=subprocess.STDOUT
             ).returncode
-        log(f"end {name} rc={rc} in {(time.time() - t0) / 60:.1f} min")
+        minutes = (time.time() - t0) / 60
+        log(f"end {name} rc={rc} in {minutes:.1f} min")
         if rc != 0:
             continue
+        if not ran:
+            scale = max(1.0, minutes / ESTIMATE_MIN[name])
         ran.append(name)
         with (LOGS / f"s4_score_{name}.log").open("w") as out:
             rc = subprocess.run(
