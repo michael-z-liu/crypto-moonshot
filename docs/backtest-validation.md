@@ -64,8 +64,10 @@ The CLI's defaults are the golden setups (`MOONSHOT_DATA_DIR` set; results go to
 
 Cases 1 to 3 give the golden trades and per-year numbers. Case 4 differs in one way: the CLI runs
 one continuous book, while the research and the golden test run one book per signal year
-(cause f below), so the CLI's 2024 shows +78 bp rather than +57 and the other years move by
-the same effect (positions held over New Year, cash carried across years). Without `--until`
+(cause f below). Measured by entry year over 2022..2026 the CLI gives +333 / +172 / +71 / +64 /
++52 bp against the golden +333 / +172 / +50 / +64 / +52: only 2024 moves, because a position
+held over New Year (and the cash it ties up) carries into the next year's book. The CLI's
+yearly table groups by entry year, the golden test by signal year. Without `--until`
 the data end is the latest candle in the store, so later data changes the numbers.
 
 ## Method
