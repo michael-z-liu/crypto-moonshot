@@ -191,3 +191,17 @@ def test_order_validation() -> None:
     broker = broker_with(flat(2))
     with pytest.raises(ValueError, match="opened by a buy"):
         broker.place_order(bracket)
+
+
+def test_pending_exit_is_known_once_the_window_covers_it() -> None:
+    plan = ExitPlan(take_profit=0.2)
+    broker = broker_with([*flat(3)], ended=False)
+    assert broker.pending_exit("ABCUSDT") is None
+    broker.place_order(buy(at=1, plan=plan))
+    assert broker.pending_exit("ABCUSDT") is None
+    broker.set_candles("ABCUSDT", candles([*flat(3), (100, 130, 100, 125)], ended=False))
+    pending = broker.pending_exit("ABCUSDT")
+    assert pending is not None
+    assert (pending.reason, pending.time) == (ExitReason.TAKE_PROFIT, T0 + 4 * M5)
+    broker.settle(T0 + 4 * M5)
+    assert broker.pending_exit("ABCUSDT") is None
