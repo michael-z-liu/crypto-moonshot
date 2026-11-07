@@ -88,7 +88,7 @@ in PR #8; that is noted, not hidden.
 - **Worker:** opus
 - **Commits:**
 
-### S4: Inputs (todo)
+### S4: Inputs (in progress)
 
 - **Delivers:** cross-coin day context (the coin's rank among the day's crashing coins, number of
   coins crashing, BTC/market depth) as scalars; liquidity, tick and age scalars; longer context
