@@ -244,6 +244,7 @@ def pick() -> None:
         )
     )
     ref = t.filter(pl.col("variant") == variant_of("path_all", "a_1h")).row(0, named=True)
+    third = ranked.row(2, named=True)
     n_q = int(t["qualifies"].sum())
     n_f = int((t["qualifies"] & t["fragile"]).sum())
     lines = [
@@ -272,6 +273,9 @@ def pick() -> None:
         f" worst year {_s(second['worst_bp'], nd=1)}, 0.6% {_s(second['cost06_bp'], nd=1)},"
         f" late {_s(second['late_bp'], nd=1)}, w/o 5 best days {_s(second['ex5_bp'], nd=1)},"
         f" {second['trades_yr']:.0f} trades a year.",
+        f"- Rank 3: `{third['variant']}`, mean {_s(third['mean_bp'], nd=2)} against the"
+        f" runner-up's {_s(second['mean_bp'], nd=2)} (worst year {_s(third['worst_bp'], nd=1)}):"
+        " the rule ranks by the mean first, so it is third however small the gap.",
         f"- Reference (`{ref['variant']}`, kept as a comparison by the rule): mean"
         f" {_s(ref['mean_bp'], nd=1)}, worst year {_s(ref['worst_bp'], nd=1)}.",
         "- Why: the plan's rule picks the top-ranked qualified, non-fragile run, nothing else."
