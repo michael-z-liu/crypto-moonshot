@@ -51,6 +51,23 @@ uv run pytest -m golden        # add -s for the per-year tables
   signals over 582 symbols take about 26 s, F2 over 152 about 6 s). Case 3 alone, with 1m fills
   for about 10,000 positions, takes 21 s. Peak memory is about 4.4 GB.
 
+### The same runs from the CLI
+
+The CLI's defaults are the golden setups (`MOONSHOT_DATA_DIR` set; results go to `results/`):
+
+| Case | Command |
+|---|---|
+| 1. F2 | `moonshot backtest f2 --until 2026-11-02` |
+| 2. Capitulation | `moonshot backtest capitulation --until 2026-11-02` |
+| 3. Capitulation, 1m fills | `moonshot backtest capitulation --until 2026-11-02 --fine --tp-fill close` |
+| 4. Base CNN | `moonshot backtest convert-scores wf/base.npz seq2_meta.parquet scores/base.parquet`, then `moonshot backtest scores --scores scores/base.parquet --until 2026-11-02` |
+
+Cases 1 to 3 give the golden trades and per-year numbers. Case 4 differs in one way: the CLI runs
+one continuous book, while the research and the golden test run one book per signal year
+(cause f below), so the CLI's 2024 shows +78 bp rather than +57 and the other years move by
+the same effect (positions held over New Year, cash carried across years). Without `--until`
+the data end is the latest candle in the store, so later data changes the numbers.
+
 ## Method
 
 - **References:**
