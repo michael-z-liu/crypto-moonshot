@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/backtest-engine`
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-07T02:05Z
+- **Updated:** 2026-11-07T02:35Z
 
 ## Goal
 
@@ -67,7 +67,7 @@ own caches stay inside the worktree (gitignored).
 - **Worker:** opus
 - **Commits:** 5d44b5c, ccb5c2b, 2144ca9, 6a4846d, fe26230, fd65027, 1628124, 2b4ae5b
 
-### M3: Data and strategies (in progress)
+### M3: Data and strategies (done)
 
 - **Delivers:** candle loading for a universe (5m; 1m only for open-position windows; gaps and
   ended series); strategy interface returning signals plus an exit plan; F2 and capitulation (R2)
@@ -76,9 +76,9 @@ own caches stay inside the worktree (gitignored).
 - **Done when:** unit tests, incl. feature parity with the research formulas on fixtures; full
   check passes.
 - **Worker:** opus (raised from sonnet: exact parity with the research features is subtle)
-- **Commits:**
+- **Commits:** 6b03721, 35dc163, fc13908, 4946023, af25e03, db24156, 401494a, 1d82296
 
-### M4: Golden validation (todo)
+### M4: Golden validation (in progress)
 
 - **Delivers:** golden tests marked `golden` (skipped by default and when data is missing; run with
   `uv run pytest -m golden`) and `docs/backtest-validation.md` explaining every difference.
@@ -129,7 +129,18 @@ own caches stay inside the worktree (gitignored).
   close at or before each mark; total return is from initial capital.
 - 2026-11-07 (M3) Research dropped events whose next 4h crossed a data gap or the series' last 4h
   (look-ahead). The production rules do not; M4 explains the difference.
+- 2026-11-07 (M3) Strategies produce signals + an exit plan (`strategy/`); features are the
+  research's polars expressions verbatim. All 8,383 research F2 events and 14,053 R2 events are
+  reproduced with identical features. Signal frames cached in the worktree's `.cache/`.
+- 2026-11-07 (M3) No flat padding after halts/delistings (research "all" mode padded up to 300
+  candles, which also fed features); fills are equivalent, features after long halts are not.
+- 2026-11-07 (M3) Smoke run, F2 bp 2020..26: +224/+318/+211/+287/+284/-42/+187 (ref +222/+319/
+  +223/+287/+284/-44/+187); R2 $: +785/+8,624/-1,079/+2,958/+7,561/+2,472/+1,334; base CNN bp
+  +333/+172/+50/+64/+52 (ref +334/+170/+57/+67/+53).
 
 ## Blocked on
 
 ## Follow-ups
+
+- Cap the engine's exit window at the source's data end, so a plan without `max_hold` cannot raise
+  for positions still open at the data end (M5 if small).
