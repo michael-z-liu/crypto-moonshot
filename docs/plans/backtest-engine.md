@@ -1,9 +1,9 @@
 # Backtest engine, validated against the research
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `feat/backtest-engine`
-- **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-07T03:50Z
+- **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/9
+- **Updated:** 2026-11-07T04:05Z
 
 ## Goal
 
