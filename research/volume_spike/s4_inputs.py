@@ -368,7 +368,11 @@ def timings() -> None:
                 "epochs_kept_min": int(kept.min()),
                 "epochs_kept_max": int(kept.max()),
                 "epoch_min": round(float(lg["secs"].sum()) / 60, 1),
-                "valid_corr_best_mean": round(float(best["valid_corr"].mean() or 0), 4),  # type: ignore[arg-type]
+                # folds 2022-24 only: the 2025 / 2026 folds early-stop on 2024 H2 / 2025 H2
+                "valid_corr_2224": round(
+                    float(best.filter(pl.col("year") <= 2024)["valid_corr"].mean() or 0),  # type: ignore[arg-type]
+                    4,
+                ),
             }
         )
     df = pl.DataFrame(rows)
