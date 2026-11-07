@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-robustness` (from `claude/cnn-replication`, with `feat/backtest-engine` merged in)
 - **PR:** none (research branch; report in the session, open a PR only if asked)
-- **Updated:** 2026-11-07T07:50Z
+- **Updated:** 2026-11-07T09:00Z
 
 ## Goal
 
@@ -52,7 +52,7 @@ in PR #8; that is noted, not hidden.
 
 ## Milestones
 
-### S0: Baseline and scorecard (in progress)
+### S0: Baseline and scorecard (done)
 
 - **Delivers:** walk-forward scores on "all" for base, market and path_all (2 seeds, existing
   `m12_cnn_wf.py` configs) in local `cache_all/wf/`; a scorecard module (engine-based) giving per
@@ -62,9 +62,9 @@ in PR #8; that is noted, not hidden.
 - **Done when:** baselines are in the ledger with verdicts; the scorecard reproduces the research
   simulator's 2022-24 bp for base within the M4-documented differences; check command passes.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** 4f13faa, 3ad4aa9, 3018355, 375136d, ecfc29c, ab1b478, ee37c4c
 
-### S1: Exits and sizing (todo)
+### S1: Exits and sizing (in progress)
 
 - **Delivers:** on S0 scores (no training): hold 30m/1h/2h/4h; +3/+5/+8% take profit without a
   stop (the post-hoc B1 finding); trailing stops; a -10% safety stop; score-weighted sizing;
@@ -72,7 +72,7 @@ in PR #8; that is noted, not hidden.
 - **Worker:** sonnet
 - **Commits:**
 
-### S2: Regime and execution (todo)
+### S2: Regime and execution (in progress)
 
 - **Delivers:** gates (BTC flush depth, market breadth / share of coins spiking, the strategy's
   own trailing hit rate), liquidity and tick-size filters, latency cost, entry delay, entry timing
@@ -80,7 +80,7 @@ in PR #8; that is noted, not hidden.
 - **Worker:** sonnet
 - **Commits:**
 
-### S3: Training and ensembles (todo)
+### S3: Training and ensembles (in progress)
 
 - **Delivers:** rank-within-crash-day loss, net-of-cost / downside-aware targets, 6-monthly
   retraining, 5 seeds, gradient-boosted stacker on CNN outputs + scalars, ensembles of the
@@ -114,8 +114,22 @@ in PR #8; that is noted, not hidden.
   production engine; `uv.lock` regenerated with `uv lock`.
 - 2026-11-07 Continuous book (not per-year books) for every evaluation: realistic, and the same
   for every variant.
+- 2026-11-07 (S0) Scorecard = production engine, continuous book 2022-01-01..2026-11-02 (data end
+  fixed as in the golden tests); 2025-26 sealed in gitignored `results/robustness/sealed/`.
+- 2026-11-07 (S0) A "fragile" flag is reported with every variant (some 2022-24 year turns
+  negative without that year's single best trade). Added after S0 showed base and ens3 pass
+  criterion 1 only through single LUNA trades; it is reported, not a qualification criterion,
+  so the pre-registered rule stays as written.
+- 2026-11-07 S1, S2 (CPU) run alongside S3 (GPU); each commits only its own files and writes the
+  ledger under a file lock.
 
 ## Research log
+
+- 09:00Z S0: base/market/path_all retrained on "all" (2 seeds, 16-21 min each); scores equal
+  PR #8's. 2022-24 bp per trade (engine): path_all +162/+219/+75 (mean +152), ens3 +55/+294/+99
+  (+149), market +84/+183/+24 (+97), base +18/+174/+72 (+88); all four qualify. Base 2022 is
+  -74 bp vs the research simulator because the engine's cash check skips one LUNA entry
+  (+36,437 bp) and the slot chain then differs. Weakest: 2024 one candle late (+15..+28 bp).
 
 ## Blocked on
 
