@@ -27,6 +27,7 @@ htmlcov/
 # Local market data, backtest output, logs
 /data/
 /logs/
+/results/
 
 # Editors / OS
 .vscode/
@@ -42,3 +43,6 @@ htmlcov/
 /research/**/report/index.html
 /research/**/report/data.json
 /research/**/cache_*
+
+# Local caches (signal tables, converted scores)
+/.cache/

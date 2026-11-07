@@ -131,3 +131,21 @@ FROM read_parquet('data/klines/spot/*/*/*.parquet', hive_partitioning = true)
 WHERE symbol = 'ETHUSDT' AND interval = '1h'
 ORDER BY open_time;
 ```
+
+## Score files
+
+Precomputed model scores, read by `crypto_moonshot.strategy.scores` (`ScoreStrategy`), are a
+separate format, not part of the kline store and not versioned with it. One Parquet file, one
+row per scored candle:
+
+| Column      | Type                    | Meaning                                                   |
+| ----------- | ----------------------- | --------------------------------------------------------- |
+| `symbol`    | `String`                | Binance symbol, e.g. `BTCUSDT`                            |
+| `open_time` | `Datetime("us", "UTC")` | Open time of the signal candle, scored on its close       |
+| `score`     | `Float64`               | Higher is better; null or NaN means not scored            |
+| any other   | any                     | Carried into the signals and the backtest's trade list    |
+
+`(symbol, open_time)` is unique. Other time units or zones are converted to µs UTC on reading.
+`convert_wf_npz` writes this format from the volume-spike research's walk-forward outputs
+(`cache/volume_spike/wf/<variant>.npz` with `seq2_meta.parquet`): `score` is the npz's `pct`,
+with the meta's `event` and the npz's other per-row arrays (such as `raw`) as extra columns.
