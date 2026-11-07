@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-robustness` (from `claude/cnn-replication`, with `feat/backtest-engine` merged in)
 - **PR:** none (research branch; report in the session, open a PR only if asked)
-- **Updated:** 2026-11-07T12:30Z
+- **Updated:** 2026-11-07T14:45Z
 
 ## Goal
 
@@ -88,16 +88,16 @@ in PR #8; that is noted, not hidden.
 - **Worker:** opus
 - **Commits:** 2c336e6, c91ae75, 1a9110c, 3ca481f, 68203d0, 2f8e46b, 64f9729
 
-### S4: Inputs (in progress)
+### S4: Inputs (done)
 
 - **Delivers:** cross-coin day context (the coin's rank among the day's crashing coins, number of
   coins crashing, BTC/market depth) as scalars; liquidity, tick and age scalars; longer context
   (3-7 days of hourly candles); 1m candles for the last hour. Cut in reverse order if time runs
   short, and record the cut.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** 8f97af8, d110db8, f327413, b05826e, 8b51b3e, b137130, 14fe609
 
-### S5: Combine and confirm (todo)
+### S5: Combine and confirm (in progress)
 
 - **Delivers:** a combination of qualified winners by a rule written here before it runs;
   finalists through the engine with 1m fills, latency and cash limits; 2025-26 opened once;
@@ -175,6 +175,12 @@ in PR #8; that is noted, not hidden.
   (fragile), allch_xs +116, allch_y1h +114, allch_cost +82 (fragile); the GBM stacker (+43 on
   2023-24) and scalars-only GBM (+56) are worse and unscored for 2022. Nothing beats path_all
   beyond seed noise (~10-20 bp a year); training changes buy robustness (ensembles), not edge.
+- 14:45Z S4 (4 trials; results/robustness/S4.md), 2022-24 mean bp: ctx (cross-coin day context +
+  coin scalars) +188 (+268/+218/+79; 0.6% +159, late +111, ex-5-days +112, CI [+97, +280]; DD
+  about half of path_all's), not fragile; nearly all the gain is 2022. long7d +140, inputs_all
+  +129, m1last +119 (fragile): longer or finer history doesn't help. ctx overlaps the S2 BTC gates.
+- 14:45Z S5 score sets by the fixed rule: path_all (reference), S4:ctx (+188), S3:path_all5 (+154).
+  Ledger: 91 trials before S5.
 
 ## Blocked on
 
