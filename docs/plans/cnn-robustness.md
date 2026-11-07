@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-robustness` (from `claude/cnn-replication`, with `feat/backtest-engine` merged in)
 - **PR:** none (research branch; report in the session, open a PR only if asked)
-- **Updated:** 2026-11-07T10:05Z
+- **Updated:** 2026-11-07T10:40Z
 
 ## Goal
 
@@ -64,13 +64,13 @@ in PR #8; that is noted, not hidden.
 - **Worker:** opus
 - **Commits:** 4f13faa, 3ad4aa9, 3018355, 375136d, ecfc29c, ab1b478, ee37c4c
 
-### S1: Exits and sizing (in progress)
+### S1: Exits and sizing (done)
 
 - **Delivers:** on S0 scores (no training): hold 30m/1h/2h/4h; +3/+5/+8% take profit without a
   stop (the post-hoc B1 finding); trailing stops; a -10% safety stop; score-weighted sizing;
   slots x threshold frontier; caps per crash day. Each row in the ledger.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** a15524c, 8e90855, 39d3e9e
 
 ### S2: Regime and execution (done)
 
@@ -103,6 +103,23 @@ in PR #8; that is noted, not hidden.
   finalists through the engine with 1m fills, latency and cash limits; 2025-26 opened once;
   deflated Sharpe over the ledger; `docs/research/cnn-robustness.md`; a journal section in the
   user's claude.ai journal (https://claude.ai/artifact/EwkgNPxbXeNexdbwG2eQGf).
+- **Combination rule (written 2026-11-07T10:40Z, after S1/S2 results were seen on 2022-24, before
+  any S3/S4 result and before any 2025-26 number):**
+  - Sizing for every S5 run: `CashCapped` equal slots (stake = min(equity / slots, cash)). The
+    strict cash check made S0/S1 results hinge on single skipped LUNA entries.
+  - Score sets (3): path_all (reference) and the top 2 qualified, non-fragile score sets by the
+    ranking key at the default rule among S3 and S4 variants (if fewer qualify, take what does;
+    ens3 fills a free place).
+  - Rules (8), each on every score set: (a) default 1h; (b) BTC volume >= 6x gate; (c) BTC 4h <=
+    -2% gate; (d) hold 2h; (e) 10 slots, q 0.99; (f) BTC volume >= 6x + hold 2h; (g) BTC volume
+    >= 6x + TP +5% / 2h, no stop; (h) spike share >= p75 + hold 2h.
+  - Each of the 24 runs uses latency 0.05% per side (S2's estimate of real execution) and the
+    usual stresses; all go in the ledger.
+  - Pick: the top-ranked qualified, non-fragile combination on 2022-24 (Selection rule ranking).
+    Runner-up and the default-rule path_all are kept as comparisons.
+  - Reveal: 2025-26 is opened once for ALL 24 S5 runs and the S0 baselines (no hiding of
+    losers); the pick's 2025-26 is the headline. The pick and runner-up are also run with 1m
+    fills. A deflated Sharpe ratio over the full ledger trial count is reported for the pick.
 - **Worker:** opus (report: master)
 - **Commits:**
 
@@ -139,7 +156,15 @@ in PR #8; that is noted, not hidden.
   on 1m (diagnostic): t+4m -90 bp, t+3m -190 bp vs the engine's t+5m entry, every year: wait for
   the close. Note: the gates select the same market-wide flushes that F2 used, which decayed in
   2025; only the S5 reveal can tell.
-- Known scorecard gap: the 0.6% stress replaces a rule's costs, dropping latency; fix before S5.
+- Known scorecard gap: the 0.6% stress replaced a rule's costs, dropping latency; fixed in
+  20fca48 (affects only S2's two latency rows' 0.6% column).
+- 10:40Z S1 (46 trials; results/robustness/S1.md), 2022-24 mean bp, path_all / ens3 (baseline
+  +152 / +149): hold 2h +221 / +202, 4h +235 / +253 (weak 2024, low ex-5-days); TP +5% no stop
+  1h +109 / +144, TP +5% 2h +146 / +179 (less dependent on best trades, ens3 no longer fragile);
+  trailing stops and TP + -10% stop hurt; -10% stop alone neutral; CashCapped +149 / +217 (the
+  ens3 gain is one LUNA entry); score-weighted sizing adds nothing; 10 slots x q 0.99 +291 / +378
+  on 105-137 trades a year (late +126 / +247); q 0.97 poor; day caps mixed.
+- 10:40Z S5 combination rule written into the plan (see S5), before S3/S4 results.
 
 ## Blocked on
 
