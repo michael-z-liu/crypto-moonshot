@@ -5,7 +5,7 @@ Forward paper test of `S5:path_all:d_hold2h` on candles after every study's data
 - **Rule:** path_all walk-forward CNN, 2026 fold (trained before 2025-07-01, early-stopped on 2025 H2, percentiles of the fold's training reference scores); liquid spikes (vol >= 10x the 24h median, >= 5k USDT qv_base); pct >= 0.98; 5 `CashCapped` slots, highest pct first; enter at the next 5m open; hold 2h; fee 0.1% + slippage 0.05% + latency 0.05% per side (0.4% round trip); $10,000; production engine on 5m candles. Comparison: the same with a 1h hold (`S5:path_all:a_1h`).
 - **Window:** signals from 2026-11-02 00:00 UTC to the latest candle, 2026-11-08 00:20 UTC (data end 2026-11-08 00:25).
 - **Universe:** 395 coins in the local store (391 listed "all" coins synced daily; 391 with candles to the data end).
-- **Updated:** 2026-11-08 00:26 UTC; model `f6e0ef533cef`.
+- **Updated:** 2026-11-08 00:27 UTC; model `f6e0ef533cef`.
 
 ## Result
 

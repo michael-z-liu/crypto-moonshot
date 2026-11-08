@@ -1,9 +1,9 @@
 # CNN robustness study: deeper and wider on the capitulation CNN
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-robustness` (from `claude/cnn-replication`, with `feat/backtest-engine` merged in)
 - **PR:** none (research branch; report in the session, open a PR only if asked)
-- **Updated:** 2026-11-08T00:05Z
+- **Updated:** 2026-11-08T00:35Z
 
 ## Goal
 
@@ -123,7 +123,7 @@ in PR #8; that is noted, not hidden.
 - **Worker:** opus (report: master)
 - **Commits:** 5f210d6, 730eb0a (pick, before the reveal), 4a59a1f, 8d7ec65
 
-### P1: Forward paper test of the 2h CNN (in progress, asked 2026-11-08)
+### P1: Forward paper test of the 2h CNN (done; updated daily, asked 2026-11-08)
 
 - **Rule (fixed before any new data was looked at):** path_all walk-forward CNN, 2026 fold
   (trained before 2025-07-01, early-stopped on 2025 H2, percentiles of that fold's training
@@ -138,6 +138,9 @@ in PR #8; that is noted, not hidden.
   reproduce shared seq2 rows and scores on a past window; the paper book run through the engine;
   `research/volume_spike/paper.py update` re-runnable daily; a paper ledger and summary.
 - **Worker:** opus
+- **Commits:** 53ae628, a37afb9, 1c853c4, 5199c90
+- **Daily:** `uv run --group research python research/volume_spike/paper.py update` (about 15 s);
+  summary in `research/volume_spike/results/paper/summary.md`.
 
 ## Decisions
 
@@ -208,6 +211,13 @@ in PR #8; that is noted, not hidden.
   still ranks within crash days (every S5 run positive over 2025-26), but no robustness gain from
   this study was confirmed out of sample. Recommendation: don't adopt the pick; if anything, paper
   trade path_all or ctx with a 2h hold on the testnet as the real test.
+- 00:35Z P1: the retrained 2026 fold equals path_all.npz on all 144,796 rows of 2026 (max diff
+  0); the local pipeline reproduces the shared seq2 inputs bit for bit on 10-15..10-31 (11-01
+  differs only in the market channels, where the shared store lacks the outside-pool coins);
+  a 10-22 start gives identical inputs from 11-02 on. Paper 2026-11-02..11-08 00:20 UTC: 1,726
+  liquid spikes, signals only on 2026-11-05 15:50 (28 at pct >= 0.98, top 0.9838); 2h rule: 5
+  trades, 3 won, +28 bp per trade, +$28 (+0.28%); 1h comparison: 5 of 5 won, +109 bp, +$109.
+  One crash candle: says nothing yet about the edge.
 
 ## Blocked on
 
