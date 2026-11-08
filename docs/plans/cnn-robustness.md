@@ -1,9 +1,9 @@
 # CNN robustness study: deeper and wider on the capitulation CNN
 
-- **Status:** review <!-- building | blocked | review | done -->
+- **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `claude/cnn-robustness` (from `claude/cnn-replication`, with `feat/backtest-engine` merged in)
 - **PR:** none (research branch; report in the session, open a PR only if asked)
-- **Updated:** 2026-11-07T15:20Z
+- **Updated:** 2026-11-08T00:05Z
 
 ## Goal
 
@@ -122,6 +122,22 @@ in PR #8; that is noted, not hidden.
     fills. A deflated Sharpe ratio over the full ledger trial count is reported for the pick.
 - **Worker:** opus (report: master)
 - **Commits:** 5f210d6, 730eb0a (pick, before the reveal), 4a59a1f, 8d7ec65
+
+### P1: Forward paper test of the 2h CNN (in progress, asked 2026-11-08)
+
+- **Rule (fixed before any new data was looked at):** path_all walk-forward CNN, 2026 fold
+  (trained before 2025-07-01, early-stopped on 2025 H2, percentiles of that fold's training
+  scores), liquid spikes as seq2 (>= 5k USDT qv_base), pct >= 0.98, 5 CashCapped slots, hold 2h,
+  fee 0.1% + slippage 0.05% + latency 0.05% per side, $10,000 = `S5:path_all:d_hold2h`.
+  Comparison: the same scores with the 1h hold (`S5:path_all:a_1h`).
+- **Window:** signals with open time from 2026-11-02 00:00 UTC (the first candle after every
+  study's data end) to the latest synced candle; extended daily.
+- **Delivers:** candles since 2026-10-01 for the currently listed "all" universe synced into a
+  local data root in this worktree; the 2026-fold model retrained, saved and checked to reproduce
+  `path_all.npz`'s 2026 scores; a pipeline that builds the CNN inputs for new spikes, checked to
+  reproduce shared seq2 rows and scores on a past window; the paper book run through the engine;
+  `research/volume_spike/paper.py update` re-runnable daily; a paper ledger and summary.
+- **Worker:** opus
 
 ## Decisions
 
