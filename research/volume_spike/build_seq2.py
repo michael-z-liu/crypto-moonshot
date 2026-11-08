@@ -72,8 +72,11 @@ def market_part(symbol: str) -> tuple[int, np.ndarray, np.ndarray]:
     return off, np.where(valid, r, np.nan), np.where(valid, spike, np.nan)
 
 
-def build_market(symbols: list[str]) -> pl.DataFrame:
-    n = int((datetime(2026, 12, 1, tzinfo=UTC) - T0) / STEP)
+def build_market(
+    symbols: list[str], end: datetime = datetime(2026, 12, 1, tzinfo=UTC)
+) -> pl.DataFrame:
+    """The market series on the global 5m grid from T0 to `end` (paper.py passes a later end)."""
+    n = int((end - T0) / STEP)
     rsum, rcnt, ssum = np.zeros(n), np.zeros(n), np.zeros(n)
     with ProcessPoolExecutor(max_workers=8) as pool:
         for off, r, s in pool.map(market_part, symbols):

@@ -357,6 +357,11 @@ def fit_fold(
 
 Fold = tuple[str, np.ndarray, datetime, datetime | None]  # label, test mask, train cut, valid end
 
+# Optional hook called by `run` after each fold with (fold label, cfg, the seeds' nets, the
+# fold's reference rows, their seed-mean scores). None (the default) changes nothing; paper.py
+# sets it to save the 2026 fold's model.
+FOLD_HOOK: Callable[[str, Cfg, list[nn.Module], np.ndarray, np.ndarray], None] | None = None
+
 
 def folds_of(schedule: str, data: Data, years: tuple[int, ...]) -> list[Fold]:
     """Walk-forward folds. "yearly" (the default): fold Y trains before Y-1 July, early-stops on
@@ -412,12 +417,14 @@ def run(
         train_rows = np.flatnonzero((t < train_cut).to_numpy() & uni)
         ref = np.sort(train_rows[:: max(1, len(train_rows) // 50_000)])
         outs_test, outs_ref = [], []
+        nets: list[nn.Module] = []
         for seed in range(cfg.seeds):
             if valid_end is None:
                 net, log = fit_fold(data, cfg, y, year, seed)
             else:
                 net, log = fit_fold(data, cfg, y, year, seed, (train_cut, valid_end), label)
             logs += log
+            nets.append(net)
             outs_test.append(predict(net, data, cfg, test))
             outs_ref.append(predict(net, data, cfg, ref))
         o_test, o_ref = np.mean(outs_test, 0), np.mean(outs_ref, 0)
@@ -431,6 +438,8 @@ def run(
             )
         else:
             s_test, s_ref = o_test[:, 0], o_ref[:, 0]
+        if FOLD_HOOK is not None:
+            FOLD_HOOK(label, cfg, nets, ref, s_ref)
         raw[test] = s_test
         pct[test] = np.searchsorted(np.sort(s_ref), s_test) / len(s_ref)
         for j, (ot, orf) in enumerate(zip(outs_test, outs_ref, strict=True)):
