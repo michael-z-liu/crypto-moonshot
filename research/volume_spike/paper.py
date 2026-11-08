@@ -869,7 +869,8 @@ def update(do_sync: bool = True, full: bool = False) -> None:
     sync_note = "skipped"
     if do_sync:
         s = sync(listed)
-        failed = [x["symbol"] for x in s.get("series", []) if x.get("status") != "ok"]
+        bad = ("failed", "aborted", "no_data")
+        failed = [x["symbol"] for x in s.get("series", []) if x.get("status") in bad]
         sync_note = f"{s.get('candles_added', 0):,} candles added for {len(listed)} symbols" + (
             f"; failed: {', '.join(failed)}" if failed else ""
         )
