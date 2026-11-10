@@ -1,4 +1,5 @@
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import polars as pl
 import pytest
@@ -232,6 +233,55 @@ def test_max_entries_per_day_is_first_come_and_resets_daily() -> None:
     )
     assert taken(result) == ["AUSDT", "BUSDT", "DUSDT"]
     assert nonzero(result.skipped) == {"day_cap": 1}
+
+
+def _group_run(**kwargs: Any) -> BacktestResult:
+    names = ("AUSDT", "BUSDT", "CUSDT", "DUSDT", "EUSDT")
+    src = source({s: flat(30) for s in names})
+    # A, B, C, D are in group 0 (scores .98 .985 .99 .996), E is in no group.
+    sigs = signals(
+        ("AUSDT", 0, 0), ("BUSDT", 0, 1), ("CUSDT", 0, 2), ("DUSDT", 1, 0), ("EUSDT", 1, 1),
+        group=[0, 0, 0, 0, -1],
+        score=[0.98, 0.985, 0.99, 0.996, 0.98],
+    )  # fmt: skip
+    return run(sigs, src, sizing=FixedStake(100), **kwargs)
+
+
+def test_group_limits_are_off_by_default() -> None:
+    result = _group_run()
+    assert taken(result) == ["AUSDT", "BUSDT", "CUSDT", "DUSDT", "EUSDT"]
+
+
+def test_max_entries_per_group_caps_a_group_but_not_ungrouped_signals() -> None:
+    result = _group_run(max_entries_per_group=2)
+    assert taken(result) == ["AUSDT", "BUSDT", "EUSDT"]
+    assert nonzero(result.skipped) == {"group_cap": 2}
+
+
+def test_group_tiers_raise_the_score_needed_with_each_entry_taken() -> None:
+    # after 1 entry a score >= 0.99 is needed, after 2 entries >= 0.995 (B fails, D passes)
+    result = _group_run(group_tiers=((1, 0.99), (2, 0.995)))
+    assert taken(result) == ["AUSDT", "CUSDT", "DUSDT", "EUSDT"]
+    assert nonzero(result.skipped) == {"group_tier": 1}
+
+
+def test_group_cap_counts_entries_taken_not_signals_offered() -> None:
+    bars: list[Bar | None] = flat(30)
+    src = source({"AUSDT": bars, "BUSDT": [None] * 30, "CUSDT": bars})  # B has no candles
+    sigs = signals(("AUSDT", 0, 0), ("BUSDT", 0, 1), ("CUSDT", 0, 2), group=[0, 0, 0])
+    result = run(sigs, src, sizing=FixedStake(100), max_entries_per_group=2)
+    assert taken(result) == ["AUSDT", "CUSDT"]
+    assert nonzero(result.skipped) == {"no_entry_candle": 1}
+
+
+def test_group_limits_need_their_columns() -> None:
+    src = source({"AUSDT": flat(30)})
+    with pytest.raises(ValueError, match="group"):
+        run(signals(("AUSDT", 0, 0)), src, max_entries_per_group=1)
+    with pytest.raises(ValueError, match="score"):
+        run(signals(("AUSDT", 0, 0), group=[0]), src, group_tiers=((1, 0.99),))
+    with pytest.raises(ValueError, match="max_entries_per_group"):
+        BacktestConfig(exit=HOLD, max_entries_per_group=0)
 
 
 # 5. Risk checks

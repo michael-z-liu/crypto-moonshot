@@ -60,6 +60,8 @@ class SkipReason(StrEnum):
     AFTER_END = "after_end"
     DAILY_LOSS_LIMIT = "daily_loss_limit"
     DAY_CAP = "day_cap"
+    GROUP_CAP = "group_cap"
+    GROUP_TIER = "group_tier"
     SLOTS_FULL = "slots_full"
     SYMBOL_HELD = "symbol_held"
     EXPOSURE = "exposure"
@@ -80,6 +82,13 @@ class BacktestConfig:
       (fraction of the day's starting realised equity), `max_entries_per_day` (entries per UTC
       day, first come first served): risk checks; `None` disables one. One
       position per symbol always applies (the broker holds one position per symbol).
+    - `max_entries_per_group`, `group_tiers`: limits per event, for a signal frame with a `group`
+      column (an integer id, e.g. a market-wide cascade; a negative id belongs to no group).
+      `max_entries_per_group` caps the entries taken in one group. `group_tiers` is a tuple of
+      `(entries_taken, min_score)` pairs: once a group has taken at least `entries_taken`
+      entries, a signal needs `score >= min_score` (the highest matching tier counts; needs a
+      `score` column). Both are causal (they count the entries the book took so far) and both
+      are `None` by default, which changes nothing.
     - `start`, `end`: take signals whose `open_time` is in `[start, end)`.
     - `use_fine`: fill exits on `fine_interval` candles where they cover a signal candle.
     - `mark_every`: spacing of the equity curve's points, aligned to the Unix epoch (midnight
@@ -97,6 +106,8 @@ class BacktestConfig:
     max_exposure: float | None = None
     daily_loss_limit: float | None = None
     max_entries_per_day: int | None = None
+    max_entries_per_group: int | None = None
+    group_tiers: tuple[tuple[int, float], ...] | None = None
     initial_capital: float = 10_000.0
     start: datetime | None = None
     end: datetime | None = None
@@ -119,6 +130,11 @@ class BacktestConfig:
             value = getattr(self, name)
             if value is not None:
                 object.__setattr__(self, name, as_utc(value))
+        if self.max_entries_per_group is not None and self.max_entries_per_group < 1:
+            msg = f"max_entries_per_group must be >= 1, got {self.max_entries_per_group}"
+            raise ValueError(msg)
+        if self.group_tiers is not None:
+            object.__setattr__(self, "group_tiers", tuple(sorted(self.group_tiers)))
         _ = self.interval.length  # raises for 1M, which has no fixed length
 
     def risk_checks(self) -> list[RiskCheck]:
@@ -257,6 +273,21 @@ class _Run:
         self.marks = _Marks()
         self.every_us = config.mark_every // _US
         self.seq = 0
+        self.group_entries: dict[int, int] = {}
+
+    def _group_reason(self, group: int, score: float | None) -> SkipReason | None:
+        """The group limits' verdict on a signal of `group` (negative: none) with `score`."""
+        config = self.config
+        if group < 0:
+            return None
+        taken = self.group_entries.get(group, 0)
+        if config.max_entries_per_group is not None and taken >= config.max_entries_per_group:
+            return SkipReason.GROUP_CAP
+        if config.group_tiers is not None:
+            need = max((t for n, t in config.group_tiers if taken >= n), default=None)
+            if need is not None and not (score is not None and score >= need):
+                return SkipReason.GROUP_TIER
+        return None
 
     def run(self, frame: pl.DataFrame, skipped: dict[str, int]) -> None:
         last_settled: int | None = None
@@ -268,6 +299,16 @@ class _Run:
         weights: list[float] = []
         if weighted is not None and "weight" in frame.columns:
             weights = frame["weight"].cast(pl.Float64).to_list()
+        config = self.config
+        grouped = config.max_entries_per_group is not None or config.group_tiers is not None
+        if grouped and "group" not in frame.columns:
+            msg = "group limits need a `group` column in the signals"
+            raise ValueError(msg)
+        if config.group_tiers is not None and "score" not in frame.columns:
+            msg = "group_tiers needs a `score` column in the signals"
+            raise ValueError(msg)
+        groups = frame["group"].cast(pl.Int64).to_list() if grouped else []
+        scores = frame["score"].cast(pl.Float64).to_list() if config.group_tiers else []
         for i, (row, symbol, entry_us) in enumerate(zip(rows, symbols, entries, strict=True)):
             entry_time = from_us(entry_us)
             if entry_us != last_settled:
@@ -279,12 +320,16 @@ class _Run:
             else:
                 stake = sizing.stake(self.book)
             reason = first_rejection(self.checks, self.book, symbol, stake)
+            if reason is None and grouped:
+                reason = self._group_reason(groups[i], scores[i] if scores else None)
             if reason is None and not 0 < stake <= self.book.cash * (1 + 1e-9):
                 reason = SkipReason.CASH
             if reason is None and not self._enter(
                 row, symbol, entry_time, min(stake, self.book.cash)
             ):
                 reason = SkipReason.NO_ENTRY_CANDLE
+            elif reason is None and grouped and groups[i] >= 0:
+                self.group_entries[groups[i]] = self.group_entries.get(groups[i], 0) + 1
             if reason is not None:
                 skipped[reason] += 1
         self._settle(_FAR_FUTURE)
