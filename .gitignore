@@ -50,3 +50,7 @@ htmlcov/
 # Robustness study: 2025-26 results sealed until S5 (rebuilt from local scores)
 /research/volume_spike/results/robustness/sealed/
 /research/volume_spike/results/robustness/ledger.lock
+
+# Issue #10 study: 2025-26 results sealed until M5
+/research/volume_spike/results/issue10/sealed/
+/research/volume_spike/results/issue10/ledger.lock
