@@ -1,0 +1,11 @@
+M5:volday5:b_h1_2h [a87424d736df] pct>=0.98, 5 slots, sizing CashCapped(slots=5), hold 2:00:00, fee 0.001 slip 0.0005 lat 0.0005 per side
+  candidates 2022-24 20676, 8s
+  year  trades     bp   win     pnl$    ret%    dd%  | bp 0.6%  bp late
+  2022     108 +498.5  0.58    +3996   +40.0  -20.9  |  +467.1   +399.6
+  2023      64 +421.6  0.84    +9422   +67.8   -6.5  |  +390.4   +209.4
+  2024     195 +154.5  0.62   +18147   +76.9   -7.7  |  +124.1    +97.1
+  mean 2022-24 +358.2 bp (worst year +154.5); 0.6% +327.2; late +235.4
+  placebo mean -146.5, p95 -126.8; day-bootstrap 95% CI [+151.7, +621.1]; without 5 best days +176.2
+  without each year's best trade +171/+391/+146 bp: not fragile
+  verdict: QUALIFIES -- c1 yearly bp +499/+422/+154 all > 0; c2 0.6% cost mean +327.2 bp > 0; c3 one candle late mean +235.4 bp > 0; c4 mean +358.2 vs placebo p95 -126.8 bp beats
+  source: i10_train volday5 {'base': {'channels': (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 'seq': 96, 'target': 'path', 'loss': 'quantile', 'arch': 'cnn', 'scalars': ('liq',), 'universe': 'all', 'seeds': 5, 'epochs': 6, 'width': 1}, 'select': 'corr', 'patience': 2, 'fixed_epochs': 6, 'top_frac': 0.02, 'hold': 'y1h', 'select_head': 'h1', 'weight': 'day', 'tail_k': 3.0, 'half_life': 1.0, 'window_years': None, 'norm': 'frozen', 'volscale': True, 'vol_floor': 0.001, 'target_offset': None} (cache_all/wf_i10/volday5.npz pct); M5 rule b_h1_2h
