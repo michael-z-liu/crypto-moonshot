@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/cnn-improvements` (from `claude/cnn-robustness`; the PR is stacked on it)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-11T00:40Z
+- **Updated:** 2026-11-10T15:05Z
 
 ## Goal
 
@@ -117,14 +117,14 @@ or worker) opens it before the M5 pick is committed.
 - **Worker:** sonnet
 - **Commits:** 66a75a8, 4af3289, a474115
 
-### M3: Objective and sampling, ideas 1-2 (in progress)
+### M3: Objective and sampling, ideas 1-2 (done)
 
 - **Delivers:** trained and scored (3 seeds): `es_top` (early stop on top-2% validation return),
   `tail` (tail-weighted loss + es_top), `day` (equal weight per UTC day), `fixed` (fixed epochs,
   no early stopping). Results note.
 - **Done when:** four variants in the ledger with per-seed rows; note written; check passes.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** d819701, 1b02edd
 
 ### M4: Target, scaling and stationarity, ideas 5, 6, 8 (in progress)
 
@@ -167,17 +167,21 @@ or worker) opens it before the M5 pick is committed.
   before M5. Recorded as a minor breach of the seal; it can't have influenced any choice.
 - 2026-11-10 M2 (CPU) and M3 (GPU) run at once in the same worktree; each commits only its own
   paths. M2 owns `i10_score.py`; M3 owns the variant registry in `i10_train.py`.
-- 2026-11-11 (M2) The engine gained `max_entries_per_group` and `group_tiers` (signal columns
+- 2026-11-10 (M2) The engine gained `max_entries_per_group` and `group_tiers` (signal columns
   `group`, `score`; default off, tested) for the cascade caps and the escalating threshold; a
   `RiskCheck` cannot see a signal's cascade or score. The daily loss limit is the existing
   `DailyLossLimit` (realised P&L only).
-- 2026-11-11 (M2 -> M5) By the pre-registered rule, M5 rule (c) is `h2_2h` (2h-median head, 2h
+- 2026-11-10 (M2 -> M5) By the pre-registered rule, M5 rule (c) is `h2_2h` (2h-median head, 2h
   hold: highest qualifying 2022-24 mean that beats the base rule, +248.1) and rule (d) is its 1h
   variant `h2_1h`; rule (b) is `h1_2h`. Note: per seed, `h2_2h` (avg +140.0) is below `h1_2h`
   (+154.2) and only `esc` (escalating threshold per cascade; per-seed avg +147.7 vs base +114.0,
   up in every seed) and the 2h hold improve every seed. So M5 also runs `esc` and `esc` + 2h hold
   on each score set as comparison rows that are NOT eligible for the pick (decided now, before any
   M3 result and before any 2025-26 number).
+- 2026-11-10 Timestamps: some earlier plan entries were written in local time (+11) with a Z;
+  M1 finished about 13:00Z, M2 about 13:20Z on 2026-11-10. Entries from here are UTC.
+- 2026-11-10 (M3) `fixed` uses N = 2 epochs: the median of (kept epoch + 1) over base3's nine
+  (fold, seed) runs in folds 2022-24.
 
 ## Research log
 
@@ -194,6 +198,10 @@ or worker) opens it before the M5 pick is committed.
   don't; casc5 fails (2022 -107). Per-seed averages disagree with several seed-mean rows (daycap5
   106.4, h2_1h 115.5, h2_2h 140.0 vs base 114.0); esc (147.7) and the 2h hold (154.2) gain in
   every seed. The risk-adjusted head is clearly worse. Caps and loss limits mostly hurt.
+- 15:00Z M3 (2022-24 seed-mean mean bp; per-seed spread vs band 26.8): day +178.7 (not fragile,
+  beats base3; but its 2022 is 156 trades at +285 and 2 of 3 seeds are fragile; spread 34.8),
+  es_top +152.8 (fragile: fails), fixed +139.0 (fragile), tail +136.8. No variant narrows the seed
+  spread (30.1 to 63.2), so idea 2's day weighting adds a gain, not stability. 106 min of GPU.
 
 ## Blocked on
 
