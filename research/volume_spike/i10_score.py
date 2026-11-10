@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import fcntl
 import sys
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -48,6 +49,8 @@ RULE_NAME = "a_1h"
 PCT_KEY = {"h1": "pct", "h2": "pct_h2", "h2ra": "pct_h2ra"}
 SEED_KEY = {"h1": "pct_seed", "h2": "pct_seed_h2", "h2ra": "pct_seed_h2ra"}
 BASE_VARIANT = "M1:base3:h1"
+ScoreFn = Callable[[np.ndarray], np.ndarray]
+SignalCols = Callable[[np.ndarray], dict[str, np.ndarray]]
 
 
 def rule_of(name: str = RULE_NAME) -> sc.Rule:
@@ -97,20 +100,32 @@ def score_variant(
     row_filter: np.ndarray | None = None,
     priority: np.ndarray | None = None,
     placebos: int = 20,
+    filter_fn: ScoreFn | None = None,
+    signal_cols: SignalCols | None = None,
+    workers: int = WORKERS,
+    head_scores: np.ndarray | None = None,
 ) -> sc.Card:
-    """A ledger trial: the seed-mean `head` of `name` with the rule, 20 placebos, and a card."""
+    """A ledger trial: the seed-mean `head` of `name` with the rule, 20 placebos, and a card.
+
+    `filter_fn(score)` computes the row filter from the scores being scored (used by M2's age
+    rules; it overrides `row_filter`); `signal_cols` is passed to the scorecard (group limits).
+    """
     variant = variant or variant_of(stage, name, head, rule_name)
     source = source_of(name, head) + (f"; {extra}" if extra else "")
+    score = scores(name, head) if head_scores is None else head_scores
+    if filter_fn is not None:
+        row_filter = filter_fn(score)
     card = sc.scorecard(
         variant,
-        scores(name, head),
+        score,
         rule or rule_of(rule_name),
         stage=stage,
         source=source,
         row_filter=row_filter,
         priority=priority,
         placebos=placebos,
-        workers=WORKERS,
+        workers=workers,
+        signal_cols=signal_cols,
     )
     text = sc.show(card) + f"\n  source: {source}"
     print(text, flush=True)
@@ -170,12 +185,17 @@ def score_seeds(
     extra: str = "",
     row_filter: np.ndarray | None = None,
     priority: np.ndarray | None = None,
+    filter_fn: ScoreFn | None = None,
+    signal_cols: SignalCols | None = None,
+    workers: int = 3,
 ) -> list[dict[str, object]]:
     """Each seed's own percentiles with the rule (no placebos, not a ledger trial)."""
     variant = variant or variant_of(stage, name, head, rule_name)
     rows = []
     for j, s in enumerate(seed_scores(name, head)):
         source = source_of(name, head, j) + (f"; {extra}" if extra else "")
+        if filter_fn is not None:
+            row_filter = filter_fn(s)
         card = sc.scorecard(
             f"{variant}:seed{j}",
             s,
@@ -185,8 +205,9 @@ def score_seeds(
             row_filter=row_filter,
             priority=priority,
             placebos=0,
-            workers=3,
+            workers=workers,
             ledger=False,
+            signal_cols=signal_cols,
         )
         rows.append(seed_row(card, variant, j, stage))
         print(

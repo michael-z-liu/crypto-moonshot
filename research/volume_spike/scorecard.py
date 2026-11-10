@@ -45,6 +45,7 @@ import hashlib
 import json
 import multiprocessing as mp
 import time
+from collections.abc import Callable
 from concurrent.futures import Future, ProcessPoolExecutor
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
@@ -98,6 +99,13 @@ class Rule:
     - `max_per_day`: at most this many entries per UTC day, first come first served (S1).
     - `use_fine`: fill exits on 1m candles where they cover a 5m candle (S5); described only
       when on, so the config hashes of earlier rules are unchanged.
+    - `daily_loss_limit` (issue #10, M2): no new entries for the rest of the UTC day once the
+      day's *realised* P&L has fallen to this fraction of the day's starting realised equity
+      (`risk.DailyLossLimit`; open positions are not marked to market).
+    - `max_per_group`, `group_tiers` (issue #10, M2): per-event limits on the engine's `group`
+      and `score` signal columns (`BacktestConfig.max_entries_per_group` / `group_tiers`); the
+      `scorecard(signal_cols=...)` argument supplies the columns. All three of these fields are
+      described only when set, so earlier rules' config hashes are unchanged.
     """
 
     q: float = 0.98
@@ -109,6 +117,9 @@ class Rule:
     weights: tuple[float, float] | None = None
     max_per_day: int | None = None
     use_fine: bool = False
+    daily_loss_limit: float | None = None
+    max_per_group: int | None = None
+    group_tiers: tuple[tuple[int, float], ...] | None = None
 
     def book_sizing(self) -> Sizing:
         if self.sizing is not None:
@@ -136,6 +147,12 @@ class Rule:
             parts.append(f"max {self.max_per_day} entries per day")
         if self.use_fine:
             parts.append("exits filled on 1m candles")
+        if self.daily_loss_limit is not None:
+            parts.append(f"daily loss limit {self.daily_loss_limit:g} (realised)")
+        if self.max_per_group is not None:
+            parts.append(f"max {self.max_per_group} entries per group")
+        if self.group_tiers is not None:
+            parts.append(f"group tiers (entries taken, min score) {self.group_tiers}")
         return ", ".join(parts)
 
 
@@ -195,8 +212,10 @@ def signals(
     row_filter: np.ndarray | None = None,
     priority: np.ndarray | None = None,
     end: datetime = UNTIL,
+    cols: Callable[[np.ndarray], dict[str, np.ndarray]] | None = None,
 ) -> pl.DataFrame:
-    """The engine's signal frame: candidate rows `score >= q` in [START, end), with `row`."""
+    """The engine's signal frame: candidate rows `score >= q` in [START, end), with `row`.
+    `cols(score)` gives extra per-row arrays (e.g. `group`, `score`) added as columns."""
     m = meta()
     with np.errstate(invalid="ignore"):
         ok = np.isfinite(score) & (score >= rule.q) & in_range(m, end)
@@ -204,17 +223,20 @@ def signals(
         ok &= row_filter
     k = np.flatnonzero(ok)
     pr = -score[k] if priority is None else priority[k]
-    cols: dict[str, object] = {
+    cols_: dict[str, object] = {
         "symbol": m.symbol[k],
         "open_time": m.open_time.gather(k),
         "priority": np.asarray(pr, dtype=np.float64),
         "row": k.astype(np.int64),
     }
+    if cols is not None:
+        for name, arr in cols(score).items():
+            cols_[name] = arr[k]
     if rule.weights is not None:
         lo, hi = rule.weights
         frac = np.clip((score[k] - rule.q) / (1.0 - rule.q), 0.0, 1.0)
-        cols["weight"] = lo + (hi - lo) * frac
-    return pl.DataFrame(cols)
+        cols_["weight"] = lo + (hi - lo) * frac
+    return pl.DataFrame(cols_)
 
 
 def day_shuffle(score: np.ndarray, mask: np.ndarray, rng: np.random.Generator) -> np.ndarray:
@@ -250,6 +272,9 @@ def book(sig: pl.DataFrame, rule: Rule, end: datetime | None = None) -> Backtest
         sizing=rule.book_sizing(),
         max_positions=rule.slots,
         max_entries_per_day=rule.max_per_day,
+        daily_loss_limit=rule.daily_loss_limit,
+        max_entries_per_group=rule.max_per_group,
+        group_tiers=rule.group_tiers,
         start=START,
         end=end,
         use_fine=rule.use_fine,
@@ -470,10 +495,14 @@ def scorecard(
     workers: int = 6,
     reveal: bool = False,
     ledger: bool = True,
+    signal_cols: Callable[[np.ndarray], dict[str, np.ndarray]] | None = None,
 ) -> Card:
     """Score `variant` (see the module docstring). `score`, `row_filter` and `priority` are
     aligned with the rows of `seq2_meta.parquet`. `source` describes where the scores come
-    from (it is part of the config hash)."""
+    from (it is part of the config hash). `signal_cols(score)` gives extra per-row signal columns
+    (`group`, `score`) for the group limits; it is called on the real scores and, for each
+    placebo, on that draw's shuffled scores (so a placebo's groups come from its own candidates).
+    Static `row_filter` and `priority` arrays are used as given in every draw."""
     t0 = time.time()
     rule = rule or Rule()
     m = meta()
@@ -484,7 +513,7 @@ def scorecard(
     # keep the rule's fee and latency; only slippage rises to the 0.6% round trip
     stress = replace(rule, costs=replace(rule.costs, slippage=STRESS_COSTS.slippage))
     late = replace(rule, entry_delay=rule.entry_delay + 1)
-    sig = signals(score, rule, row_filter, priority)
+    sig = signals(score, rule, row_filter, priority, cols=signal_cols)
     scored = np.isfinite(score) & in_range(m, SELECT_END)
     if row_filter is not None:
         scored &= row_filter
@@ -496,7 +525,7 @@ def scorecard(
         }
         for j in range(placebos):
             shuffled = day_shuffle(score, scored, np.random.default_rng(1000 + j))
-            ps = signals(shuffled, rule, row_filter, priority, end=SELECT_END)
+            ps = signals(shuffled, rule, row_filter, priority, end=SELECT_END, cols=signal_cols)
             jobs[f"placebo{j}"] = pool.submit(run_book, ps, rule, SELECT_END)
         runs = {k: f.result() for k, f in jobs.items()}
     base, c06, lt = runs["base"], runs["cost06"], runs["late"]
