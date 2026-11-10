@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/cnn-improvements` (from `claude/cnn-robustness`; the PR is stacked on it)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-10T15:20Z
+- **Updated:** 2026-11-10T17:40Z
 
 ## Goal
 
@@ -126,7 +126,7 @@ or worker) opens it before the M5 pick is committed.
 - **Worker:** sonnet
 - **Commits:** d819701, 1b02edd
 
-### M4: Target, scaling and stationarity, ideas 5, 6, 8 (in progress)
+### M4: Target, scaling and stationarity, ideas 5, 6, 8 (done)
 
 - **Delivers:** a builder for the universe's forward return path per signal time (new local file);
   trained and scored (3 seeds): `xs_univ` (target minus the universe's forward return over the same
@@ -137,9 +137,9 @@ or worker) opens it before the M5 pick is committed.
 - **Done when:** variants in the ledger with per-seed rows; builder checked for look-ahead;
   note written; check passes.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** 17016b3, 25f699e, 9e611c1, 0442dff (results collected and written by the master)
 
-### M5: Combine, reveal and report (todo)
+### M5: Combine, reveal and report (in progress)
 
 - **Delivers:** the combination rule above (5 seeds), the pick committed before the reveal, the
   reveal, the DSR, `docs/research/cnn-issue10.md`, the PR (refers to #10, does not close it).
@@ -188,6 +188,12 @@ or worker) opens it before the M5 pick is committed.
   15:04Z). The master collects the results and writes M4.md. The universe offset is the
   equal-weight mean of clipped (+-30%) forward returns of the 582 "all" coins over the row's
   exact window, no cost, own coin included.
+- 2026-11-10 (M4 -> M5) Variants that beat the baseline (qualified, not fragile, > +147.7):
+  volscale +223.6, M3 day +178.7, foldnorm +170.8. By the combination rule M5 retrains the top
+  two, `volscale5` and `day5` (5 seeds each), plus `volday5` (volscale + day weights, compatible),
+  and runs rules (a) h1 1h, (b) h1 2h, (c) h2 2h, (d) h2 1h on each = 12 eligible runs, plus the
+  non-eligible comparison rows `esc` (h1, 1h) and `esc` + 2h hold on each = 6 rows. All 18 are
+  ledger trials.
 
 ## Research log
 
@@ -208,6 +214,10 @@ or worker) opens it before the M5 pick is committed.
   beats base3; but its 2022 is 156 trades at +285 and 2 of 3 seeds are fragile; spread 34.8),
   es_top +152.8 (fragile: fails), fixed +139.0 (fragile), tail +136.8. No variant narrows the seed
   spread (30.1 to 63.2), so idea 2's day weighting adds a gain, not stability. 106 min of GPU.
+- 17:35Z M4 (2022-24 seed-mean mean bp; per-seed avg vs base3 114.0): volscale +223.6 (not
+  fragile; seeds +196 / +178 / +112, avg 162), foldnorm +170.8 (not fragile; avg 134), recency
+  +162.5 (fragile), roll3y +121.9 (= base3 in 2022-23), xs_univ +41.1 (fails late; every seed
+  worse). 134 min of GPU, nothing cut. GPU so far ~4.5 h.
 
 ## Blocked on
 
