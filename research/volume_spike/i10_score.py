@@ -27,6 +27,7 @@ nothing here reads it.
 
 from __future__ import annotations
 
+import fcntl
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -142,15 +143,20 @@ def seed_row(card: sc.Card, variant: str, seed: int, stage: str) -> dict[str, ob
 
 
 def upsert_seeds(rows: list[dict[str, object]]) -> None:
-    new = pl.DataFrame(rows)
-    if SEEDS_CSV.exists():
-        old = pl.read_csv(SEEDS_CSV, infer_schema_length=None)
-        keys = new.select("variant", "seed")
-        old = old.join(keys, on=["variant", "seed"], how="anti")
-        if old.height:
-            new = pl.concat([old, new], how="diagonal_relaxed")
+    """Upsert per-seed rows. Stages run at once, so the read-modify-write holds a file lock."""
     OUT.mkdir(parents=True, exist_ok=True)
-    new.sort("variant", "seed").write_csv(SEEDS_CSV)
+    with (OUT / "ledger.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        new = pl.DataFrame(rows)
+        if SEEDS_CSV.exists():
+            old = pl.read_csv(SEEDS_CSV, infer_schema_length=None)
+            keys = new.select("variant", "seed")
+            old = old.join(keys, on=["variant", "seed"], how="anti")
+            if old.height:
+                new = pl.concat([old, new], how="diagonal_relaxed")
+        tmp = SEEDS_CSV.with_suffix(".tmp")
+        new.sort("variant", "seed").write_csv(tmp)
+        tmp.replace(SEEDS_CSV)
 
 
 def score_seeds(
