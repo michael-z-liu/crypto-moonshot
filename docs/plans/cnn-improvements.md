@@ -126,7 +126,7 @@ or worker) opens it before the M5 pick is committed.
 - **Worker:** sonnet
 - **Commits:**
 
-### M4: Target, scaling and stationarity, ideas 5, 6, 8 (todo)
+### M4: Target, scaling and stationarity, ideas 5, 6, 8 (in progress)
 
 - **Delivers:** a builder for the universe's forward return path per signal time (new local file);
   trained and scored (3 seeds): `xs_univ` (target minus the universe's forward return over the same
