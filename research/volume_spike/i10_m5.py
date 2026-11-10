@@ -137,6 +137,9 @@ def score(names: list[str], only: set[str] | None) -> None:
 def sanity() -> None:
     """Seeds 0-2 of the 5-seed runs against the 3-seed runs (pct per seed, every head)."""
     for name, ref in REF3.items():
+        if not sc10.npz(name).exists():
+            print(f"{name}: not trained yet")
+            continue
         with np.load(sc10.npz(name)) as a, np.load(sc10.npz(ref)) as b:
             for key in ("pct_seed", "pct_seed_h2"):
                 for j in range(len(b[key])):
@@ -274,7 +277,7 @@ def pick() -> None:
         " comparison rows, not eligible (n/e): `esc` (h1, 1h, escalating threshold per"
         " cascade) and `esc_2h` (esc, 2h hold).",
         "",
-        f"{el.height} eligible-rule runs; {n_q} qualify; {n_f} of those are fragile;"
+        f"{el.height} eligible-rule runs; {n_q} qualify; fragile among those: {n_f};"
         f" {ranked.height} are eligible (qualified and not fragile). Rank = the Selection rule"
         " among them (seed-mean mean bp per trade 2022-24, worst year as the tiebreak)."
         f" Reference: base3 {base['mean_bp']:+.1f} bp (per seed"
@@ -314,6 +317,19 @@ def pick() -> None:
             else " No ineligible run ranks above it."
         )
     )
+    sanity_txt = i10_train.WF_I10 / "m5_sanity.txt"
+    if sanity_txt.exists():
+        lines += [
+            "",
+            "## Sanity: seeds 0-2 of the 5-seed runs (`i10_m5.py sanity`)",
+            "",
+            "Per-seed percentiles (h1 and h2 heads) of `volscale5` / `day5` seeds 0-2 against"
+            " the 3-seed `volscale` / `day` runs, every scored row 2022-26 (scores only):",
+            "",
+            "```",
+            sanity_txt.read_text().strip(),
+            "```",
+        ]
     (sc10.OUT / "M5_pick.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines))
 
