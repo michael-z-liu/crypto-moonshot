@@ -172,6 +172,16 @@ I10 |= {
     "roll3y": replace(_B3, window_years=3, note="M4: rolling 3-year training window"),
     "foldnorm": replace(_B3, norm="fold", note="M4: normalisation statistics per fold"),
 }
+# M5 (combination rule): the two variants that beat base3 (M4 volscale, M3 day) with 5 seeds,
+# and both changes together. Seeds 0-2 should equal the 3-seed runs (MPS is deterministic).
+_B5 = replace(_B3, base=replace(PATH_ALL, seeds=5, note="path_all, 5 seeds"))
+I10 |= {
+    "volscale5": replace(_B5, volscale=True, note="M5: M4 volscale with 5 seeds"),
+    "day5": replace(_B5, weight="day", note="M5: M3 day with 5 seeds"),
+    "volday5": replace(
+        _B5, volscale=True, weight="day", note="M5: volscale + day weights, 5 seeds"
+    ),
+}
 
 
 # ----------------------------------------------------------------------------- weights
