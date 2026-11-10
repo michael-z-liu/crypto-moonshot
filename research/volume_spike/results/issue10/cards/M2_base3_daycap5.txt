@@ -1,0 +1,11 @@
+M2:base3:daycap5 [ff81b8950e99] pct>=0.98, 5 slots, sizing CashCapped(slots=5), hold 1:00:00, fee 0.001 slip 0.0005 lat 0.0005 per side, max 5 entries per day
+  candidates 2022-24 22319, 8s
+  year  trades     bp   win     pnl$    ret%    dd%  | bp 0.6%  bp late
+  2022     155 +177.9  0.61    +5917   +59.2  -16.9  |  +147.4   +190.8
+  2023      86 +317.2  0.72   +10911   +68.6   -3.1  |  +286.3   +161.6
+  2024     214  +23.6  0.55    +1653    +6.2  -30.2  |    -6.5    -66.0
+  mean 2022-24 +172.9 bp (worst year +23.6); 0.6% +142.4; late +95.5
+  placebo mean -91.4, p95 -63.6; day-bootstrap 95% CI [+66.4, +284.4]; without 5 best days +88.8
+  without each year's best trade +97/+294/+5 bp: not fragile
+  verdict: QUALIFIES -- c1 yearly bp +178/+317/+24 all > 0; c2 0.6% cost mean +142.4 bp > 0; c3 one candle late mean +95.5 bp > 0; c4 mean +172.9 vs placebo p95 -63.6 bp beats
+  source: i10_train base3 {'base': {'channels': (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 'seq': 96, 'target': 'path', 'loss': 'quantile', 'arch': 'cnn', 'scalars': ('liq',), 'universe': 'all', 'seeds': 3, 'epochs': 6, 'width': 1}, 'select': 'corr', 'patience': 2, 'fixed_epochs': 6, 'top_frac': 0.02, 'hold': 'y1h', 'select_head': 'h1', 'weight': 'none', 'tail_k': 3.0, 'half_life': 1.0, 'window_years': None, 'norm': 'frozen', 'volscale': False, 'vol_floor': 0.001, 'target_offset': None} (cache_all/wf_i10/base3.npz pct); M2 rule daycap5
