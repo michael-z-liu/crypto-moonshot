@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/cnn-improvements` (from `claude/cnn-robustness`; the PR is stacked on it)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-10T15:05Z
+- **Updated:** 2026-11-10T15:20Z
 
 ## Goal
 
@@ -182,6 +182,12 @@ or worker) opens it before the M5 pick is committed.
   M1 finished about 13:00Z, M2 about 13:20Z on 2026-11-10. Entries from here are UTC.
 - 2026-11-10 (M3) `fixed` uses N = 2 epochs: the median of (kept epoch + 1) over base3's nine
   (fold, seed) runs in folds 2022-24.
+- 2026-11-10 (M4) The worker handed back after the builder (`i10_univ.py`, checks passed: hand
+  computation, own coin = fwd2 on 5.0M values, coverage, look-ahead) and the registry; its driver
+  `cache_all/wf_i10/m4_driver.sh` trains and scores the five variants unattended (started
+  15:04Z). The master collects the results and writes M4.md. The universe offset is the
+  equal-weight mean of clipped (+-30%) forward returns of the 582 "all" coins over the row's
+  exact window, no cost, own coin included.
 
 ## Research log
 
