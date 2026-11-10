@@ -66,7 +66,8 @@ outputs first (as m12), then takes the head. npz keys: `pct` (= h1), `pct_h2`, `
 `path` (float16 seed-mean (n, steps, quantiles)), `cfg` (the config text), plus the volscale
 keys above. The log CSV has
 one row per (fold, seed, epoch): the selection metric, valid corr, valid top-2% mean and the
-epoch's seconds (training + validation).
+epoch's seconds (training + validation). Fold 2026 validates on 2025 H2, a sealed period: its
+`valid_top` (a mean return) is not printed, and the log is not to be read for it before M5.
 """
 
 from __future__ import annotations
@@ -94,6 +95,7 @@ HEADS = ("h1", "h2", "h2ra")
 STEP_1H, STEP_2H = 3, 7  # indices into PATH_STEPS: bars 11 (1h) and 23 (2h)
 US_PER_DAY = 86_400_000_000
 US_PER_YEAR = 365.25 * US_PER_DAY
+SEALED_FROM = datetime(2025, 1, 1, tzinfo=UTC)  # 2025-26 is sealed (plan, Evaluation protocol)
 CHUNK = 10_000  # rows per read when computing statistics from seq2
 
 
@@ -362,8 +364,12 @@ def fit(
     vol: np.ndarray | None,
     seed: int,
     fold: str,
+    sealed: bool = False,
 ) -> tuple[nn.Module, list[dict[str, object]]]:
-    """m12's `fit_fold` with the harness options. The order of the RNG calls is m12's."""
+    """m12's `fit_fold` with the harness options. The order of the RNG calls is m12's.
+
+    `sealed`: the validation rows reach into 2025-26, so the top-2% mean return is only logged
+    (to the gitignored log CSV), never printed."""
     cfg = icfg.base
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
@@ -408,8 +414,9 @@ def fit(
             }
         )
         print(
-            f"  fold {fold} seed {seed} epoch {epoch}: corr {corr:.4f} top {top:+.5f}"
-            f" ({time.time() - t0:.0f}s)",
+            f"  fold {fold} seed {seed} epoch {epoch}: corr {corr:.4f}"
+            + ("" if sealed else f" top {top:+.5f}")
+            + f" ({time.time() - t0:.0f}s)",
             flush=True,
         )
         if icfg.select == "fixed":
@@ -478,7 +485,8 @@ def run(
         outs_test, outs_ref = [], []
         for seed in range(cfg.seeds):
             t0 = time.time()
-            net, log = fit(fd, icfg, y, w, tr, va, vol, seed, label)
+            sealed = valid_end > SEALED_FROM
+            net, log = fit(fd, icfg, y, w, tr, va, vol, seed, label, sealed)
             logs += log
             outs_test.append(m12.predict(net, fd, cfg, test))
             outs_ref.append(m12.predict(net, fd, cfg, ref))
