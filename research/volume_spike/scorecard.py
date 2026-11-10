@@ -33,6 +33,8 @@ placebo draws' mean bp 2022-24.
 **Ledger.** Each call upserts a row in `results/robustness/ledger.csv`, keyed by variant name and
 config hash (the rule, the score source description and the row filter / priority digests). A
 rerun with the same config replaces its row; a different config is a new trial (a new row).
+`configure(out)` moves the ledger and the sealed folder to another study's folder (issue #10:
+`results/issue10/`); the default stays the robustness study's.
 
 Run with `MOONSHOT_UNIVERSE=all` from this folder (it reads `cache_all/seq2_meta.parquet`).
 """
@@ -61,6 +63,16 @@ HERE = Path(__file__).resolve().parent
 OUT = HERE / "results" / "robustness"
 SEALED = OUT / "sealed"
 LEDGER = OUT / "ledger.csv"
+
+
+def configure(out: Path) -> None:
+    """Send the ledger, the sealed folder and `OUT` to `out` (another study's own ledger, e.g.
+    `results/issue10`). Without a call they are the robustness study's paths, unchanged."""
+    global OUT, SEALED, LEDGER
+    OUT = out
+    SEALED = out / "sealed"
+    LEDGER = out / "ledger.csv"
+
 
 START = datetime(2022, 1, 1, tzinfo=UTC)
 UNTIL = datetime(2026, 11, 2, tzinfo=UTC)  # data end (exclusive), as the golden tests
