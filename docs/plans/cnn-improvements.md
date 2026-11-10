@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/cnn-improvements` (from `claude/cnn-robustness`; the PR is stacked on it)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-10T12:28Z
+- **Updated:** 2026-11-10T12:36Z
 
 ## Goal
 
@@ -80,16 +80,16 @@ or worker) opens it before the M5 pick is committed.
 
 ## Milestones
 
-### M0: Setup and reproduction (in progress)
+### M0: Setup and reproduction (done)
 
 - **Delivers:** branch and plan; `cache_all/` links; a reproduction of `S5:path_all:a_1h` from the
   linked `path_all.npz` with the scorecard.
 - **Done when:** the reproduced 2022-24 yearly bp equal the robustness ledger's row; check command
   passes.
 - **Worker:** master
-- **Commits:**
+- **Commits:** (plan only; the links are local and gitignored)
 
-### M1: Training harness and the base3 baseline (todo)
+### M1: Training harness and the base3 baseline (in progress)
 
 - **Delivers:** a harness (extending `m12_cnn_wf.py` or a new module registering into it) with
   options for: early stopping on correlation (current), on the mean target of the top 2% of
@@ -156,6 +156,11 @@ or worker) opens it before the M5 pick is committed.
 - 2026-11-10 PR stacked on `claude/cnn-robustness`. (user)
 
 ## Research log
+
+- 12:35Z M0: `cache_all/` linked (shared inputs, robustness `wf/` scores, `s4_ctx.parquet`). The
+  scorecard on the linked `path_all.npz` with S5's `a_1h` rule gives 2022 / 2023 / 2024 +147.13 /
+  +206.11 / +62.08 bp on 279 / 138 / 317 trades, mean +138.44: identical to the robustness ledger's
+  `S5:path_all:a_1h` row.
 
 ## Blocked on
 
