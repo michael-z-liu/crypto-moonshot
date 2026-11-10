@@ -63,7 +63,8 @@ fold percentile as m12 does it: searchsorted against the sorted head scores of t
 reference training rows (every k-th, about 50,000). The seed mean averages the seeds' raw
 outputs first (as m12), then takes the head. npz keys: `pct` (= h1), `pct_h2`, `pct_h2ra`, `raw`,
 `raw_h2`, `raw_h2ra`, `pct_seed` (h1 per seed, (seeds, n)), `pct_seed_h2`, `pct_seed_h2ra`,
-`path` (float16 seed-mean (n, steps, quantiles)), plus the volscale keys above. The log CSV has
+`path` (float16 seed-mean (n, steps, quantiles)), `cfg` (the config text), plus the volscale
+keys above. The log CSV has
 one row per (fold, seed, epoch): the selection metric, valid corr, valid top-2% mean and the
 epoch's seconds (training + validation).
 """
@@ -511,6 +512,7 @@ def run(
     for h in ("h2", "h2ra"):
         out |= {f"pct_{h}": pct[h], f"raw_{h}": raw[h], f"pct_seed_{h}": pct_seed[h]}
     out["path"] = path
+    out["cfg"] = np.array(icfg.describe() + ("" if sub == 1 else f" sub {sub}"))
     if path_scaled is not None:
         out |= {"path_scaled": path_scaled, "raw_scaled": raw_scaled, "pct_scaled": pct_scaled}
     np.savez(out_npz, **out)  # type: ignore[arg-type]
@@ -527,8 +529,11 @@ def run(
 
 def compare(name: str, ref_name: str) -> None:
     """Per-seed pct (and, with the same seed count, the seed mean) of `wf_i10/<name>.npz` vs
-    the read-only `wf/<ref_name>.npz`, on the rows both scored. Scores only, no returns."""
-    with np.load(WF_I10 / f"{name}.npz") as a, np.load(m12.WF / f"{ref_name}.npz") as b:
+    `wf_i10/<ref_name>.npz` or else the read-only `wf/<ref_name>.npz`, on the rows both scored.
+    Scores only, no returns."""
+    ref = WF_I10 / f"{ref_name}.npz"
+    ref = ref if ref.exists() else m12.WF / f"{ref_name}.npz"
+    with np.load(WF_I10 / f"{name}.npz") as a, np.load(ref) as b:
         pa, pb = a["pct_seed"], b["pct_seed"]
         years = pl.read_parquet(CACHE / "seq2_meta.parquet", columns=["open_time"])[
             "open_time"
