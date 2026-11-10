@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/cnn-improvements` (from `claude/cnn-robustness`; the PR is stacked on it)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-10T17:40Z
+- **Updated:** 2026-11-10T20:20Z
 
 ## Goal
 
@@ -139,13 +139,13 @@ or worker) opens it before the M5 pick is committed.
 - **Worker:** opus
 - **Commits:** 17016b3, 25f699e, 9e611c1, 0442dff (results collected and written by the master)
 
-### M5: Combine, reveal and report (in progress)
+### M5: Combine, reveal and report (done)
 
 - **Delivers:** the combination rule above (5 seeds), the pick committed before the reveal, the
   reveal, the DSR, `docs/research/cnn-issue10.md`, the PR (refers to #10, does not close it).
 - **Done when:** report written with every row's 2022-24 and 2025-26 numbers; check passes; PR open.
 - **Worker:** opus (report and PR: master)
-- **Commits:**
+- **Commits:** fc98cba, 0eba401, e6b1ca1, f9ad2f6, 06050ac (pick, pushed before the reveal), 03f8a9b; report by the master
 
 ## Decisions
 
@@ -194,6 +194,8 @@ or worker) opens it before the M5 pick is committed.
   and runs rules (a) h1 1h, (b) h1 2h, (c) h2 2h, (d) h2 1h on each = 12 eligible runs, plus the
   non-eligible comparison rows `esc` (h1, 1h) and `esc` + 2h hold on each = 6 rows. All 18 are
   ledger trials.
+- 2026-11-10 (M5) Pick `M5:volday5:b_h1_2h` (+358.2 on 2022-24), runner-up `M5:volscale5:b_h1_2h`,
+  committed and pushed in 06050ac at 19:46:52Z; the reveal ran at 19:47Z.
 
 ## Research log
 
@@ -218,9 +220,17 @@ or worker) opens it before the M5 pick is committed.
   fragile; seeds +196 / +178 / +112, avg 162), foldnorm +170.8 (not fragile; avg 134), recency
   +162.5 (fragile), roll3y +121.9 (= base3 in 2022-23), xs_univ +41.1 (fails late; every seed
   worse). 134 min of GPU, nothing cut. GPU so far ~4.5 h.
+- 19:50Z M5 (133 min of GPU; total ~6.7 h). Seeds 0-2 of volscale5 / day5 equal the 3-seed runs
+  bit for bit. All 18 runs qualify on 2022-24 (only volscale5:d fragile). Reveal 2025-26: pick +64
+  bp (205 trades, CI [-77, +225], Sharpe 0.55), runner-up +125 (CI [+10, +249]); base3 +46; day
+  +90; day5 rules +85..+131 and positive in every seed; volscale at 1h +19. 2h beat 1h in 2025 for
+  both heads. Spearman(2022-24 mean, 2025 bp) +0.62 over 42 rows, +0.04 over the 18 finalists. DSR
+  (N = 157) pick 0.674, runner-up 0.830. Report: `docs/research/cnn-issue10.md`.
 
 ## Blocked on
 
 ## Follow-ups
 
 - Idea 7: funding rate, open interest and perp basis from Binance futures as model inputs.
+- Add `day5` with a 2h hold (and `day5:esc`) as arms of the P1 forward paper test.
+- Measure real fills at the spike-candle close.
