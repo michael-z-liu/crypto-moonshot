@@ -147,6 +147,17 @@ I10: dict[str, I10Cfg] = {
         note="M1 baseline: path_all retrained with the harness, all defaults, 3 seeds",
     ),
 }
+_B3 = I10["base3"]
+# M3 (ideas 1-2): each changes only the named options of base3.
+# fixed_epochs=2: median over base3's (fold, seed) runs in 2022-24 of (kept epoch + 1); see M3.md.
+I10 |= {
+    "es_top": replace(_B3, select="top", note="M3: early stop on top-2% validation y1h return"),
+    "tail": replace(
+        _B3, select="top", weight="tail", note="M3: tail-weighted loss (1 + 3 x crash) + es_top"
+    ),
+    "day": replace(_B3, weight="day", note="M3: equal total loss weight per UTC day"),
+    "fixed": replace(_B3, select="fixed", fixed_epochs=2, note="M3: fixed 2 epochs, no early stop"),
+}
 
 
 # ----------------------------------------------------------------------------- weights
