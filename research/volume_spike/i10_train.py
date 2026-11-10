@@ -158,6 +158,20 @@ I10 |= {
     "day": replace(_B3, weight="day", note="M3: equal total loss weight per UTC day"),
     "fixed": replace(_B3, select="fixed", fixed_epochs=2, note="M3: fixed 2 epochs, no early stop"),
 }
+# M4 (ideas 5, 6, 8): each changes only the named options of base3. univ_fwd.npy: i10_univ.py.
+I10 |= {
+    "xs_univ": replace(
+        _B3,
+        target_offset="wf_i10/univ_fwd.npy",
+        note="M4: target minus the universe's equal-weight forward return (same window)",
+    ),
+    "volscale": replace(_B3, volscale=True, note="M4: target and price channels / trailing vol"),
+    "recency": replace(
+        _B3, weight="recency", half_life=1.0, note="M4: recency-weighted loss, half-life 1 year"
+    ),
+    "roll3y": replace(_B3, window_years=3, note="M4: rolling 3-year training window"),
+    "foldnorm": replace(_B3, norm="fold", note="M4: normalisation statistics per fold"),
+}
 
 
 # ----------------------------------------------------------------------------- weights
