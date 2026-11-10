@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/cnn-improvements` (from `claude/cnn-robustness`; the PR is stacked on it)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-10T12:36Z
+- **Updated:** 2026-11-11T00:00Z
 
 ## Goal
 
@@ -89,7 +89,7 @@ or worker) opens it before the M5 pick is committed.
 - **Worker:** master
 - **Commits:** (plan only; the links are local and gitignored)
 
-### M1: Training harness and the base3 baseline (in progress)
+### M1: Training harness and the base3 baseline (done)
 
 - **Delivers:** a harness (extending `m12_cnn_wf.py` or a new module registering into it) with
   options for: early stopping on correlation (current), on the mean target of the top 2% of
@@ -104,9 +104,9 @@ or worker) opens it before the M5 pick is committed.
   same pct on every row, or a documented tolerance if MPS is non-deterministic); base3 is in the
   ledger with per-seed rows and the noise band; check command passes.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** 07491a0, 488c6b0, bd56910, 373c29b, c92b178
 
-### M2: Cascade caps and score heads, no training (todo)
+### M2: Cascade caps and score heads, no training (in progress)
 
 - **Delivers:** on base3 scores (CPU): idea 3, caps per cascade and per day, a daily loss limit, a
   ranking penalty for entries already taken in the same event and for time since the flush began;
@@ -117,7 +117,7 @@ or worker) opens it before the M5 pick is committed.
 - **Worker:** sonnet
 - **Commits:**
 
-### M3: Objective and sampling, ideas 1-2 (todo)
+### M3: Objective and sampling, ideas 1-2 (in progress)
 
 - **Delivers:** trained and scored (3 seeds): `es_top` (early stop on top-2% validation return),
   `tail` (tail-weighted loss + es_top), `day` (equal weight per UTC day), `fixed` (fixed epochs,
@@ -154,6 +154,19 @@ or worker) opens it before the M5 pick is committed.
 - 2026-11-10 Idea 7 (futures data) is a follow-up project. (user)
 - 2026-11-10 GPU budget up to ~10 hours. (user)
 - 2026-11-10 PR stacked on `claude/cnn-robustness`. (user)
+- 2026-11-10 (M1) Harness is `i10_train.py` (m12 untouched); scoring `i10_score.py`; scorecard got
+  `configure(out)` so the robustness ledger is never written. Top-2% selection metric uses the hold
+  target clipped to +-20%; weights none/day/tail (1 + 3 x crash mask)/recency; volscale divides
+  price channels 0-3 and the target by the trailing 96-candle std of 5m log returns (floor 0.001).
+- 2026-11-10 (M1) base3's seed-mean (3 seeds) is +120.9 bp and fragile (2022 without its best
+  trade -19.6), below the 2-seed path_all's +138.4; noise band 26.8 bp, so "beats the baseline"
+  needs > +147.7 bp, qualified and not fragile. Kept as pre-registered.
+- 2026-11-10 (M1) The base3 run printed two 2025 H2 *validation* top-2% means (fold 2026's early
+  stopping half-year), a return-like number, not a book result. Now logged only to the gitignored
+  log CSV for validation periods reaching 2025; fold-2026 rows of `wf_i10/*_log.csv` are not read
+  before M5. Recorded as a minor breach of the seal; it can't have influenced any choice.
+- 2026-11-10 M2 (CPU) and M3 (GPU) run at once in the same worktree; each commits only its own
+  paths. M2 owns `i10_score.py`; M3 owns the variant registry in `i10_train.py`.
 
 ## Research log
 
@@ -161,6 +174,9 @@ or worker) opens it before the M5 pick is committed.
   scorecard on the linked `path_all.npz` with S5's `a_1h` rule gives 2022 / 2023 / 2024 +147.13 /
   +206.11 / +62.08 bp on 279 / 138 / 317 trades, mean +138.44: identical to the robustness ledger's
   `S5:path_all:a_1h` row.
+- M1: base3 reproduces path_all (seeds 0-1 bit-exact on 1,456,656 rows). 2022-24 seed-mean
+  +106 / +208 / +48, mean +120.9 (0.6% +90.6, late +60.4, fragile); per seed +110.1 / +102.6 /
+  +129.4; noise band 26.8 bp. 29.7 min for 5 folds x 3 seeds.
 
 ## Blocked on
 
