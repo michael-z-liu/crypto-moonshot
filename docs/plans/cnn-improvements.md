@@ -1,9 +1,9 @@
 # CNN improvements: testing the ideas of issue #10
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `feat/cnn-improvements` (from `claude/cnn-robustness`; the PR is stacked on it)
-- **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-10T20:20Z
+- **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/11 (base `claude/cnn-robustness`)
+- **Updated:** 2026-11-10T20:35Z
 
 ## Goal
 
