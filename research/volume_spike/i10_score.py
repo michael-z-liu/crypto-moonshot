@@ -5,7 +5,7 @@
     uv run --group research python i10_score.py score base3 [--heads h1,h2] [--stage M1]
     uv run --group research python i10_score.py seeds base3 [--heads h1] [--stage M1]
     uv run --group research python i10_score.py band [M1:base3:h1]
-    uv run --group research python i10_score.py table M1:base3:h1 ...
+    uv run --group research python i10_score.py table M1:base3:h1,M4:volscale:h1 ...
 
 The book is the robustness scorecard (`scorecard.py`) with S5's `a_1h` rule
 (`s5_confirm.rules()["a_1h"]`: pct >= 0.98, `CashCapped(5)`, highest score first, 1h hold, fee
@@ -19,7 +19,8 @@ The book is the robustness scorecard (`scorecard.py`) with S5's `a_1h` rule
   2022-24 rows (trades and bp per year, mean, 0.6% cost, one candle late, fragile) are upserted
   into `seeds.csv` by (variant, seed).
 - `band`: the noise band, max - min of the per-seed 2022-24 mean bp (default base3's h1).
-- `table`: a markdown table (2022-24) of ledger variants and their seeds.
+- `table`: a markdown table (2022-24) of ledger variants and their seeds (comma- or
+  space-separated; none = every ledger variant; an unknown name is an error).
 
 2025-26 is computed by the scorecard but written only to `results/issue10/sealed/` (gitignored);
 nothing here reads it.
@@ -264,6 +265,20 @@ def table(variants: list[str]) -> str:
     return "\n".join(out)
 
 
+def table_args(args: list[str]) -> list[str]:
+    """The `table` command's variants: arguments split on commas and whitespace (as the other
+    commands' lists are written, e.g. `M1:base3:h1,M4:volscale:h1`), every ledger variant if
+    none is given. An unknown variant is an error, so the table is never silently empty."""
+    names = [v for a in args for v in a.replace(",", " ").split()]
+    known = s5_confirm.latest(pl.read_csv(sc.LEDGER, infer_schema_length=None))["variant"]
+    if not names:
+        return list(known)
+    unknown = [v for v in names if v not in set(known)]
+    if unknown:
+        raise SystemExit(f"not in {sc.LEDGER}: {unknown}")
+    return names
+
+
 def _opt(argv: list[str], flag: str, default: str) -> str:
     return argv[argv.index(flag) + 1] if flag in argv else default
 
@@ -284,6 +299,6 @@ if __name__ == "__main__":
         band, means = noise_band(v)
         print(f"{v}: per-seed mean bp {[round(m, 2) for m in means]}, noise band {band:.2f} bp")
     elif cmd == "table":
-        print(table(args))
+        print(table(table_args(args)))
     else:
         raise SystemExit(__doc__)
