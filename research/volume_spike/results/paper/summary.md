@@ -3,9 +3,9 @@
 Forward paper test of `S5:path_all:d_hold2h` on candles after every study's data end. Plan: `docs/plans/cnn-robustness.md` (P1, rule fixed before any new data was looked at). Code: `research/volume_spike/paper.py`. Ledger: `.cache/paper/ledger/` (gitignored).
 
 - **Rule:** path_all walk-forward CNN, 2026 fold (trained before 2025-07-01, early-stopped on 2025 H2, percentiles of the fold's training reference scores); liquid spikes (vol >= 10x the 24h median, >= 5k USDT qv_base); pct >= 0.98; 5 `CashCapped` slots, highest pct first; enter at the next 5m open; hold 2h; fee 0.1% + slippage 0.05% + latency 0.05% per side (0.4% round trip); $10,000; production engine on 5m candles. Comparison: the same with a 1h hold (`S5:path_all:a_1h`).
-- **Window:** signals from 2026-11-02 00:00 UTC to the latest candle, 2026-11-10 00:35 UTC (data end 2026-11-10 00:40).
+- **Window:** signals from 2026-11-02 00:00 UTC to the latest candle, 2026-11-11 00:35 UTC (data end 2026-11-11 00:40).
 - **Universe:** 395 coins in the local store (391 listed "all" coins synced daily; 391 with candles to the data end).
-- **Updated:** 2026-11-10 00:43 UTC; model `f6e0ef533cef`.
+- **Updated:** 2026-11-11 00:43 UTC; model `f6e0ef533cef`.
 
 ## Result
 
@@ -28,7 +28,8 @@ Candidates: liquid spikes scored. Signals: pct >= 0.98. Top: the day's three hig
 | 2026-11-07 | 120 | 0 | PUMPUSDT 0.829, PUMPUSDT 0.821, PUMPUSDT 0.805 | 0 | +0.00 | 0 | +0.00 |
 | 2026-11-08 | 407 | 0 | XPLUSDT 0.969, HUMAUSDT 0.967, XPLUSDT 0.964 | 0 | +0.00 | 0 | +0.00 |
 | 2026-11-09 | 325 | 0 | XPLUSDT 0.926, PUMPUSDT 0.922, ASTERUSDT 0.912 | 0 | +0.00 | 0 | +0.00 |
-| 2026-11-10 | 5 | 0 | ZROUSDT 0.783, ZROUSDT 0.666, BMTUSDT 0.596 | 0 | +0.00 | 0 | +0.00 |
+| 2026-11-10 | 373 | 0 | PARTIUSDT 0.948, ZECUSDT 0.948, PARTIUSDT 0.947 | 0 | +0.00 | 0 | +0.00 |
+| 2026-11-11 | 4 | 0 | TRXUSDT 0.686, ICPUSDT 0.442, PYTHUSDT 0.434 | 0 | +0.00 | 0 | +0.00 |
 
 ## Trades: S5:path_all:d_hold2h (the paper rule)
 
@@ -66,12 +67,13 @@ Signals not taken: slots_full 23
 | 2026-11-08 | 10,028.27 | 10,109.33 |
 | 2026-11-09 | 10,028.27 | 10,109.33 |
 | 2026-11-10 | 10,028.27 | 10,109.33 |
-| 2026-11-10 00:35 (latest) | 10,028.27 | 10,109.33 |
+| 2026-11-11 | 10,028.27 | 10,109.33 |
+| 2026-11-11 00:35 (latest) | 10,028.27 | 10,109.33 |
 
 ## Run
 
 Daily: `uv run --group research python research/volume_spike/paper.py update`.
 
 - sync: 112,608 candles added for 391 symbols
-- spikes scored this run: 306 (of 2461 in the window)
-- timings: sync 13s, spikes + inputs + scores 3s, books 0s, total 16s
+- spikes scored this run: 372 (of 2833 in the window)
+- timings: sync 13s, spikes + inputs + scores 4s, books 0s, total 17s
