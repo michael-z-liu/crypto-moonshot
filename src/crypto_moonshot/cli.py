@@ -5,11 +5,13 @@ from typing import Annotated
 import typer
 
 from crypto_moonshot import __version__
+from crypto_moonshot.backtest_cli import backtest_app
 from crypto_moonshot.data_cli import data_app
 
 app = typer.Typer(no_args_is_help=True, help="Crypto research and trading toolkit for Binance.")
 
 app.add_typer(data_app, name="data")
+app.add_typer(backtest_app, name="backtest")
 
 
 def _print_version(value: bool) -> None:

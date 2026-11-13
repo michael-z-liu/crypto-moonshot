@@ -27,6 +27,7 @@ htmlcov/
 # Local market data, backtest output, logs
 /data/
 /logs/
+/results/
 
 # Editors / OS
 .vscode/
@@ -36,3 +37,6 @@ htmlcov/
 # Claude Code local settings
 .claude/settings.local.json
 .claude/worktrees/
+
+# Local caches (signal tables, converted scores)
+/.cache/

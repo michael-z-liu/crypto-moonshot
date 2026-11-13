@@ -63,6 +63,30 @@ types, UTC, aligned, no duplicates, closed candles) and imported, merged into an
 download whatever was skipped. The source is never modified. `--json` prints the report; the exit
 code is 0 even when files were skipped.
 
+## Backtesting
+
+`moonshot backtest` runs a strategy over the stored candles and writes the results to
+`results/<strategy>-<UTC timestamp>/` (gitignored): `trades.parquet` and `trades.csv`,
+`equity.csv`, `yearly.csv` and `metrics.json` (metrics, skipped signals, the full configuration
+and the data end used). It prints the overall metrics and a table per calendar year. Signals are
+cached in `.cache/`, never in the data folder.
+
+```bash
+uv run moonshot backtest f2 --until 2026-11-02          # F2: pool, 5 equal slots, 1 hour hold
+uv run moonshot backtest capitulation                   # R2: all coins, $50 stakes, +20% or 3 days
+uv run moonshot backtest capitulation --fine --tp-fill close   # fill exits on 1m candles
+uv run moonshot backtest f2 --slots 10 --hold 90m --stop 0.05 --fee 0.002 --out results/mine
+uv run moonshot backtest convert-scores wf/base.npz seq2_meta.parquet scores/base.parquet
+uv run moonshot backtest scores --scores scores/base.parquet --threshold 0.98 --json
+```
+
+`--slots N` compounds (stake = equity / N), `--stake USDT` keeps it fixed; `--hold` takes `1h`,
+`90m`, `3d`, `2w`; `--take-profit`, `--stop` and `--trailing` are fractions (0 switches a preset's
+level off); `--until` is the data end (later candles are ignored), `--start`/`--end` limit the
+signal range; `--json` prints the `metrics.json` document on stdout. The presets and their
+validation against the research results are in [docs/backtest-validation.md](docs/backtest-validation.md);
+the design is in [docs/architecture.md](docs/architecture.md).
+
 ## Development
 
 ```bash

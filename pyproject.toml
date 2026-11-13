@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "httpx>=0.28.1",
+    "numpy>=2.5.4",
     "polars>=2.1.0",
     "pydantic-settings>=2.16.2",
     "rich>=15.0.0",
@@ -61,7 +62,10 @@ mypy_path = "src"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-ra", "--strict-markers", "--strict-config"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not golden"]
+markers = [
+    "golden: reproduces research results on the real data folder (opt in: pytest -m golden)",
+]
 
 [tool.coverage.run]
 source = ["crypto_moonshot"]
