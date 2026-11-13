@@ -154,6 +154,21 @@ VARIANTS: dict[str, Variant] = {
     "tfgroup": replace(BASE, pooled=False, note="one model per timeframe group"),
     "touch": replace(BASE, family="touch", note="touch-market candidates, their own E1"),
 }
+# M6 finalists (plan, "M6 design"): 5 seeds, otherwise identical to the registered variant
+VARIANTS |= {
+    "base5": replace(BASE, seeds=5, note="M6: the base CNN, 5 seeds"),
+    "breadth5": replace(VARIANTS["breadth"], seeds=5, note="M6: + market breadth, 5 seeds"),
+    "otherma5": replace(VARIANTS["otherma"], seeds=5, note="M6: + other-MA distances, 5 seeds"),
+    "short5": replace(VARIANTS["short"], seeds=5, note="M6: short windows, 5 seeds"),
+    "combo5": replace(
+        BASE,
+        groups=("coin", "btc", "breadth", "otherma"),
+        fine=48,
+        coarse=64,
+        seeds=5,
+        note="M6: short windows + market breadth + other-MA distances, 5 seeds",
+    ),
+}
 
 
 # --- data --------------------------------------------------------------------------------------
