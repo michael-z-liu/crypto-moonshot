@@ -3,8 +3,8 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `worktree-bridge-cse_015bssAVNSvc6d3Ch9Adf7UE` (created by the desktop app; kept)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-13T03:25Z
-- **Last report to the user:** 2026-11-13T03:05Z (build started)
+- **Updated:** 2026-11-13T03:40Z
+- **Last report to the user:** 2026-11-13T03:40Z (M1 accepted)
 
 ## Goal
 
@@ -142,7 +142,7 @@ The user asked to be told that things are moving, at most every few hours unless
 - **Worker:** master
 - **Commits:** 7f0d575 (plan and protocol), ff64627
 
-### M1: MA grid, candidates, limit fills and labels (in progress)
+### M1: MA grid, candidates, limit fills and labels (done)
 
 - **Delivers:** `build_bars.py` (1h/4h/1d/1w/1M bars and the 15 + placebo SMA levels, `atr_d`,
   liquidity), `build_candidates.py` (candidates per the protocol, both entry families),
@@ -153,9 +153,9 @@ The user asked to be told that things are moving, at most every few hours unless
   over the raw candles gives the same level, trigger, fill and exits; counts per MA and year are
   in `results/M1.md` (no 2025-26 outcomes); the check command passes.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** 6b1c81e, acd8552, de853cf, 8bc16f1
 
-### M2: Baseline: does buying every MA touch pay? (todo)
+### M2: Baseline: does buying every MA touch pay? (in progress)
 
 - **Delivers:** `m2_baseline.py` and `results/M2.md`: per MA, buffer and exit on 2020-24, the fill
   rate, mean net bp, win rate and day-bootstrap CI of every candidate; the same for placebo MAs
@@ -229,6 +229,21 @@ The user asked to be told that things are moving, at most every few hours unless
 
 - 2026-11-13 (M0): 82 coins were listed before 2020; all their pre-2020 daily candles came from
   the public API (it still serves delisted pairs' daily history), none from the archive.
+
+- 2026-11-13 (M1): accepted. 2.62M candidates (study: 683k limit, 419k touch-market), 7.97M fill
+  rows, 23.9M labels; the full build takes about 5 minutes. All 76 checks pass on the master's
+  own run; BTC's daily SMA200 candidates match known history (2021-05-19, 2023-03-10, 2023-08-17,
+  2024-07-04). The 19 settled definitions are in `research/ma_rebound/results/M1.md`.
+- 2026-11-13 (M1): a candidate's `year` is its trigger year; the holdout is by fill time, so
+  every later step filters on `fill_t` / `entry_t` < 2025-01-01.
+- 2026-11-13 (M1): one MA can trigger several times before it is touched, and those orders fill
+  in the same candle at the same price. That is one resting order refreshed, so per-trade
+  statistics count fills of the same coin, MA, buffer and fill candle once (the earliest
+  trigger). The book's one-position-per-coin rule already does this.
+- 2026-11-13 (M1): the 1M placebo lengths 137 and 163 cannot exist in the data and 1M 73 has 14
+  candidates; weekly and monthly MAs are thin (1w 200: 104 candidates in 2020-24).
+- 2026-11-13 (M1): the worker's four commits carried a model name in the co-author trailer; the
+  messages were rewritten before the first push (no pushed history changed).
 
 ## Blocked on
 
