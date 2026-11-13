@@ -32,6 +32,22 @@ gitignored and never committed.
 - The folder names are Hive-style, so readers that support Hive partitioning (polars, DuckDB)
   expose `interval` and `symbol` as string columns.
 
+### Symbol lists and delisted coins
+
+A data root may hold plain-text symbol lists (one symbol per line) next to `klines/`:
+
+- `top200.txt`: the pairs fetched with `moonshot data sync` (today's top USDT pairs by volume).
+- `delisted.txt`: USDT pairs Binance has delisted (status `BREAK`), e.g. `MATICUSDT`, `WAVESUSDT`.
+- `outside_pool.txt`: USDT pairs still listed but not in `top200.txt`, including coins that
+  collapsed and still trade (`LUNAUSDT` from 2020-08, `FTTUSDT`).
+
+`moonshot data sync` cannot fetch delisted pairs (the live API has no history for them). The
+second and third lists come from Binance's public archive, data.binance.vision, via
+`research/volume_spike/fetch_archive.py` (`groups`, then `fetch`, then `publish`, which runs
+`moonshot data import` into the data root and writes the lists). They hold 5m candles from 2020-01
+to 2026-10, stored in the same format as everything else. A delisted series simply ends at the
+delisting; the archive has its own gaps (`moonshot data status` shows them).
+
 ## Candle columns (schema v1)
 
 | Column                   | Type                       | Meaning                                                  |
@@ -115,3 +131,21 @@ FROM read_parquet('data/klines/spot/*/*/*.parquet', hive_partitioning = true)
 WHERE symbol = 'ETHUSDT' AND interval = '1h'
 ORDER BY open_time;
 ```
+
+## Score files
+
+Precomputed model scores, read by `crypto_moonshot.strategy.scores` (`ScoreStrategy`), are a
+separate format, not part of the kline store and not versioned with it. One Parquet file, one
+row per scored candle:
+
+| Column      | Type                    | Meaning                                                   |
+| ----------- | ----------------------- | --------------------------------------------------------- |
+| `symbol`    | `String`                | Binance symbol, e.g. `BTCUSDT`                            |
+| `open_time` | `Datetime("us", "UTC")` | Open time of the signal candle, scored on its close       |
+| `score`     | `Float64`               | Higher is better; null or NaN means not scored            |
+| any other   | any                     | Carried into the signals and the backtest's trade list    |
+
+`(symbol, open_time)` is unique. Other time units or zones are converted to µs UTC on reading.
+`convert_wf_npz` writes this format from the volume-spike research's walk-forward outputs
+(`cache/volume_spike/wf/<variant>.npz` with `seq2_meta.parquet`): `score` is the npz's `pct`,
+with the meta's `event` and the npz's other per-row arrays (such as `raw`) as extra columns.
