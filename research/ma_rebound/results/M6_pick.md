@@ -53,6 +53,11 @@ the same model under the base rule, or for `base5` the same rule on the 3-seed b
 | **m6-short5-tf1h4h** | windows 48 x 5m and 64 bars / MAs: 1h + 4h only | 1645 / 1432 / 1255 | -40 / +70 / +22 | -53.5% / +159.1% / +25.7% | -7.9 | -3.5 | yes | no | +43.8% |
 | **m6-short5-slots20** | windows 48 x 5m and 64 bars / 20 slots | 2293 / 2150 / 1832 | -53 / +104 / +79 | -52.7% / +197.4% / +77.8% | +18.8 | +0.9 | yes | no | +74.2% |
 | **m6-short5-tf1d** | windows 48 x 5m and 64 bars / MAs: 1d only | 56 / 58 / 60 | -149 / +630 / +1836 | -8.9% / +43.0% / +167.1% | +743.4 | +71.5 | yes | no | +67.1% |
+| **m6-combo5-base** | short windows + breadth + other-MA distances / base rule (pct >= 0.80, 10 slots) | 850 / 1405 / 1325 | -113 / +83 / +57 | -69.7% / +208.0% / +69.4% | -13.8 | -8.8 | yes | no | +69.2% |
+| **m6-combo5-pct0.9** | short windows + breadth + other-MA distances / percentile >= 0.9 | 449 / 818 / 752 | -142 / +156 / +133 | -52.5% / +255.5% / +131.9% | +25.2 | -11.8 | yes | no | +111.7% |
+| **m6-combo5-tf1h4h** | short windows + breadth + other-MA distances / MAs: 1h + 4h only | 985 / 1529 / 1833 | -44 / +51 / +37 | -39.4% / +107.4% / +80.2% | -9.1 | -3.6 | yes | no | +49.4% |
+| **m6-combo5-slots20** | short windows + breadth + other-MA distances / 20 slots | 1420 / 2391 / 2545 | -83 / +99 / +67 | -50.5% / +205.1% / +95.4% | +4.0 | -3.0 | yes | no | +83.3% |
+| **m6-combo5-tf1d** | short windows + breadth + other-MA distances / MAs: 1d only | 28 / 75 / 106 | -539 / +814 / +139 | -14.9% / +84.3% / +5.5% | +133.4 | +85.9 | yes | no | +25.0% |
 
 Qualifies: at least 100 trades, mean bp > 0 and book return > 0 in each year, stress bp > 0,
 and mean bp above the placebo's 95th percentile. Fragile: some year's mean bp turns negative
@@ -64,11 +69,12 @@ Each model under the base rule, seed by seed. *Mean row inside seed range*: whet
 value of the 5-seed-mean score lies between the lowest and the highest per-seed rank value.
 
 | model | seed 0 | seed 1 | seed 2 | seed 3 | seed 4 | seed mean of ranks | spread (max - min) | 5-seed-mean row | mean row inside seed range | seeds qualifying | seeds fragile |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
+|---|---|---|---|---|---|---|---|---|---|---|---|
 | base5 | +29.4% | +9.5% | +15.0% | -10.6% | +32.7% | +15.2% | 43.2 pp | +20.9% | yes | 0 of 5 | 5 of 5 |
 | breadth5 | +26.2% | +7.1% | +34.3% | +23.7% | +27.6% | +23.8% | 27.2 pp | +97.7% | no | 0 of 5 | 5 of 5 |
 | otherma5 | +25.7% | +1.5% | +48.0% | +13.5% | +15.7% | +20.9% | 46.5 pp | +48.1% | no | 0 of 5 | 5 of 5 |
 | short5 | +39.8% | +22.0% | +47.0% | +18.0% | +64.6% | +38.3% | 46.6 pp | +61.1% | yes | 0 of 5 | 5 of 5 |
+| combo5 | +4.8% | +46.6% | +16.8% | +32.3% | -3.8% | +19.4% | 50.4 pp | +69.2% | no | 0 of 5 | 5 of 5 |
 
 Every row, seed by seed:
 
@@ -94,6 +100,11 @@ Every row, seed by seed:
 | m6-short5-tf1h4h | +20.9% | -7.2% | +15.9% | +18.3% | +32.8% | 40.0 pp | 0 of 5 | 5 of 5 |
 | m6-short5-slots20 | +33.2% | +31.3% | +59.7% | +38.1% | +65.6% | 34.4 pp | 0 of 5 | 5 of 5 |
 | m6-short5-tf1d | +19.6% | +47.1% | +57.0% | +32.6% | +40.4% | 37.5 pp | 0 of 5 | 5 of 5 |
+| m6-combo5-base | +4.8% | +46.6% | +16.8% | +32.3% | -3.8% | 50.4 pp | 0 of 5 | 5 of 5 |
+| m6-combo5-pct0.9 | +92.5% | +26.5% | +91.7% | +57.6% | +34.7% | 66.1 pp | 0 of 5 | 5 of 5 |
+| m6-combo5-tf1h4h | -7.1% | +17.5% | -6.4% | +23.9% | +18.4% | 31.0 pp | 0 of 5 | 5 of 5 |
+| m6-combo5-slots20 | +16.3% | +61.6% | +54.2% | +51.1% | +33.4% | 45.3 pp | 0 of 5 | 5 of 5 |
+| m6-combo5-tf1d | +15.9% | +27.7% | +37.7% | +29.4% | +11.5% | 26.1 pp | 0 of 5 | 5 of 5 |
 
 ## Pick
 
@@ -110,7 +121,12 @@ Comparison rows that qualify: none; that qualify and are not
 fragile: none. They are recorded for the reveal's rank correlation
 and deflated Sharpe ratio only.
 
-Rows not yet scored: m6-combo5-base, m6-combo5-pct0.9, m6-combo5-tf1h4h, m6-combo5-slots20, m6-combo5-tf1d.
+For the reveal's "top-ranked finalist" (used only when there is no pick), the 2022-24
+rank values give: the protocol's only finalist is `base5`, and `m6-base5-base` is its
+base-rule row; the top-ranked of the five models' base-rule rows is `m6-breadth5-base` (+97.7%); the top-ranked of all 25 rows is `m6-otherma5-pct0.9` (+122.1%). Which of these the reveal reports is the master's call, fixed before
+the holdout is opened.
+
+Rows not yet scored: none.
 
 ## What will be opened
 

@@ -286,7 +286,7 @@ def report() -> None:
         "| model | "
         + " | ".join(f"seed {i}" for i in range(SEEDS))
         + " | seed mean of ranks | spread (max - min) | 5-seed-mean row | mean row inside seed range | seeds qualifying | seeds fragile |",
-        "|---|" + "---|" * (SEEDS + 7),
+        "|---|" + "---|" * (SEEDS + 6),
     ]
     rule_seed_tab = [
         "| row | "
@@ -371,6 +371,23 @@ def report() -> None:
         for k, r in rows.items()
         if k != PICKABLE and bool(r["qualifies"]) and not bool(r["fragile"])
     ]
+
+    def top(keys: list[str]) -> str:
+        best = max(keys, key=lambda k: (f(rows[k], "rank_value"), f(rows[k], "worst_ret")))
+        return f"`{best}` ({pc(f(rows[best], 'rank_value'))})"
+
+    top_lines = (
+        [
+            'For the reveal\'s "top-ranked finalist" (used only when there is no pick), the 2022-24',
+            "rank values give: the protocol's only finalist is `base5`, and `m6-base5-base` is its",
+            f"base-rule row; the top-ranked of the five models' base-rule rows is "
+            f"{top([k for k in rows if k.endswith('-base')])}; the top-ranked of all 25 rows is "
+            f"{top(list(rows))}. Which of these the reveal reports is the master's call, fixed before",
+            "the holdout is opened.",
+        ]
+        if len(rows) == len(items())
+        else []
+    )
     body = [
         "# M6 pick record (written before the holdout is opened)",
         "",
@@ -421,6 +438,8 @@ def report() -> None:
         f"Comparison rows that qualify: {', '.join(others_q) or 'none'}; that qualify and are not",
         f"fragile: {', '.join(others_ok) or 'none'}. They are recorded for the reveal's rank correlation",
         "and deflated Sharpe ratio only.",
+        "",
+        *top_lines,
         "",
         f"Rows not yet scored: {', '.join(missing) or 'none'}.",
         "",
