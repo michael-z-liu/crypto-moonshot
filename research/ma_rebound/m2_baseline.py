@@ -1,6 +1,7 @@
 """M2: does buying every MA touch pay, and are the major MAs special? No model.
 
     uv run --group research python m2_baseline.py [--workers 8] [--rebuild]
+    uv run --group research python m2_baseline.py --holdout   # M6 reveal context, see below
 
 Stages (each cached under `cache/m2/`, a cut-off run resumes):
 1. `trades.parquet`: every base/stress label of a fill before 2025-01-01, one row per trade after
@@ -13,6 +14,12 @@ Stages (each cached under `cache/m2/`, a cut-off run resumes):
 Holdout: 2025-01-01 and later is sealed. `read_cands`, `read_fills` and `read_labels` are the only
 readers of the event tables and each applies the filter on fill time (decision time for
 candidates) before anything else touches the rows. Nothing after the cut is printed or written.
+
+`--holdout` (M6 reveal only, after the pick was committed and pushed): the same readers take the
+window [2025-01-01, data end) instead, tables 2 (timeframe x fill year) and 3 (study vs placebo)
+are computed for fill years 2025 and 2026 and written to `results/m6/m2_*.csv`, with trades cached
+in `cache/m2/trades_holdout.parquet`. Labels still open at the data end (`censored`) are left out,
+as M2 leaves out unfinished labels, and counted. The default run is unchanged.
 """
 
 from __future__ import annotations
@@ -46,6 +53,8 @@ type F64 = npt.NDArray[np.float64]
 type I64 = npt.NDArray[np.int64]
 
 HOLD_US = int(HOLDOUT_START.timestamp()) * 1_000_000
+LO_US: int | None = None  # lower bound of the window (holdout mode only)
+TRADES_FILE = "trades.parquet"
 M2_CACHE = CACHE / "m2"
 OUT = RESULTS / "m2"
 SEED = 20261113
@@ -67,6 +76,12 @@ BP = 10_000.0
 # --- holdout-safe readers (the only way to the event tables) -----------------------------------
 
 
+def in_window(col: str) -> pl.Expr:
+    """Times before the cut (default), or in [LO_US, data end) in holdout mode."""
+    e = pl.col(col) < HOLD_US
+    return e if LO_US is None else e & (pl.col(col) >= LO_US)
+
+
 def read_cands() -> pl.DataFrame:
     """Candidates decided before the holdout, with the end of their order window (decision + T/2)
     and `in_denom`: the window ends by 2025-01-01, so the fill rate has no sealed fills in it."""
@@ -76,7 +91,7 @@ def read_cands() -> pl.DataFrame:
     )
     df = (
         pl.read_parquet(CACHE / "candidates.parquet", columns=cols)
-        .filter(pl.col("decision_t") < HOLD_US)
+        .filter(in_window("decision_t"))
         .with_columns(window_end=pl.col("decision_t") + half)
         .with_columns(in_denom=pl.col("window_end") <= HOLD_US)
         .rename({"year": "trig_year"})
@@ -89,7 +104,7 @@ def read_fills() -> pl.DataFrame:
     return (
         pl.scan_parquet(CACHE / "fills.parquet")
         .filter(pl.col("scenario") == "base", pl.col("status") == "filled")
-        .filter(pl.col("fill_t") < HOLD_US)
+        .filter(in_window("fill_t"))
         .select("cid", "buffer", "fill_t")
         .collect()
     )
@@ -97,7 +112,7 @@ def read_fills() -> pl.DataFrame:
 
 def read_labels() -> pl.DataFrame:
     """Finished labels (both scenarios) of fills before the holdout."""
-    lf = pl.scan_parquet(CACHE / "labels.parquet").filter(pl.col("entry_t") < HOLD_US)
+    lf = pl.scan_parquet(CACHE / "labels.parquet").filter(in_window("entry_t"))
     return lf.filter(pl.col("status") == "done").drop("status").collect()
 
 
@@ -153,12 +168,15 @@ def build_trades() -> pl.DataFrame:
     lab = read_labels()
     n_cens = (
         pl.scan_parquet(CACHE / "labels.parquet")
-        .filter(pl.col("entry_t") < HOLD_US, pl.col("status") != "done")
+        .filter(in_window("entry_t"), pl.col("status") != "done")
         .select(pl.len())
         .collect()
         .item()
     )
-    assert n_cens == 0, f"{n_cens} censored labels before 2025"
+    if LO_US is None:
+        assert n_cens == 0, f"{n_cens} censored labels before 2025"
+    else:
+        print(f"holdout: {n_cens} censored labels (open at the data end) left out", flush=True)
     attrs = cands.select(
         "cid", "symbol", "tf", "n", "placebo", "trigger_t", "u", "trig_year", "major"
     )
@@ -184,7 +202,7 @@ def build_trades() -> pl.DataFrame:
 
 
 def load_trades(rebuild: bool) -> pl.DataFrame:
-    path = M2_CACHE / "trades.parquet"
+    path = M2_CACHE / TRADES_FILE
     if path.exists() and not rebuild:
         return pl.read_parquet(path)
     M2_CACHE.mkdir(parents=True, exist_ok=True)
@@ -784,11 +802,32 @@ def charts(t2: pl.DataFrame, t3: pl.DataFrame, t4: pl.DataFrame) -> None:
     fig.savefig(OUT / "m2_summary.png", dpi=110)
 
 
+def holdout(rebuild: bool) -> None:
+    """Tables 2 and 3 on fills from 2025-01-01 to the data end (module docstring)."""
+    global HOLD_US, LO_US, YEARS, TRADES_FILE
+    LO_US, HOLD_US = HOLD_US, END_US
+    YEARS = (2025, 2026)
+    TRADES_FILE = "trades_holdout.parquet"
+    out = RESULTS / "m6"
+    out.mkdir(parents=True, exist_ok=True)
+    trades = load_trades(rebuild)
+    assert int(trades["entry_t"].min()) >= LO_US  # type: ignore[arg-type]
+    study = trades.filter(~pl.col("placebo"))
+    placebo = trades.filter(pl.col("placebo"))
+    table2(study).write_csv(out / "m2_t2_timeframe_year.csv")
+    table3(study, placebo).write_csv(out / "m2_t3_study_vs_placebo.csv")
+    print(f"wrote {out}/m2_t2_timeframe_year.csv and m2_t3_study_vs_placebo.csv", flush=True)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--rebuild", action="store_true", help="rebuild trades and controls")
+    ap.add_argument("--holdout", action="store_true", help="M6 reveal: tables 2 and 3 on 2025-26")
     args = ap.parse_args()
+    if args.holdout:
+        holdout(args.rebuild)
+        return
     t0 = time.perf_counter()
     OUT.mkdir(parents=True, exist_ok=True)
     if args.rebuild:
