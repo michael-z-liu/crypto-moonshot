@@ -1,0 +1,412 @@
+{
+ "ADAUSDT": {
+  "source": "api",
+  "days": 624,
+  "first": "2018-04-17"
+ },
+ "ALGOUSDT": {
+  "source": "api",
+  "days": 193,
+  "first": "2019-06-22"
+ },
+ "ANKRUSDT": {
+  "source": "api",
+  "days": 162,
+  "first": "2019-07-23"
+ },
+ "ARPAUSDT": {
+  "source": "api",
+  "days": 56,
+  "first": "2019-11-06"
+ },
+ "ATOMUSDT": {
+  "source": "api",
+  "days": 247,
+  "first": "2019-04-29"
+ },
+ "BANDUSDT": {
+  "source": "api",
+  "days": 105,
+  "first": "2019-09-18"
+ },
+ "BATUSDT": {
+  "source": "api",
+  "days": 303,
+  "first": "2019-03-04"
+ },
+ "BCHUSDT": {
+  "source": "api",
+  "days": 34,
+  "first": "2019-11-28"
+ },
+ "BEAMUSDT": {
+  "source": "api",
+  "days": 102,
+  "first": "2019-09-21"
+ },
+ "BNBUSDT": {
+  "source": "api",
+  "days": 786,
+  "first": "2017-11-06"
+ },
+ "BTCUSDT": {
+  "source": "api",
+  "days": 867,
+  "first": "2017-08-17"
+ },
+ "BTTUSDT": {
+  "source": "api",
+  "days": 335,
+  "first": "2019-01-31"
+ },
+ "CELRUSDT": {
+  "source": "api",
+  "days": 282,
+  "first": "2019-03-25"
+ },
+ "CHZUSDT": {
+  "source": "api",
+  "days": 117,
+  "first": "2019-09-06"
+ },
+ "COCOSUSDT": {
+  "source": "api",
+  "days": 133,
+  "first": "2019-08-21"
+ },
+ "COSUSDT": {
+  "source": "api",
+  "days": 151,
+  "first": "2019-08-03"
+ },
+ "CTXCUSDT": {
+  "source": "api",
+  "days": 40,
+  "first": "2019-11-22"
+ },
+ "CVCUSDT": {
+  "source": "api",
+  "days": 127,
+  "first": "2019-08-27"
+ },
+ "DASHUSDT": {
+  "source": "api",
+  "days": 279,
+  "first": "2019-03-28"
+ },
+ "DENTUSDT": {
+  "source": "api",
+  "days": 127,
+  "first": "2019-08-27"
+ },
+ "DOCKUSDT": {
+  "source": "api",
+  "days": 127,
+  "first": "2019-08-27"
+ },
+ "DOGEUSDT": {
+  "source": "api",
+  "days": 180,
+  "first": "2019-07-05"
+ },
+ "DUSKUSDT": {
+  "source": "api",
+  "days": 163,
+  "first": "2019-07-22"
+ },
+ "ENJUSDT": {
+  "source": "api",
+  "days": 258,
+  "first": "2019-04-18"
+ },
+ "EOSUSDT": {
+  "source": "api",
+  "days": 583,
+  "first": "2018-05-28"
+ },
+ "ERDUSDT": {
+  "source": "api",
+  "days": 181,
+  "first": "2019-07-04"
+ },
+ "ETCUSDT": {
+  "source": "api",
+  "days": 568,
+  "first": "2018-06-12"
+ },
+ "ETHUSDT": {
+  "source": "api",
+  "days": 867,
+  "first": "2017-08-17"
+ },
+ "FETUSDT": {
+  "source": "api",
+  "days": 307,
+  "first": "2019-02-28"
+ },
+ "FTMUSDT": {
+  "source": "api",
+  "days": 204,
+  "first": "2019-06-11"
+ },
+ "FTTUSDT": {
+  "source": "api",
+  "days": 12,
+  "first": "2019-12-20"
+ },
+ "FUNUSDT": {
+  "source": "api",
+  "days": 127,
+  "first": "2019-08-27"
+ },
+ "GTOUSDT": {
+  "source": "api",
+  "days": 184,
+  "first": "2019-07-01"
+ },
+ "HBARUSDT": {
+  "source": "api",
+  "days": 94,
+  "first": "2019-09-29"
+ },
+ "HCUSDT": {
+  "source": "api",
+  "days": 98,
+  "first": "2019-09-25"
+ },
+ "HOTUSDT": {
+  "source": "api",
+  "days": 317,
+  "first": "2019-02-18"
+ },
+ "ICXUSDT": {
+  "source": "api",
+  "days": 567,
+  "first": "2018-06-13"
+ },
+ "IOSTUSDT": {
+  "source": "api",
+  "days": 285,
+  "first": "2019-03-22"
+ },
+ "IOTAUSDT": {
+  "source": "api",
+  "days": 580,
+  "first": "2018-05-31"
+ },
+ "IOTXUSDT": {
+  "source": "api",
+  "days": 48,
+  "first": "2019-11-14"
+ },
+ "KAVAUSDT": {
+  "source": "api",
+  "days": 68,
+  "first": "2019-10-25"
+ },
+ "KEYUSDT": {
+  "source": "api",
+  "days": 127,
+  "first": "2019-08-27"
+ },
+ "LINKUSDT": {
+  "source": "api",
+  "days": 350,
+  "first": "2019-01-16"
+ },
+ "LTCUSDT": {
+  "source": "api",
+  "days": 749,
+  "first": "2017-12-13"
+ },
+ "MATICUSDT": {
+  "source": "api",
+  "days": 250,
+  "first": "2019-04-26"
+ },
+ "MCOUSDT": {
+  "source": "api",
+  "days": 43,
+  "first": "2019-11-19"
+ },
+ "MFTUSDT": {
+  "source": "api",
+  "days": 127,
+  "first": "2019-08-27"
+ },
+ "MITHUSDT": {
+  "source": "api",
+  "days": 257,
+  "first": "2019-04-19"
+ },
+ "MTLUSDT": {
+  "source": "api",
+  "days": 131,
+  "first": "2019-08-23"
+ },
+ "NANOUSDT": {
+  "source": "api",
+  "days": 273,
+  "first": "2019-04-03"
+ },
+ "NEOUSDT": {
+  "source": "api",
+  "days": 772,
+  "first": "2017-11-20"
+ },
+ "NKNUSDT": {
+  "source": "api",
+  "days": 82,
+  "first": "2019-10-11"
+ },
+ "NPXSUSDT": {
+  "source": "api",
+  "days": 141,
+  "first": "2019-08-13"
+ },
+ "NULSUSDT": {
+  "source": "api",
+  "days": 527,
+  "first": "2018-07-23"
+ },
+ "OMGUSDT": {
+  "source": "api",
+  "days": 273,
+  "first": "2019-04-03"
+ },
+ "ONEUSDT": {
+  "source": "api",
+  "days": 214,
+  "first": "2019-06-01"
+ },
+ "ONGUSDT": {
+  "source": "api",
+  "days": 319,
+  "first": "2019-02-16"
+ },
+ "ONTUSDT": {
+  "source": "api",
+  "days": 572,
+  "first": "2018-06-08"
+ },
+ "PERLUSDT": {
+  "source": "api",
+  "days": 128,
+  "first": "2019-08-26"
+ },
+ "QTUMUSDT": {
+  "source": "api",
+  "days": 653,
+  "first": "2018-03-19"
+ },
+ "RENUSDT": {
+  "source": "api",
+  "days": 98,
+  "first": "2019-09-25"
+ },
+ "RLCUSDT": {
+  "source": "api",
+  "days": 48,
+  "first": "2019-11-14"
+ },
+ "RVNUSDT": {
+  "source": "api",
+  "days": 98,
+  "first": "2019-09-25"
+ },
+ "STORMUSDT": {
+  "source": "api",
+  "days": 127,
+  "first": "2019-08-27"
+ },
+ "STXUSDT": {
+  "source": "api",
+  "days": 68,
+  "first": "2019-10-25"
+ },
+ "TFUELUSDT": {
+  "source": "api",
+  "days": 222,
+  "first": "2019-05-24"
+ },
+ "THETAUSDT": {
+  "source": "api",
+  "days": 266,
+  "first": "2019-04-10"
+ },
+ "TOMOUSDT": {
+  "source": "api",
+  "days": 130,
+  "first": "2019-08-24"
+ },
+ "TROYUSDT": {
+  "source": "api",
+  "days": 27,
+  "first": "2019-12-05"
+ },
+ "TRXUSDT": {
+  "source": "api",
+  "days": 569,
+  "first": "2018-06-11"
+ },
+ "VETUSDT": {
+  "source": "api",
+  "days": 525,
+  "first": "2018-07-25"
+ },
+ "VITEUSDT": {
+  "source": "api",
+  "days": 19,
+  "first": "2019-12-13"
+ },
+ "WANUSDT": {
+  "source": "api",
+  "days": 127,
+  "first": "2019-08-27"
+ },
+ "WAVESUSDT": {
+  "source": "api",
+  "days": 348,
+  "first": "2019-01-18"
+ },
+ "WINUSDT": {
+  "source": "api",
+  "days": 153,
+  "first": "2019-08-01"
+ },
+ "XLMUSDT": {
+  "source": "api",
+  "days": 580,
+  "first": "2018-05-31"
+ },
+ "XMRUSDT": {
+  "source": "api",
+  "days": 292,
+  "first": "2019-03-15"
+ },
+ "XRPUSDT": {
+  "source": "api",
+  "days": 607,
+  "first": "2018-05-04"
+ },
+ "XTZUSDT": {
+  "source": "api",
+  "days": 99,
+  "first": "2019-09-24"
+ },
+ "ZECUSDT": {
+  "source": "api",
+  "days": 286,
+  "first": "2019-03-21"
+ },
+ "ZILUSDT": {
+  "source": "api",
+  "days": 316,
+  "first": "2019-02-19"
+ },
+ "ZRXUSDT": {
+  "source": "api",
+  "days": 307,
+  "first": "2019-02-28"
+ }
+}

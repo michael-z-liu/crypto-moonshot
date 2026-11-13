@@ -54,3 +54,7 @@ htmlcov/
 # Issue #10 study: 2025-26 results sealed until M5
 /research/volume_spike/results/issue10/sealed/
 /research/volume_spike/results/issue10/ledger.lock
+
+# MA-rebound study: 2025-26 results sealed until M6 (rebuilt from local scores)
+/research/ma_rebound/results/sealed/
+/research/ma_rebound/results/ledger.lock
