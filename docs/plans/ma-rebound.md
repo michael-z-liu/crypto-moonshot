@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `worktree-bridge-cse_015bssAVNSvc6d3Ch9Adf7UE` (created by the desktop app; kept)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-13T07:52Z
+- **Updated:** 2026-11-13T08:21Z
 - **Last report to the user:** 2026-11-13T07:52Z (M4 resumed after a usage limit)
 
 ## Goal
@@ -178,7 +178,7 @@ The user asked to be told that things are moving, at most every few hours unless
 - **Worker:** opus
 - **Commits:** b9be74f, 3e8b90d, dfa42a5, 473de01, 4101102
 
-### M4: Walk-forward CNN, base model and gradient-boosted benchmark (in progress)
+### M4: Walk-forward CNN, base model and gradient-boosted benchmark (done)
 
 - **Delivers:** `build_inputs.py` (model inputs per candidate, memory-mapped), `train.py` (the
   walk-forward harness with the M5 options), the base CNN with 3 seeds, `gbm.py` (benchmark).
@@ -186,9 +186,9 @@ The user asked to be told that things are moving, at most every few hours unless
   their base-rule rows and the seed spread are in the ledger; the folds are purged as the protocol
   says (checked by a test on fold boundaries); the check command passes.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** 975be2b, 11e06a1, ab7718a, a8a5790
 
-### M5: Variant screen (todo)
+### M5: Variant screen (in progress)
 
 - **Delivers:** every M5 training variant and rule as a ledger row, `results/M5.md` with the
   verdicts.
@@ -290,6 +290,30 @@ The user asked to be told that things are moving, at most every few hours unless
 - 2026-11-13 (M4): the worker was cut off by the 5-hour usage limit about 04:30Z with the inputs
   built (18 GB in `cache/m4/`) and three scripts uncommitted; resumed at 07:52Z with its context.
 
+- 2026-11-13 (M4): accepted; note in `research/ma_rebound/results/M4.md`. On 2022-24 under the base
+  rule, bp per trade and book return by year:
+  - every candidate: -50/-5/-2 bp, -91%/-30%/-33%, rank value -51.2%;
+  - base CNN (seed mean): -52/+27/+72 bp, -61%/+25%/+92%, rank value +19.0%; it beats its placebo
+    (mean +15.7 bp against a 95th percentile of -4.7) but fails on 2022, the stress and fragility;
+  - GBM benchmark: -74/+15/+28 bp, rank value -5.4%; it does not beat its placebo.
+  - **Seed spread of the base CNN: 19.8 percentage points** (per-seed rank values +29.4%, +9.5%,
+    +15.0%). A variant beats the baseline only if it qualifies, is not fragile and ranks above
+    +38.8%.
+  - Validation Spearman is 0.03-0.18; score deciles are monotonic on 2022-24 test fills.
+- 2026-11-13 (M4): percentiles are taken against the fold's *filled* training rows, as specified,
+  while unfilled candidates score lower, so "percentile >= 0.80" selects 10-16% of candidates.
+  Kept; the M5 thresholds inherit it.
+- 2026-11-13 (M4): during development the worker's terminal once showed fold 2026's train and
+  validation row counts (they count 2025 fills). No loss, correlation, return or score of 2025-26
+  was seen; the check now prints "sealed". Disclosed here for the report.
+- 2026-11-13 (M4 review, data limitation, not corrected): 13 coins have a trading halt of a day or
+  more (token swaps and redenominations such as COCOS, SUN, BNX, QUICK, STRAX; the LUNA halt; FTT).
+  M1 treats a series as continuous across a halt. Measured: 1,346 of 2.6M candidates (0.05%) have
+  level, ATR or liquidity windows spanning a halt, and 6 candidates before 2025 were held across
+  one (LUNA x4 in 2022, booked at about -90% where the truth is about -100%; SUN x2 in 2021, a
+  false -99.9%, before the book starts). No halt occurs in 2025-26. The effect is far below the
+  seed spread, so the tables were not rebuilt; splitting series at halts is a follow-up.
+
 ## Blocked on
 
 ## Follow-ups
@@ -297,3 +321,5 @@ The user asked to be told that things are moving, at most every few hours unless
 - Limit-order entries in `SimulatedBroker` and the backtest engine, and the rule as a strategy in
   `src/` with a paper test, if the pick is confirmed.
 - EMAs, VWAP and other levels; futures data as model inputs.
+- Split each coin's series at trading halts of a day or more in `events.py` (positions close at
+  the last close before the halt; levels restart after it), then rebuild.
