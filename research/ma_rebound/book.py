@@ -205,12 +205,12 @@ def prepare() -> None:
     btc.write_parquet(M3 / "btc_5m.parquet")
 
     lab = pl.scan_parquet(CACHE / "labels.parquet")
-    idx = cands.select("cid", "cand", "symbol")
+    cand_idx = cands.select("cid", "cand", "symbol")
     censored_syms = (
         lab.filter(pl.col("status") == "censored")
         .select("cid")
         .collect()
-        .join(idx, on="cid")["symbol"]
+        .join(cand_idx, on="cid")["symbol"]
         .unique()
         .to_list()
     )
@@ -227,7 +227,7 @@ def prepare() -> None:
         df = (
             lab.filter(cond, pl.col("scenario") == scenario, pl.col("exit") == exit_name)
             .collect()
-            .join(idx, on="cid", how="inner")  # study MAs only
+            .join(cand_idx, on="cid", how="inner")  # study MAs only
             .join(last, on="symbol", how="left")
         )
         cen = pl.col("status") == "censored"
@@ -496,10 +496,10 @@ def equity_curve(br: BookRun, cl: Closes, initial: float = INITIAL_CAPITAL) -> p
     the last exit (the engine's grid and formula)."""
     schema = {
         "time": pl.Datetime("us", "UTC"),
-        "equity": pl.Float64,
-        "cash": pl.Float64,
-        "open_value": pl.Float64,
-        "open_positions": pl.Int64,
+        "equity": pl.Float64(),
+        "cash": pl.Float64(),
+        "open_value": pl.Float64(),
+        "open_positions": pl.Int64(),
     }
     if len(br.row) == 0:
         return pl.DataFrame(schema=schema)

@@ -1,6 +1,6 @@
 """M3 checks of the book and the scorecard: PASS/FAIL lines.
 
-    uv run --group research python check_book.py [--skip-parity]
+    uv run --group research python check_book.py [--skip-parity] [--parity-coins N]
 
 1. Synthetic cases, computed by hand: slots, one position per coin, a slot freed at exactly the
    next entry time, the cash skip, the engine's sell accounting, the processing order, the
@@ -181,7 +181,7 @@ def synthetic() -> None:
 # --- 2. parity with the engine ---------------------------------------------------------------
 
 
-def parity() -> None:
+def parity(n_coins: int = PARITY_COINS) -> None:
     t_start = time.perf_counter()
     c = bk.cands()
     lg = bk.legs("touch", None, "base", "E1")
@@ -190,7 +190,7 @@ def parity() -> None:
     ok = (c.family == "touch") & (c.tf == "1h") & (c.trigger_t >= a) & (c.trigger_t < b)
     coins = sorted(set(np.unique(c.sym[ok]).tolist()))
     rng = np.random.default_rng(PARITY_SEED)
-    pick = np.sort(rng.choice(coins, PARITY_COINS, replace=False))
+    pick = np.sort(rng.choice(coins, min(n_coins, len(coins)), replace=False))
     sel = ok & np.isin(c.sym, pick)
     sel_idx = np.flatnonzero(sel)
     names = [c.symbols[i] for i in pick]
@@ -307,8 +307,8 @@ def parity() -> None:
     ee = eng.equity.select("time", pl.col("equity").alias("equity_e"))
     je = em.join(ee, on="time", how="full", coalesce=True)
     missing = je.filter(pl.col("equity").is_null() | pl.col("equity_e").is_null()).height
-    dif = (je["equity"] - je["equity_e"]).abs() / je["equity_e"].abs()
-    worst = float(dif.max() or 0)
+    dif = ((je["equity"] - je["equity_e"]).abs() / je["equity_e"].abs()).fill_null(0.0)
+    worst = float(dif.to_numpy().max())
     check(
         "parity: daily equity curve",
         missing == 0 and worst <= REL,
@@ -442,12 +442,13 @@ def plumbing() -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--skip-parity", action="store_true")
+    ap.add_argument("--parity-coins", type=int, default=PARITY_COINS, help="0: every coin")
     args = ap.parse_args()
     synthetic()
     causality()
     plumbing()
     if not args.skip_parity:
-        parity()
+        parity(args.parity_coins or 10_000)
     print(f"{len(failures)} failures" + (f": {', '.join(failures)}" if failures else ""))
     raise SystemExit(1 if failures else 0)
 

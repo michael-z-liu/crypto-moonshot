@@ -60,6 +60,7 @@ from common import (
     BASE_PERCENTILE,
     DATA_END,
     EXITS,
+    HERE,
     HOLDOUT_START,
     INITIAL_CAPITAL,
     MA_LENGTHS,
@@ -71,6 +72,7 @@ from common import (
 )
 
 from crypto_moonshot.backtest.metrics import equity_metrics, yearly_metrics
+from crypto_moonshot.broker.candles import from_us
 
 type F64 = npt.NDArray[np.float64]
 type I64 = npt.NDArray[np.int64]
@@ -143,7 +145,7 @@ class Rule:
 def eligible(rule: Rule) -> Bools:
     """Candidates of the rule's family, MA subset and majors filter."""
     c = bk.cands()
-    ok = c.family == rule.family
+    ok: Bools = np.asarray(c.family == rule.family)
     if rule.tfs is not None:
         ok &= np.isin(c.tf, rule.tfs)
     if rule.lengths is not None:
@@ -295,7 +297,7 @@ def run_book(
     tf = c.tf[lg.cand[br.row]]
     fy = _year(br.entry_t)
     # the curve up to the cut: a position filled before it is not marked past it
-    eq = res.equity.filter(pl.col("time") <= bk.from_us(until))
+    eq = res.equity.filter(pl.col("time") <= from_us(until))
     yearly = yearly_metrics(res.trades, eq, INITIAL_CAPITAL)
     yr = {int(r["year"]): r["return"] for r in yearly.iter_rows(named=True)}
     dd = year_drawdowns(eq, years)
@@ -318,7 +320,8 @@ def run_book(
         for y in years:
             out[y]["fill_rate"] = fr[y]
         total["fill_rate"] = fr["all"]
-        for key, m in [*((y, fy == y) for y in years), ("all", m_all)]:
+        groups: list[tuple[int | str, Bools]] = [(y, fy == y) for y in years]
+        for key, m in [*groups, ("all", m_all)]:
             per_tf[key] = {
                 t: {
                     "trades": float((m & (tf == t)).sum()),
@@ -560,7 +563,7 @@ def scorecard(
         verdict=v,
         seconds=0.0,
         book_seconds=float(np.mean([b.seconds for b in books])),
-        sealed=str(sealed.relative_to(bk.CACHE.parent)),
+        sealed=str(sealed.relative_to(HERE)),
         skipped=base.skipped,
     )
     if seal or reveal:
