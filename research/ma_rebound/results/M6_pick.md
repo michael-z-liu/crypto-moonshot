@@ -41,6 +41,12 @@ the same model under the base rule, or for `base5` the same rule on the 3-seed b
 | **m6-breadth5-tf1h4h** | + market breadth / MAs: 1h + 4h only | 776 / 1320 / 1295 | -34 / +66 / +43 | -26.4% / +130.7% / +62.1% | -1.1 | -7.0 | yes | no | +55.5% |
 | **m6-breadth5-slots20** | + market breadth / 20 slots | 1209 / 2102 / 2154 | -59 / +115 / +78 | -33.3% / +206.5% / +96.2% | +21.9 | -2.6 | yes | no | +89.8% |
 | **m6-breadth5-tf1d** | + market breadth / MAs: 1d only | 12 / 95 / 100 | -838 / +650 / +393 | -9.8% / +76.0% / +33.1% | +38.8 | -94.9 | yes | no | +33.1% |
+| **m6-otherma5-base** | + distances to the other MAs / base rule (pct >= 0.80, 10 slots) | 1125 / 1257 / 1292 | -92 / +68 / +64 | -70.5% / +127.2% / +87.6% | -9.8 | -7.1 | yes | no | +48.1% |
+| ref: cnn-otherma (M5, 3 seeds) | for reference, not an M6 row | 1127 / 1420 / 1207 | -85 / +67 / +78 | -67.6% / +150.9% / +121.7% | -3.6 | -9.4 | yes | no | +68.3% |
+| **m6-otherma5-pct0.9** | + distances to the other MAs / percentile >= 0.9 | 613 / 665 / 761 | -116 / +113 / +216 | -58.8% / +105.9% / +319.1% | +45.0 | -2.4 | yes | no | +122.1% |
+| **m6-otherma5-tf1h4h** | + distances to the other MAs / MAs: 1h + 4h only | 1287 / 1300 / 1549 | -36 / +72 / +53 | -42.0% / +145.2% / +111.8% | +3.8 | -2.7 | yes | no | +71.7% |
+| **m6-otherma5-slots20** | + distances to the other MAs / 20 slots | 1860 / 2034 / 2309 | -94 / +98 / +93 | -66.0% / +158.7% / +146.7% | +7.8 | -5.8 | yes | no | +79.8% |
+| **m6-otherma5-tf1d** | + distances to the other MAs / MAs: 1d only | 5 / 78 / 86 | +1038 / +598 / +722 | +5.1% / +53.7% / +68.3% | +781.4 | +388.5 | no | no | +42.4% |
 
 Qualifies: at least 100 trades, mean bp > 0 and book return > 0 in each year, stress bp > 0,
 and mean bp above the placebo's 95th percentile. Fragile: some year's mean bp turns negative
@@ -55,6 +61,7 @@ value of the 5-seed-mean score lies between the lowest and the highest per-seed 
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | base5 | +29.4% | +9.5% | +15.0% | -10.6% | +32.7% | +15.2% | 43.2 pp | +20.9% | yes | 0 of 5 | 5 of 5 |
 | breadth5 | +26.2% | +7.1% | +34.3% | +23.7% | +27.6% | +23.8% | 27.2 pp | +97.7% | no | 0 of 5 | 5 of 5 |
+| otherma5 | +25.7% | +1.5% | +48.0% | +13.5% | +15.7% | +20.9% | 46.5 pp | +48.1% | no | 0 of 5 | 5 of 5 |
 
 Every row, seed by seed:
 
@@ -70,6 +77,11 @@ Every row, seed by seed:
 | m6-breadth5-tf1h4h | +10.1% | +18.5% | +35.4% | +26.8% | +14.0% | 25.3 pp | 0 of 5 | 5 of 5 |
 | m6-breadth5-slots20 | +29.9% | +21.7% | +68.0% | +34.2% | +59.6% | 46.3 pp | 0 of 5 | 5 of 5 |
 | m6-breadth5-tf1d | +23.0% | +8.6% | +9.3% | +2.2% | +17.1% | 20.8 pp | 0 of 5 | 5 of 5 |
+| m6-otherma5-base | +25.7% | +1.5% | +48.0% | +13.5% | +15.7% | 46.5 pp | 0 of 5 | 5 of 5 |
+| m6-otherma5-pct0.9 | +76.3% | +2.4% | +56.8% | +20.5% | +40.1% | 73.9 pp | 0 of 5 | 5 of 5 |
+| m6-otherma5-tf1h4h | +51.8% | +8.1% | +18.8% | +10.2% | +17.8% | 43.7 pp | 0 of 5 | 5 of 5 |
+| m6-otherma5-slots20 | +49.2% | +10.0% | +43.1% | +5.7% | +37.3% | 43.5 pp | 0 of 5 | 5 of 5 |
+| m6-otherma5-tf1d | +42.5% | +19.0% | +29.6% | +9.9% | +59.2% | 49.3 pp | 0 of 5 | 5 of 5 |
 
 ## Pick
 
@@ -86,7 +98,7 @@ Comparison rows that qualify: none; that qualify and are not
 fragile: none. They are recorded for the reveal's rank correlation
 and deflated Sharpe ratio only.
 
-Rows not yet scored: m6-otherma5-base, m6-otherma5-pct0.9, m6-otherma5-tf1h4h, m6-otherma5-slots20, m6-otherma5-tf1d, m6-short5-base, m6-short5-pct0.9, m6-short5-tf1h4h, m6-short5-slots20, m6-short5-tf1d, m6-combo5-base, m6-combo5-pct0.9, m6-combo5-tf1h4h, m6-combo5-slots20, m6-combo5-tf1d.
+Rows not yet scored: m6-short5-base, m6-short5-pct0.9, m6-short5-tf1h4h, m6-short5-slots20, m6-short5-tf1d, m6-combo5-base, m6-combo5-pct0.9, m6-combo5-tf1h4h, m6-combo5-slots20, m6-combo5-tf1d.
 
 ## What will be opened
 
