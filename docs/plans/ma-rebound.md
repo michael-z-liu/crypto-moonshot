@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `worktree-bridge-cse_015bssAVNSvc6d3Ch9Adf7UE` (created by the desktop app; kept)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-13T03:05Z
+- **Updated:** 2026-11-13T03:25Z
 - **Last report to the user:** 2026-11-13T03:05Z (build started)
 
 ## Goal
@@ -132,7 +132,7 @@ The user asked to be told that things are moving, at most every few hours unless
 
 ## Milestones
 
-### M0: Setup, protocol and pre-2020 daily candles (in progress)
+### M0: Setup, protocol and pre-2020 daily candles (done)
 
 - **Delivers:** this plan with the fixed protocol; `research/ma_rebound/` with `common.py` (paths,
   universe, constants of the protocol), the cache link, `.gitignore` entries; `fetch_daily.py`
@@ -140,9 +140,9 @@ The user asked to be told that things are moving, at most every few hours unless
 - **Done when:** the protocol is committed and pushed before any result; pre-2020 daily candles
   exist for every "all" coin listed before 2020; the check command passes.
 - **Worker:** master
-- **Commits:**
+- **Commits:** 7f0d575 (plan and protocol), ff64627
 
-### M1: MA grid, candidates, limit fills and labels (todo)
+### M1: MA grid, candidates, limit fills and labels (in progress)
 
 - **Delivers:** `build_bars.py` (1h/4h/1d/1w/1M bars and the 15 + placebo SMA levels, `atr_d`,
   liquidity), `build_candidates.py` (candidates per the protocol, both entry families),
@@ -226,6 +226,9 @@ The user asked to be told that things are moving, at most every few hours unless
   from 8 hours to 28 days and capital tied up for weeks must count.
 - 2026-11-13: 2025-26 is used as the holdout. It was opened by the volume-spike studies, but for
   different events; no MA-touch outcome on it has been seen.
+
+- 2026-11-13 (M0): 82 coins were listed before 2020; all their pre-2020 daily candles came from
+  the public API (it still serves delisted pairs' daily history), none from the archive.
 
 ## Blocked on
 
