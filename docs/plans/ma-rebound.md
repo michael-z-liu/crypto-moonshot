@@ -1,10 +1,10 @@
 # MA rebound: can a CNN pick the good pullbacks to major moving averages?
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `worktree-bridge-cse_015bssAVNSvc6d3Ch9Adf7UE` (created by the desktop app; kept)
-- **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-13T14:02Z
-- **Last report to the user:** 2026-11-13T14:02Z (holdout reveal)
+- **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/14
+- **Updated:** 2026-11-13T14:06Z
+- **Last report to the user:** 2026-11-13T14:06Z (PR ready)
 
 ## Goal
 
@@ -208,13 +208,13 @@ The user asked to be told that things are moving, at most every few hours unless
 - **Commits:** 0777268, 088cc22, f2221cb, 6d0d4ff, cb32ed5, 849cab2 (pick record, pushed in
   5cf2ca2 before the reveal), e7953a2, 2072178 (reveal)
 
-### M7: Report and hand-off (in progress)
+### M7: Report and hand-off (done)
 
 - **Delivers:** `docs/research/ma-rebound.md`, an updated `research/README.md`, the PR.
 - **Done when:** the report states what held up and what did not, with caveats; the check command
   passes; CI is green.
 - **Worker:** master
-- **Commits:**
+- **Commits:** 53791f1 (report and README); PR #14, CI green
 
 ## Decisions
 
@@ -375,6 +375,9 @@ The user asked to be told that things are moving, at most every few hours unless
     +366 bp in 2020-24; study minus placebo MAs -4 bp (CI -10 to +3).
   - The master checked the finalist's and the comparator's 2025 and 2026 numbers against their
     sealed files.
+
+- 2026-11-13 (M7): report `docs/research/ma-rebound.md` written by the master from the stage notes;
+  PR #14 opened, both CI checks pass. The heartbeat was deleted.
 
 ## Blocked on
 
