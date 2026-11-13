@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `worktree-bridge-cse_015bssAVNSvc6d3Ch9Adf7UE` (created by the desktop app; kept)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-13T10:52Z
+- **Updated:** 2026-11-13T11:19Z
 - **Last report to the user:** 2026-11-13T10:52Z (M4 result, M5 at 7 of 9 trainings)
 
 ## Goal
@@ -188,16 +188,16 @@ The user asked to be told that things are moving, at most every few hours unless
 - **Worker:** opus
 - **Commits:** 975be2b, 11e06a1, ab7718a, a8a5790
 
-### M5: Variant screen (in progress)
+### M5: Variant screen (done)
 
 - **Delivers:** every M5 training variant and rule as a ledger row, `results/M5.md` with the
   verdicts.
 - **Done when:** each listed variant has a row judged by the fixed rule on 2022-24, with per-seed
   rows for trained variants; the check command passes.
 - **Worker:** sonnet, finished by the master
-- **Commits:**
+- **Commits:** af31463, e2c6411, 94ab490
 
-### M6: Finalists, pick and reveal (todo)
+### M6: Finalists, pick and reveal (in progress)
 
 - **Delivers:** finalists with 5 seeds, `results/M6_pick.md` committed and pushed before the
   reveal, then `results/M6.md` with 2025-26 for every row, the bootstrap CI, the rank correlation
@@ -318,6 +318,34 @@ The user asked to be told that things are moving, at most every few hours unless
   with 7 of 9 trainings done and the rule rows scored. The master finishes the milestone with the
   worker's `m5_screen.py`: trains `long` and `tfgroup`, scores, and writes the summary.
 
+- 2026-11-13 (M5): accepted; `research/ma_rebound/results/M5.md`. 27 variants (9 trained, 18 rules)
+  on 2022-24: **none qualifies and none beats the baseline.** 26 of 27 lose in 2022 (-30% to -82%
+  as a book). The daily-MAs-only rule is positive every year (+4%/+7%/+48%) and not fragile but
+  has 29/87/67 trades a year (100 required). Breadth, other-MA distances and short windows rank
+  +66% to +81% on the seed mean, but their seeds average +23% to +36% (base: +18%). The worker's
+  leftover training script started a redundant `tfgroup` run after the master's; it was stopped
+  before writing anything.
+- 2026-11-13 (M6 design, fixed before M6 runs and before any 2025-26 number is seen):
+  - **By the protocol's rule:** no training variant and no rule beat the baseline, so the only
+    finalist is the base CNN retrained with 5 seeds (`base5`) under the base rule. The pick is
+    `base5` if it qualifies and is not fragile on 2022-24; otherwise **there is no pick** and
+    nothing can be called confirmed.
+  - **Comparison rows, not eligible to be picked or confirmed** (they are trials and count in
+    the deflated Sharpe ratio): the three variants that ranked above the bar on the seed mean,
+    retrained with 5 seeds (`breadth5`, `otherma5`, `short5`), and their combination (`combo5`:
+    short windows + breadth + other-MA distances); on each of the five models the base rule,
+    percentile >= 0.9, 1h + 4h MAs only, 20 slots, and 1d MAs only.
+  - **Order:** finalists scored on 2022-24 and `results/M6_pick.md` written (M6a); the master
+    commits and pushes it; only then is 2025-26 opened, once, for every ledger row (M6b).
+  - **Reveal content:** per row 2025, 2026 and 2025-26 trades, bp per trade, book return and
+    drawdown; the pick's (or, with no pick, the top-ranked finalist's) day-bootstrap CI and its
+    comparison with *every candidate*; the Spearman correlation between the 2022-24 rank value
+    and the 2025-26 book return over non-seed rows; a deflated Sharpe ratio over all non-seed
+    ledger rows; and, as context, M2's per-timeframe and study-vs-placebo tables on 2025-26.
+- 2026-11-13: a market-regime gate (for example trading only while BTC is above a long average) is
+  the obvious response to 2022, but it was not pre-registered and is suggested by 2022-24 itself.
+  It is not tested here; see Follow-ups.
+
 ## Blocked on
 
 ## Follow-ups
@@ -325,5 +353,6 @@ The user asked to be told that things are moving, at most every few hours unless
 - Limit-order entries in `SimulatedBroker` and the backtest engine, and the rule as a strategy in
   `src/` with a paper test, if the pick is confirmed.
 - EMAs, VWAP and other levels; futures data as model inputs.
+- A market-regime gate and market-neutral sizing, tested forward or on a fresh protocol.
 - Split each coin's series at trading halts of a day or more in `events.py` (positions close at
   the last close before the halt; levels restart after it), then rebuild.
