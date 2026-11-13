@@ -1,0 +1,11 @@
+S3:ens_s3 [455b63b30a2a] pct>=0.975336, 5 slots, sizing EqualSlots(slots=5), hold 1:00:00, fee 0.001 slip 0.0005 lat 0 per side
+  candidates 2022-24 22027, 10s
+  year  trades     bp   win     pnl$    ret%    dd%  | bp 0.6%  bp late
+  2022     276  +89.3  0.60    +3382   +33.8  -32.9  |   +59.1    +16.5
+  2023     129 +253.3  0.63   +11637   +87.0   -3.7  |  +222.6   +110.1
+  2024     241 +109.2  0.67   +15896   +63.5  -13.3  |   +78.9    +56.1
+  mean 2022-24 +150.6 bp (worst year +89.3); 0.6% +120.2; late +60.9
+  placebo mean -82.5, p95 -64.9; day-bootstrap 95% CI [+86.0, +221.4]; without 5 best days +117.7
+  without each year's best trade +21/+238/+104 bp: not fragile
+  verdict: QUALIFIES -- c1 yearly bp +89/+253/+109 all > 0; c2 0.6% cost mean +120.2 bp > 0; c3 one candle late mean +60.9 bp > 0; c4 mean +150.6 vs placebo p95 -64.9 bp beats
+  source: mean pct of m12 allch_y1h, allch_xs, allch_cost, path_all5, path_all_h6, base, market, path_all (cache_all/wf); threshold 0.975336 matches path_all's 22027 candidates 2022-24 at q 0.98
