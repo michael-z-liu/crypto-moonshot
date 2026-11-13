@@ -3,8 +3,8 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `worktree-bridge-cse_015bssAVNSvc6d3Ch9Adf7UE` (created by the desktop app; kept)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-13T03:40Z
-- **Last report to the user:** 2026-11-13T03:40Z (M1 accepted)
+- **Updated:** 2026-11-13T03:59Z
+- **Last report to the user:** 2026-11-13T03:59Z (M2 accepted, baseline headline)
 
 ## Goal
 
@@ -155,7 +155,7 @@ The user asked to be told that things are moving, at most every few hours unless
 - **Worker:** opus
 - **Commits:** 6b1c81e, acd8552, de853cf, 8bc16f1
 
-### M2: Baseline: does buying every MA touch pay? (in progress)
+### M2: Baseline: does buying every MA touch pay? (done)
 
 - **Delivers:** `m2_baseline.py` and `results/M2.md`: per MA, buffer and exit on 2020-24, the fill
   rate, mean net bp, win rate and day-bootstrap CI of every candidate; the same for placebo MAs
@@ -164,9 +164,9 @@ The user asked to be told that things are moving, at most every few hours unless
 - **Done when:** the tables exist for 2020-24 only, with CIs; the note states plainly whether
   major MAs beat placebo MAs and random entries; the check command passes.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** 998777e, eee90aa
 
-### M3: Book simulator and scorecard for limit entries (todo)
+### M3: Book simulator and scorecard for limit entries (in progress)
 
 - **Delivers:** `book.py` (the protocol's book on top of `resolve_exit`, `Costs` and the
   production metrics) and `scorecard.py` (the scorecard, stress, placebo, bootstrap, fragile flag,
@@ -244,6 +244,18 @@ The user asked to be told that things are moving, at most every few hours unless
   candidates; weekly and monthly MAs are thin (1w 200: 104 candidates in 2020-24).
 - 2026-11-13 (M1): the worker's four commits carried a model name in the co-author trailer; the
   messages were rewritten before the first push (no pushed history changed).
+
+- 2026-11-13 (M2): accepted; note in `research/ma_rebound/results/M2.md` (2020-24 only).
+  - Major MAs are not special: study minus placebo MAs is +1 bp per trade (CI -4 to +6).
+  - Buying every touch nets about 0 bp on 1h, +49 on 4h (CI includes 0) and +366 on 1d (CI +143 to
+    +604, limit 0.05, exit E1); weekly and monthly are too thin. Every timeframe loses in 2022.
+  - Take-profit/stop exits (E3, E4) are worse than plain time exits; a tighter buffer is better.
+  - Setups beat matched random pullbacks gross on 1h/4h, but the controls lack the trend condition.
+  - The premise as stated (major MAs give frequent rebounds) is not supported without a model. The
+    study continues as approved: whether a CNN can select within these setups is M4-M6's question.
+- 2026-11-13 (M2): M2 has no market benchmark, so the 1d result cannot be separated from market
+  direction. The M3 scorecard adds a descriptive column, each trade's return minus BTC's over the
+  same window; it is not part of the qualifying or ranking rules.
 
 ## Blocked on
 
