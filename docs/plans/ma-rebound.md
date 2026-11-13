@@ -3,8 +3,8 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `worktree-bridge-cse_015bssAVNSvc6d3Ch9Adf7UE` (created by the desktop app; kept)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-13T11:19Z
-- **Last report to the user:** 2026-11-13T10:52Z (M4 result, M5 at 7 of 9 trainings)
+- **Updated:** 2026-11-13T13:51Z
+- **Last report to the user:** 2026-11-13T12:51Z (chat, after the second usage limit)
 
 ## Goal
 
@@ -345,6 +345,21 @@ The user asked to be told that things are moving, at most every few hours unless
 - 2026-11-13: a market-regime gate (for example trading only while BTC is above a long average) is
   the obvious response to 2022, but it was not pre-registered and is suggested by 2022-24 itself.
   It is not tested here; see Follow-ups.
+
+- 2026-11-13 (M6a): accepted; `research/ma_rebound/results/M6_pick.md` (commit 849cab2). **There
+  is no pick.** The only eligible row, `m6-base5-base`, makes -61/+38/+66 bp per trade and
+  -64.6%/+48.5%/+78.8% a year on 2022-24 (rank value +20.9%), fails the 2022, book-return and
+  stress conditions and is fragile. None of the 25 finalist rows qualifies; in every row 0 of 5
+  seeds qualify. With seeds 3 and 4 the base CNN's seed spread grows from 19.8 to 43.2 points
+  (seed 3: -10.6%). Seed-mean rows of breadth5 (+97.7%) and combo5 (+69.2%) rank far above their
+  own seeds' averages (+23.8%, +19.4%).
+- 2026-11-13 (M6b, fixed before the holdout is opened): with no pick, nothing from 2025-26 can be
+  called confirmed. The reveal's detailed analysis (day-bootstrap CI, comparison with *every
+  candidate* under the same rule, per-timeframe view) is reported for three rows named now:
+  `m6-base5-base` (the protocol's finalist, the primary row), and as comparisons chosen for their
+  2022-24 rank, so biased upward by selection, `m6-breadth5-base` (top base-rule row) and
+  `m6-otherma5-pct0.9` (top of all 25 rows). The 2025-26 summary number per row is the mean of
+  the 2025 and 2026 book returns (2026 ends 2026-11-02), next to the pooled 2025-26 figures.
 
 ## Blocked on
 
