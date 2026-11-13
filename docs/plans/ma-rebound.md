@@ -3,8 +3,8 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `worktree-bridge-cse_015bssAVNSvc6d3Ch9Adf7UE` (created by the desktop app; kept)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-13T09:52Z
-- **Last report to the user:** 2026-11-13T07:52Z (M4 resumed after a usage limit)
+- **Updated:** 2026-11-13T10:52Z
+- **Last report to the user:** 2026-11-13T10:52Z (M4 result, M5 at 7 of 9 trainings)
 
 ## Goal
 
