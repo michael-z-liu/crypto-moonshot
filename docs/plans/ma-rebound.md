@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `worktree-bridge-cse_015bssAVNSvc6d3Ch9Adf7UE` (created by the desktop app; kept)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-13T08:21Z
+- **Updated:** 2026-11-13T09:52Z
 - **Last report to the user:** 2026-11-13T07:52Z (M4 resumed after a usage limit)
 
 ## Goal
@@ -194,7 +194,7 @@ The user asked to be told that things are moving, at most every few hours unless
   verdicts.
 - **Done when:** each listed variant has a row judged by the fixed rule on 2022-24, with per-seed
   rows for trained variants; the check command passes.
-- **Worker:** sonnet
+- **Worker:** sonnet, finished by the master
 - **Commits:**
 
 ### M6: Finalists, pick and reveal (todo)
@@ -313,6 +313,10 @@ The user asked to be told that things are moving, at most every few hours unless
   one (LUNA x4 in 2022, booked at about -90% where the truth is about -100%; SUN x2 in 2021, a
   false -99.9%, before the book starts). No halt occurs in 2025-26. The effect is far below the
   seed spread, so the tables were not rebuilt; splitting series at halts is a follow-up.
+
+- 2026-11-13 (M5): the Sonnet worker was stopped twice by an API error (HTTP 403) at about 09:45Z
+  with 7 of 9 trainings done and the rule rows scored. The master finishes the milestone with the
+  worker's `m5_screen.py`: trains `long` and `tfgroup`, scores, and writes the summary.
 
 ## Blocked on
 
