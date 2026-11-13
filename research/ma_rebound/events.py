@@ -675,13 +675,15 @@ LABEL_SCHEMA = {
     "exit_price": pl.Float64,
     "reason": pl.String,
 }
-FWD_SCHEMA = {
-    "cid": pl.String,
-    "buffer": pl.Float64,
-    "fwd": pl.Array(pl.Float32, FWD_STEPS),
-    "mfe": pl.Float64,
-    "mae": pl.Float64,
-}
+FWD_SCHEMA = pl.Schema(
+    {
+        "cid": pl.String(),
+        "buffer": pl.Float64(),
+        "fwd": pl.Array(pl.Float32, FWD_STEPS),
+        "mfe": pl.Float64(),
+        "mae": pl.Float64(),
+    }
+)
 
 
 def resolve_one(
@@ -795,8 +797,7 @@ def build_labels(
             fwd_rows.append((f["cid"], b, fwd, mfe, mae))
     labels = pl.DataFrame(rows, schema=LABEL_SCHEMA, orient="row")
     labels = with_net_returns(labels)
-    fwd = pl.DataFrame(fwd_rows, schema=FWD_SCHEMA, orient="row")
-    return labels, fwd
+    return labels, pl.DataFrame(fwd_rows, schema=FWD_SCHEMA, orient="row")
 
 
 def with_net_returns(labels: pl.DataFrame) -> pl.DataFrame:

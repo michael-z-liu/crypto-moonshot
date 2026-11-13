@@ -30,6 +30,7 @@ import events as ev
 import polars as pl
 from common import (
     ARM_ZONE,
+    CACHE,
     DAILY_PRE2020,
     DATA_END,
     EXITS,
@@ -42,7 +43,7 @@ from common import (
     TIMEFRAMES,
     TRIGGER_ZONE,
 )
-from runner import CACHE, END_US, PARTS, read_part
+from runner import END_US, PARTS, read_part
 
 HOLDOUT_US = int(HOLDOUT_START.timestamp()) * 1_000_000
 REL = 1e-9
@@ -260,12 +261,22 @@ def _truncation_one(
     bad_known = jl.filter(known & ~same).height
     bad_open = jl.filter(~known & ~same & (pl.col("status_t") != "censored")).height
     # Every label of the truncated build has its fill in the full build.
-    orphan = labels.join(full_l, on=keys, how="anti", nulls_equal=True)
-    orphan = orphan.filter(pl.col("status") != "censored").height
+    orphans = labels.join(full_l, on=keys, how="anti", nulls_equal=True)
+    orphan = orphans.filter(pl.col("status") != "censored").height
+    # Every known exit of a fill decided before the cut is in the truncated build.
+    lost = full_l.filter(known).join(labels, on=keys, how="anti", nulls_equal=True)
+    fill_keys = ["cid", "buffer", "scenario", "fill_t", "fill_len"]
+    decided_fills = full_f.filter(pl.col("fill_t") + pl.col("fill_len") <= cut).select(fill_keys)
+    gone = lost.join(
+        decided_fills.rename({"fill_t": "entry_t"}).drop("fill_len"),
+        on=["cid", "buffer", "scenario", "entry_t"],
+        nulls_equal=True,
+    ).height
     check(
         f"truncation exits ({labels.height}, known {jl.filter(known).height})  {tag}",
-        bad_known == 0 and bad_open == 0 and orphan == 0,
-        f"{bad_known} known differ, {bad_open} unknown not censored, {orphan} orphans",
+        bad_known == 0 and bad_open == 0 and orphan == 0 and gone == 0,
+        f"{bad_known} known differ, {bad_open} unknown not censored, {orphan} orphans, "
+        f"{gone} missing",
     )
     jw = full_w.join(fwd, on=["cid", "buffer"], how="inner", suffix="_t", nulls_equal=True)
     ent = full_f.filter(pl.col("scenario") == "base").select("cid", "buffer", "fill_t")
