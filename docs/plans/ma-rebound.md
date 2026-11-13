@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `worktree-bridge-cse_015bssAVNSvc6d3Ch9Adf7UE` (created by the desktop app; kept)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-13T03:59Z
+- **Updated:** 2026-11-13T04:17Z
 - **Last report to the user:** 2026-11-13T03:59Z (M2 accepted, baseline headline)
 
 ## Goal
@@ -124,10 +124,11 @@ beats *every candidate* under the same rule. Also reported: the Spearman correla
 ## Reporting to the user
 
 The user asked to be told that things are moving, at most every few hours unless needed.
-- Send a `PushNotification` when a milestone is accepted, on any stop condition, and when the PR
-  is ready.
-- Otherwise, on a heartbeat, if `Last report to the user` is more than 4 hours old, send one
-  one-line status (milestone in progress, what is running) and update that field.
+- Send a `PushNotification` at once on a stop condition, when the PR is ready, and for a result
+  that changes the picture (M2's baseline, the M6 reveal).
+- Otherwise at most one every 3-4 hours: when a milestone is accepted or on a heartbeat, send a
+  one-line status only if `Last report to the user` is more than 3 hours old, and update it.
+  (Milestones M1-M3 took 20 minutes each; a note per milestone was more than the user asked for.)
 - Never report a 2025-26 outcome before the reveal.
 
 ## Milestones
@@ -166,7 +167,7 @@ The user asked to be told that things are moving, at most every few hours unless
 - **Worker:** sonnet
 - **Commits:** 998777e, eee90aa
 
-### M3: Book simulator and scorecard for limit entries (in progress)
+### M3: Book simulator and scorecard for limit entries (done)
 
 - **Delivers:** `book.py` (the protocol's book on top of `resolve_exit`, `Costs` and the
   production metrics) and `scorecard.py` (the scorecard, stress, placebo, bootstrap, fragile flag,
@@ -175,9 +176,9 @@ The user asked to be told that things are moving, at most every few hours unless
   equity to within rounding; 2025-26 goes only to the sealed folder; the *every candidate* rows
   (base rule and E1..E6) are in the ledger; the check command passes.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** b9be74f, 3e8b90d, dfa42a5, 473de01, 4101102
 
-### M4: Walk-forward CNN, base model and gradient-boosted benchmark (todo)
+### M4: Walk-forward CNN, base model and gradient-boosted benchmark (in progress)
 
 - **Delivers:** `build_inputs.py` (model inputs per candidate, memory-mapped), `train.py` (the
   walk-forward harness with the M5 options), the base CNN with 3 seeds, `gbm.py` (benchmark).
@@ -256,6 +257,35 @@ The user asked to be told that things are moving, at most every few hours unless
 - 2026-11-13 (M2): M2 has no market benchmark, so the 1d result cannot be separated from market
   direction. The M3 scorecard adds a descriptive column, each trade's return minus BTC's over the
   same window; it is not part of the qualifying or ranking rules.
+
+- 2026-11-13 (M3): accepted. The book equals the production engine bit for bit on 1h touch-market
+  trades (50 coins: 6,572 trades, 732 equity points; all 386 coins: 14,413 trades). One scorecard
+  call takes about 1 s without scores and 3.5 s with the placebo.
+- 2026-11-13 (M3): the *every candidate* books all fail on 2022-24. Base rule (limit 0.05, E1):
+  -50/-5/-2 bp per trade and -91%/-30%/-33% a year; the best, E6, is -84/+6/+16 bp and -27.6% on
+  average. The 10-slot book is worse than M2's per-trade means because setups cluster on market
+  drops, 1h setups fill the slots (1d is 227 of 12,509 trades, at +54 bp), and a coin held on one
+  MA blocks its other MAs. This is the bar the models must clear.
+- 2026-11-13 (M3): `EqualSlots` skips a fill when cash is short of one slot's stake, which after
+  losses is often (the engine does the same). Kept as the protocol says; it applies to every
+  variant alike.
+- 2026-11-13 (M4 spec, fixed before any model result). Base CNN:
+  - Trained on limit-family study candidates whose primary-buffer (0.05) order filled; every limit
+    candidate is scored at its decision time. Target: the E1 gross return from the fill divided by
+    u, clipped to [-5, 5], Huber loss.
+  - Inputs end at the trigger close: the last 96 5m candles and the last 128 bars of the MA's own
+    timeframe, prices as distance from the level in units of u, with volume; the same two windows
+    for BTC; scalars (timeframe, length, distance, bars since the last touch, level slope, atr_d,
+    liquidity). Two convolutional towers and a scalar branch.
+  - Folds as in the protocol, purged by each candidate's own label end. Normalisation from the
+    fold's training rows. Early stopping on the validation Spearman correlation between score and
+    target (patience 2, at most 12 epochs). Seeds 0-2.
+  - Seed-mean score: the percentile, among the fold's training rows, of the mean raw prediction
+    over seeds. Per-seed scores use each seed's own percentiles.
+  - Gradient-boosted benchmark: scikit-learn's histogram gradient boosting on hand-made features
+    of the same inputs, same target, folds and percentile rule.
+  - Fold 2026 trains and validates on 2025 data: its training log goes to the sealed folder and
+    nothing of it is printed.
 
 ## Blocked on
 
