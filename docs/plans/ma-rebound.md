@@ -3,8 +3,8 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `worktree-bridge-cse_015bssAVNSvc6d3Ch9Adf7UE` (created by the desktop app; kept)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-13T04:17Z
-- **Last report to the user:** 2026-11-13T03:59Z (M2 accepted, baseline headline)
+- **Updated:** 2026-11-13T07:52Z
+- **Last report to the user:** 2026-11-13T07:52Z (M4 resumed after a usage limit)
 
 ## Goal
 
@@ -286,6 +286,9 @@ The user asked to be told that things are moving, at most every few hours unless
     of the same inputs, same target, folds and percentile rule.
   - Fold 2026 trains and validates on 2025 data: its training log goes to the sealed folder and
     nothing of it is printed.
+
+- 2026-11-13 (M4): the worker was cut off by the 5-hour usage limit about 04:30Z with the inputs
+  built (18 GB in `cache/m4/`) and three scripts uncommitted; resumed at 07:52Z with its context.
 
 ## Blocked on
 
