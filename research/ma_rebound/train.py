@@ -729,9 +729,6 @@ def run(
         "device": str(DEVICE),
         "minutes": (time.perf_counter() - t_start) / 60,
         "timing": [t for t in timing if int(str(t["year"])) < SEALED_YEAR],
-        "timing_2026_minutes": sum(
-            float(str(t["minutes"])) for t in timing if int(str(t["year"])) >= SEALED_YEAR
-        ),
     }
     (dest / "run.json").write_text(json.dumps(meta, indent=1))
     print(f"{out}: run {run_id}, {params} parameters, {meta['minutes']:.1f} min", flush=True)

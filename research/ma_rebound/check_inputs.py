@@ -37,6 +37,7 @@ from common import CACHE, TIMEFRAMES, universe
 from events import FIVE, bar_index
 
 SEED = 20261113
+SEALED_YEAR = 2026  # its train / validation rows include 2025 fills
 US = 1_000_000
 failures: list[str] = []
 
@@ -353,7 +354,9 @@ def fold_checks(run: str) -> None:
                 and bool(ok[it].all() if len(it) else True)
             )
             all_ok &= fold_ok
-            lines.append(f"{kk} {len(tr)}/{len(va)}/{len(te)}{'' if fold_ok else ' FAIL'}")
+            # fold 2026's train / validation sizes count 2025 fills: not printed
+            sizes = f"{len(tr)}/{len(va)}" if y < SEALED_YEAR else "sealed/sealed"
+            lines.append(f"{kk} {sizes}/{len(te)}{'' if fold_ok else ' FAIL'}")
     check(
         f"{run}: fold row sets are purged as specified (train/valid/test per fold)",
         all_ok,
