@@ -35,6 +35,12 @@ the same model under the base rule, or for `base5` the same rule on the 3-seed b
 | ref: rule-slots20 (M5, 3-seed base CNN) | for reference, not an M6 row | 2273 / 1820 / 1879 | -50 / +53 / +99 | -54.3% / +52.2% / +118.6% | +9.0 | -3.5 | yes | no | +38.9% |
 | **m6-base5-tf1d** | base CNN / MAs: 1d only | 26 / 93 / 57 | +27 / +145 / +700 | +0.6% / +12.9% / +37.7% | +276.8 | +59.7 | yes | no | +17.1% |
 | ref: rule-tf1d (M5, 3-seed base CNN) | for reference, not an M6 row | 29 / 87 / 67 | +155 / +104 / +686 | +4.3% / +6.6% / +48.3% | +267.9 | -78.8 | no | no | +19.7% |
+| **m6-breadth5-base** | + market breadth / base rule (pct >= 0.80, 10 slots) | 742 / 1240 / 1174 | -80 / +120 / +55 | -48.6% / +284.7% / +56.9% | +9.6 | -5.0 | yes | no | +97.7% |
+| ref: cnn-breadth (M5, 3 seeds) | for reference, not an M6 row | 772 / 1255 / 1149 | -109 / +115 / +58 | -63.3% / +254.7% / +50.1% | -4.6 | -12.7 | yes | no | +80.5% |
+| **m6-breadth5-pct0.9** | + market breadth / percentile >= 0.9 | 396 / 723 / 666 | -37 / +129 / +104 | -16.3% / +143.5% / +83.7% | +43.5 | +10.1 | yes | no | +70.3% |
+| **m6-breadth5-tf1h4h** | + market breadth / MAs: 1h + 4h only | 776 / 1320 / 1295 | -34 / +66 / +43 | -26.4% / +130.7% / +62.1% | -1.1 | -7.0 | yes | no | +55.5% |
+| **m6-breadth5-slots20** | + market breadth / 20 slots | 1209 / 2102 / 2154 | -59 / +115 / +78 | -33.3% / +206.5% / +96.2% | +21.9 | -2.6 | yes | no | +89.8% |
+| **m6-breadth5-tf1d** | + market breadth / MAs: 1d only | 12 / 95 / 100 | -838 / +650 / +393 | -9.8% / +76.0% / +33.1% | +38.8 | -94.9 | yes | no | +33.1% |
 
 Qualifies: at least 100 trades, mean bp > 0 and book return > 0 in each year, stress bp > 0,
 and mean bp above the placebo's 95th percentile. Fragile: some year's mean bp turns negative
@@ -48,6 +54,7 @@ value of the 5-seed-mean score lies between the lowest and the highest per-seed 
 | model | seed 0 | seed 1 | seed 2 | seed 3 | seed 4 | seed mean of ranks | spread (max - min) | 5-seed-mean row | mean row inside seed range | seeds qualifying | seeds fragile |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | base5 | +29.4% | +9.5% | +15.0% | -10.6% | +32.7% | +15.2% | 43.2 pp | +20.9% | yes | 0 of 5 | 5 of 5 |
+| breadth5 | +26.2% | +7.1% | +34.3% | +23.7% | +27.6% | +23.8% | 27.2 pp | +97.7% | no | 0 of 5 | 5 of 5 |
 
 Every row, seed by seed:
 
@@ -58,6 +65,11 @@ Every row, seed by seed:
 | m6-base5-tf1h4h | +28.8% | +20.8% | +24.7% | -9.7% | +6.7% | 38.5 pp | 0 of 5 | 5 of 5 |
 | m6-base5-slots20 | +35.8% | +12.9% | +19.2% | +11.6% | +44.3% | 32.7 pp | 0 of 5 | 5 of 5 |
 | m6-base5-tf1d | +19.1% | +11.7% | +3.9% | +22.9% | +14.8% | 19.0 pp | 0 of 5 | 5 of 5 |
+| m6-breadth5-base | +26.2% | +7.1% | +34.3% | +23.7% | +27.6% | 27.2 pp | 0 of 5 | 5 of 5 |
+| m6-breadth5-pct0.9 | +13.3% | +61.2% | +77.6% | +15.9% | +81.5% | 68.2 pp | 0 of 5 | 5 of 5 |
+| m6-breadth5-tf1h4h | +10.1% | +18.5% | +35.4% | +26.8% | +14.0% | 25.3 pp | 0 of 5 | 5 of 5 |
+| m6-breadth5-slots20 | +29.9% | +21.7% | +68.0% | +34.2% | +59.6% | 46.3 pp | 0 of 5 | 5 of 5 |
+| m6-breadth5-tf1d | +23.0% | +8.6% | +9.3% | +2.2% | +17.1% | 20.8 pp | 0 of 5 | 5 of 5 |
 
 ## Pick
 
@@ -74,7 +86,7 @@ Comparison rows that qualify: none; that qualify and are not
 fragile: none. They are recorded for the reveal's rank correlation
 and deflated Sharpe ratio only.
 
-Rows not yet scored: m6-breadth5-base, m6-breadth5-pct0.9, m6-breadth5-tf1h4h, m6-breadth5-slots20, m6-breadth5-tf1d, m6-otherma5-base, m6-otherma5-pct0.9, m6-otherma5-tf1h4h, m6-otherma5-slots20, m6-otherma5-tf1d, m6-short5-base, m6-short5-pct0.9, m6-short5-tf1h4h, m6-short5-slots20, m6-short5-tf1d, m6-combo5-base, m6-combo5-pct0.9, m6-combo5-tf1h4h, m6-combo5-slots20, m6-combo5-tf1d.
+Rows not yet scored: m6-otherma5-base, m6-otherma5-pct0.9, m6-otherma5-tf1h4h, m6-otherma5-slots20, m6-otherma5-tf1d, m6-short5-base, m6-short5-pct0.9, m6-short5-tf1h4h, m6-short5-slots20, m6-short5-tf1d, m6-combo5-base, m6-combo5-pct0.9, m6-combo5-tf1h4h, m6-combo5-slots20, m6-combo5-tf1d.
 
 ## What will be opened
 

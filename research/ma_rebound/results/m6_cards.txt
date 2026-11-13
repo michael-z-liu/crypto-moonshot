@@ -369,3 +369,373 @@ m6-base5-tf1d-seed4 [964abf82a6fd] limit L(1+0.05u), exit E1, pct>=0.8, tf 1d, 1
   rank value +14.8% (worst year -14.2%); verdict: fails -- trades 37/49/137 FAIL; bp -400/+114/+423 FAIL; return -14.2%/+6.9%/+51.8% FAIL; stress +30.2 bp ok; mean +45.6 vs placebo p95 -10.0 bp ok
 
 m6-base5-tf1d per-seed rank values: seed 0 +19.15%, seed 1 +11.68%, seed 2 +3.91%, seed 3 +22.89%, seed 4 +14.85%; mean +14.50%; spread (max - min) 18.99 pp
+
+m6-breadth5-base [0ca0dc3de180] limit L(1+0.05u), exit E1, pct>=0.8, 10 slots
+  source: M6 breadth5 rule base, seed mean of 5, run breadth5-20261113T114150Z; selected candidates 2022-24 45750; 2.5s (book 0.04s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        742  0.61     -80.3  0.44   -48.6% -49.8%    34.4    +44 |  -103.4
+  2023       1240  0.53    +120.0  0.57  +284.7% -16.4%    28.5   +103 |   +99.7
+  2024       1174  0.54     +55.3  0.54   +56.9% -41.7%    40.2    +55 |   +32.6
+  2022-24    3156  0.55     +48.8  0.53  +210.6% -49.8%    34.3    +71   (pooled)
+  per tf 2022-24 (trades/bp): 1h 2275/+3, 4h 668/+102, 1d 132/+609, 1w 67/+63, 1M 14/-392
+  mean bp (of yearly) +31.7; stress +9.6; placebo mean -12.5, p95 -5.0; day-bootstrap 95% CI [-13.4, +76.9]; without 5 best days +9.5
+  without each year's best trade -89/+105/+47 bp: FRAGILE
+  rank value +97.7% (worst year -48.6%); verdict: fails -- trades 742/1240/1174 ok; bp -80/+120/+55 FAIL; return -48.6%/+284.7%/+56.9% FAIL; stress +9.6 bp ok; mean +31.7 vs placebo p95 -5.0 bp ok
+
+m6-breadth5-base-seed0 [62fadee41773] limit L(1+0.05u), exit E1, pct>=0.8, 10 slots
+  source: M6 breadth5 rule base, run breadth5-20261113T114150Z, seed 0; selected candidates 2022-24 47934; 2.5s (book 0.04s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        786  0.62    -123.9  0.43   -67.7% -70.3%    36.7     -7 |  -150.3
+  2023       1342  0.53     +58.2  0.50   +97.1% -21.7%    26.4    +63 |   +38.8
+  2024       1308  0.56     +47.2  0.52   +49.2% -46.8%    43.0    +25 |   +20.3
+  2022-24    3436  0.56     +12.3  0.49    -5.2% -70.3%    35.1    +32   (pooled)
+  per tf 2022-24 (trades/bp): 1h 2406/-19, 4h 795/+43, 1d 146/+635, 1w 71/-616, 1M 18/+242
+  mean bp (of yearly) -6.2; stress -30.4; placebo mean -23.2, p95 -16.5; day-bootstrap 95% CI [-48.1, +34.8]; without 5 best days -21.5
+  without each year's best trade -129/+52/+44 bp: FRAGILE
+  rank value +26.2% (worst year -67.7%); verdict: fails -- trades 786/1342/1308 ok; bp -124/+58/+47 FAIL; return -67.7%/+97.1%/+49.2% FAIL; stress -30.4 bp FAIL; mean -6.2 vs placebo p95 -16.5 bp ok
+
+m6-breadth5-base-seed1 [6a6a891171f3] limit L(1+0.05u), exit E1, pct>=0.8, 10 slots
+  source: M6 breadth5 rule base, run breadth5-20261113T114150Z, seed 1; selected candidates 2022-24 56026; 2.8s (book 0.04s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        850  0.59    -112.3  0.44   -69.6% -71.7%    50.0     +5 |  -132.2
+  2023       1688  0.54     +23.4  0.53   +46.6% -40.8%    24.9    +28 |    +1.0
+  2024       1332  0.57     +46.1  0.52   +44.3% -52.3%    37.9    +38 |   +17.4
+  2022-24    3870  0.56      +1.4  0.51   -35.7% -74.4%    34.9    +26   (pooled)
+  per tf 2022-24 (trades/bp): 1h 2844/-4, 4h 758/+40, 1d 165/+229, 1w 77/-237, 1M 26/-1311
+  mean bp (of yearly) -14.3; stress -38.0; placebo mean -22.0, p95 -17.8; day-bootstrap 95% CI [-53.4, +23.1]; without 5 best days -29.1
+  without each year's best trade -118/+18/+39 bp: FRAGILE
+  rank value +7.1% (worst year -69.6%); verdict: fails -- trades 850/1688/1332 ok; bp -112/+23/+46 FAIL; return -69.6%/+46.6%/+44.3% FAIL; stress -38.0 bp FAIL; mean -14.3 vs placebo p95 -17.8 bp ok
+
+m6-breadth5-base-seed2 [f9e5bfb13770] limit L(1+0.05u), exit E1, pct>=0.8, 10 slots
+  source: M6 breadth5 rule base, run breadth5-20261113T114150Z, seed 2; selected candidates 2022-24 46983; 2.7s (book 0.04s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022       1090  0.58    -106.1  0.47   -73.4% -75.1%    29.9     +8 |  -137.2
+  2023       1427  0.52     +65.5  0.52  +123.4% -35.7%    23.1    +69 |   +47.5
+  2024       1448  0.55     +46.2  0.51   +52.8% -47.8%    33.4    +41 |   +25.3
+  2022-24    3965  0.55     +11.3  0.50    -9.2% -75.1%    28.7    +42   (pooled)
+  per tf 2022-24 (trades/bp): 1h 2857/+7, 4h 894/+27, 1d 148/+427, 1w 61/-826, 1M 5/-2194
+  mean bp (of yearly) +1.9; stress -21.5; placebo mean -18.4, p95 -11.3; day-bootstrap 95% CI [-34.4, +42.6]; without 5 best days -17.7
+  without each year's best trade -112/+52/+41 bp: FRAGILE
+  rank value +34.3% (worst year -73.4%); verdict: fails -- trades 1090/1427/1448 ok; bp -106/+66/+46 FAIL; return -73.4%/+123.4%/+52.8% FAIL; stress -21.5 bp FAIL; mean +1.9 vs placebo p95 -11.3 bp ok
+
+m6-breadth5-base-seed3 [c142d413ea72] limit L(1+0.05u), exit E1, pct>=0.8, 10 slots
+  source: M6 breadth5 rule base, run breadth5-20261113T114150Z, seed 3; selected candidates 2022-24 52448; 2.7s (book 0.04s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        685  0.64     -74.7  0.41   -44.3% -46.9%    16.1    +63 |  -102.4
+  2023       1405  0.53     +36.3  0.53   +67.3% -41.7%    25.6    +42 |   +11.7
+  2024       1176  0.56     +54.7  0.50   +48.1% -49.4%    50.9    +39 |   +20.1
+  2022-24    3266  0.56     +19.6  0.49   +38.0% -49.8%    32.7    +45   (pooled)
+  per tf 2022-24 (trades/bp): 1h 2285/-7, 4h 775/+61, 1d 141/+46, 1w 37/+208, 1M 28/+654
+  mean bp (of yearly) +5.4; stress -23.6; placebo mean -9.9, p95 -4.0; day-bootstrap 95% CI [-41.3, +50.4]; without 5 best days -18.5
+  without each year's best trade -96/+33/+38 bp: FRAGILE
+  rank value +23.7% (worst year -44.3%); verdict: fails -- trades 685/1405/1176 ok; bp -75/+36/+55 FAIL; return -44.3%/+67.3%/+48.1% FAIL; stress -23.6 bp FAIL; mean +5.4 vs placebo p95 -4.0 bp ok
+
+m6-breadth5-base-seed4 [76740834a5c7] limit L(1+0.05u), exit E1, pct>=0.8, 10 slots
+  source: M6 breadth5 rule base, run breadth5-20261113T114150Z, seed 4; selected candidates 2022-24 49689; 2.7s (book 0.04s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        753  0.65    -100.5  0.42   -56.0% -56.0%    12.7    +27 |  -123.7
+  2023       1574  0.54     +40.3  0.50   +73.2% -29.3%    30.8    +37 |   +16.6
+  2024       1474  0.54     +47.2  0.50   +65.4% -40.8%    35.2    +44 |   +28.7
+  2022-24    3801  0.55     +15.1  0.48   +26.1% -56.0%    28.9    +38   (pooled)
+  per tf 2022-24 (trades/bp): 1h 2943/-14, 4h 638/-11, 1d 153/+268, 1w 50/+1021, 1M 17/+844
+  mean bp (of yearly) -4.3; stress -26.1; placebo mean -12.9, p95 -6.7; day-bootstrap 95% CI [-41.4, +30.2]; without 5 best days -19.1
+  without each year's best trade -104/+38/+40 bp: FRAGILE
+  rank value +27.6% (worst year -56.0%); verdict: fails -- trades 753/1574/1474 ok; bp -101/+40/+47 FAIL; return -56.0%/+73.2%/+65.4% FAIL; stress -26.1 bp FAIL; mean -4.3 vs placebo p95 -6.7 bp ok
+
+m6-breadth5-base per-seed rank values: seed 0 +26.18%, seed 1 +7.11%, seed 2 +34.27%, seed 3 +23.69%, seed 4 +27.55%; mean +23.76%; spread (max - min) 27.16 pp
+
+m6-breadth5-pct0.9 [9ea899d1f927] limit L(1+0.05u), exit E1, pct>=0.9, 10 slots
+  source: M6 breadth5 rule pct0.9, seed mean of 5, run breadth5-20261113T114150Z; selected candidates 2022-24 18588; 2.2s (book 0.02s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        396  0.66     -36.6  0.48   -16.3% -31.3%    31.9    +76 |   -64.3
+  2023        723  0.53    +129.3  0.61  +143.5% -12.8%    24.9   +115 |  +103.9
+  2024        666  0.56    +103.7  0.54   +83.7% -27.1%    50.5    +94 |   +91.0
+  2022-24    1785  0.57     +83.0  0.56  +274.1% -31.3%    36.0    +99   (pooled)
+  per tf 2022-24 (trades/bp): 1h 1245/+15, 4h 420/+153, 1d 65/+635, 1w 51/+457, 1M 4/+141
+  mean bp (of yearly) +65.5; stress +43.5; placebo mean +3.3, p95 +10.1; day-bootstrap 95% CI [+8.6, +125.7]; without 5 best days +34.6
+  without each year's best trade -54/+124/+88 bp: FRAGILE
+  rank value +70.3% (worst year -16.3%); verdict: fails -- trades 396/723/666 ok; bp -37/+129/+104 FAIL; return -16.3%/+143.5%/+83.7% FAIL; stress +43.5 bp ok; mean +65.5 vs placebo p95 +10.1 bp ok
+
+m6-breadth5-pct0.9-seed0 [d387f14fdcaf] limit L(1+0.05u), exit E1, pct>=0.9, 10 slots
+  source: M6 breadth5 rule pct0.9, run breadth5-20261113T114150Z, seed 0; selected candidates 2022-24 21418; 2.3s (book 0.03s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        420  0.63    -160.0  0.47   -56.3% -59.3%    47.5    +16 |  -190.8
+  2023        746  0.55     +60.9  0.53   +53.7% -16.3%    19.3    +79 |   +34.4
+  2024        810  0.59     +62.7  0.56   +42.6% -39.0%    51.3    +22 |   +34.3
+  2022-24    1976  0.58     +14.7  0.53    -4.3% -59.3%    38.4    +42   (pooled)
+  per tf 2022-24 (trades/bp): 1h 1349/+23, 4h 493/+46, 1d 62/+368, 1w 65/-655, 1M 7/-636
+  mean bp (of yearly) -12.1; stress -40.7; placebo mean -20.2, p95 -11.3; day-bootstrap 95% CI [-82.2, +50.0]; without 5 best days -32.9
+  without each year's best trade -176/+56/+58 bp: FRAGILE
+  rank value +13.3% (worst year -56.3%); verdict: fails -- trades 420/746/810 ok; bp -160/+61/+63 FAIL; return -56.3%/+53.7%/+42.6% FAIL; stress -40.7 bp FAIL; mean -12.1 vs placebo p95 -11.3 bp FAIL
+
+m6-breadth5-pct0.9-seed1 [6c35fba12dac] limit L(1+0.05u), exit E1, pct>=0.9, 10 slots
+  source: M6 breadth5 rule pct0.9, run breadth5-20261113T114150Z, seed 1; selected candidates 2022-24 23458; 2.3s (book 0.03s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        465  0.63    -162.3  0.45   -60.8% -66.3%    67.2    -32 |  -188.0
+  2023       1066  0.54    +111.6  0.56  +205.3% -22.3%    22.8   +104 |   +88.6
+  2024        863  0.59     +60.0  0.52   +39.1% -37.4%    42.4    +60 |   +47.8
+  2022-24    2394  0.58     +39.8  0.52   +66.5% -66.3%    38.5    +62   (pooled)
+  per tf 2022-24 (trades/bp): 1h 1756/+18, 4h 452/+14, 1d 105/+915, 1w 65/+98, 1M 16/-2851
+  mean bp (of yearly) +3.1; stress -17.2; placebo mean -23.1, p95 -15.4; day-bootstrap 95% CI [-58.9, +60.3]; without 5 best days -25.2
+  without each year's best trade -171/+94/+49 bp: FRAGILE
+  rank value +61.2% (worst year -60.8%); verdict: fails -- trades 465/1066/863 ok; bp -162/+112/+60 FAIL; return -60.8%/+205.3%/+39.1% FAIL; stress -17.2 bp FAIL; mean +3.1 vs placebo p95 -15.4 bp ok
+
+m6-breadth5-pct0.9-seed2 [1994fef00b22] limit L(1+0.05u), exit E1, pct>=0.9, 10 slots
+  source: M6 breadth5 rule pct0.9, run breadth5-20261113T114150Z, seed 2; selected candidates 2022-24 19625; 2.3s (book 0.03s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        553  0.65     -73.8  0.47   -37.3% -47.9%    35.7    +74 |  -116.2
+  2023        807  0.52    +118.7  0.57  +149.9% -24.0%    21.8   +101 |   +95.3
+  2024        775  0.59    +121.6  0.57  +120.2% -27.2%    47.9    +94 |   +95.6
+  2022-24    2135  0.58     +69.9  0.55  +244.8% -47.9%    34.9    +91   (pooled)
+  per tf 2022-24 (trades/bp): 1h 1445/+32, 4h 540/+162, 1d 96/+263, 1w 54/-185
+  mean bp (of yearly) +55.5; stress +24.9; placebo mean -13.2, p95 -3.8; day-bootstrap 95% CI [+1.9, +110.2]; without 5 best days +30.6
+  without each year's best trade -86/+111/+108 bp: FRAGILE
+  rank value +77.6% (worst year -37.3%); verdict: fails -- trades 553/807/775 ok; bp -74/+119/+122 FAIL; return -37.3%/+149.9%/+120.2% FAIL; stress +24.9 bp ok; mean +55.5 vs placebo p95 -3.8 bp ok
+
+m6-breadth5-pct0.9-seed3 [e1d2bdab1017] limit L(1+0.05u), exit E1, pct>=0.9, 10 slots
+  source: M6 breadth5 rule pct0.9, run breadth5-20261113T114150Z, seed 3; selected candidates 2022-24 24367; 2.4s (book 0.03s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        342  0.67    -128.1  0.41   -37.6% -39.5%    13.2    +34 |  -142.8
+  2023        830  0.55     +71.6  0.53   +80.2% -20.8%    26.8    +65 |   +51.3
+  2024        757  0.57     +43.7  0.53    +5.0% -57.3%    60.8    +54 |   +12.7
+  2022-24    1929  0.57     +25.3  0.51   +18.2% -57.3%    37.7    +55   (pooled)
+  per tf 2022-24 (trades/bp): 1h 1324/+3, 4h 459/+46, 1d 96/+602, 1w 22/-364, 1M 28/-936
+  mean bp (of yearly) -4.3; stress -26.3; placebo mean -1.9, p95 +14.2; day-bootstrap 95% CI [-70.3, +59.7]; without 5 best days -35.5
+  without each year's best trade -132/+63/+31 bp: FRAGILE
+  rank value +15.9% (worst year -37.6%); verdict: fails -- trades 342/830/757 ok; bp -128/+72/+44 FAIL; return -37.6%/+80.2%/+5.0% FAIL; stress -26.3 bp FAIL; mean -4.3 vs placebo p95 +14.2 bp FAIL
+
+m6-breadth5-pct0.9-seed4 [e013bbc7a309] limit L(1+0.05u), exit E1, pct>=0.9, 10 slots
+  source: M6 breadth5 rule pct0.9, run breadth5-20261113T114150Z, seed 4; selected candidates 2022-24 21211; 2.3s (book 0.03s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        440  0.70    -117.2  0.42   -42.1% -46.8%    11.8    +24 |  -143.0
+  2023        995  0.54     +99.4  0.59  +149.0% -14.7%    30.9    +77 |   +75.8
+  2024        846  0.56    +113.9  0.58  +137.6% -26.6%    43.5    +84 |   +87.0
+  2022-24    2281  0.57     +63.0  0.55  +242.7% -46.8%    31.9    +69   (pooled)
+  per tf 2022-24 (trades/bp): 1h 1713/+16, 4h 429/+78, 1d 85/+494, 1w 43/+804, 1M 11/+549
+  mean bp (of yearly) +32.0; stress +6.6; placebo mean +1.3, p95 +9.8; day-bootstrap 95% CI [-14.6, +80.4]; without 5 best days +10.1
+  without each year's best trade -122/+95/+102 bp: FRAGILE
+  rank value +81.5% (worst year -42.1%); verdict: fails -- trades 440/995/846 ok; bp -117/+99/+114 FAIL; return -42.1%/+149.0%/+137.6% FAIL; stress +6.6 bp ok; mean +32.0 vs placebo p95 +9.8 bp ok
+
+m6-breadth5-pct0.9 per-seed rank values: seed 0 +13.30%, seed 1 +61.21%, seed 2 +77.59%, seed 3 +15.90%, seed 4 +81.49%; mean +49.90%; spread (max - min) 68.19 pp
+
+m6-breadth5-tf1h4h [0ec8a3d5b6c0] limit L(1+0.05u), exit E1, pct>=0.8, tf 1h/4h, 10 slots
+  source: M6 breadth5 rule tf1h4h, seed mean of 5, run breadth5-20261113T114150Z; selected candidates 2022-24 39984; 2.9s (book 0.05s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        776  0.61     -33.9  0.45   -26.4% -35.9%    12.1    +79 |   -60.1
+  2023       1320  0.55     +66.0  0.57  +130.7% -19.5%    14.1    +71 |   +41.6
+  2024       1295  0.54     +43.3  0.54   +62.1% -33.8%    14.1    +55 |   +15.1
+  2022-24    3391  0.55     +34.5  0.53  +175.1% -35.9%    13.6    +66   (pooled)
+  per tf 2022-24 (trades/bp): 1h 2593/+10, 4h 798/+115
+  mean bp (of yearly) +25.1; stress -1.1; placebo mean -11.2, p95 -7.0; day-bootstrap 95% CI [-8.4, +58.1]; without 5 best days +14.7
+  without each year's best trade -43/+63/+41 bp: FRAGILE
+  rank value +55.5% (worst year -26.4%); verdict: fails -- trades 776/1320/1295 ok; bp -34/+66/+43 FAIL; return -26.4%/+130.7%/+62.1% FAIL; stress -1.1 bp FAIL; mean +25.1 vs placebo p95 -7.0 bp ok
+
+m6-breadth5-tf1h4h-seed0 [ad59e2bc3095] limit L(1+0.05u), exit E1, pct>=0.8, tf 1h/4h, 10 slots
+  source: M6 breadth5 rule tf1h4h, run breadth5-20261113T114150Z, seed 0; selected candidates 2022-24 42608; 2.9s (book 0.06s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        822  0.62     -63.8  0.43   -43.3% -49.2%    11.0    +38 |   -88.5
+  2023       1423  0.54     +13.0  0.50   +15.5% -28.8%    14.5    +37 |    -1.1
+  2024       1696  0.56     +33.4  0.51   +58.2% -24.4%    14.5    +37 |    +9.6
+  2022-24    3941  0.56      +5.8  0.49    +3.6% -54.8%    13.8    +37   (pooled)
+  per tf 2022-24 (trades/bp): 1h 2992/-10, 4h 949/+55
+  mean bp (of yearly) -5.8; stress -26.7; placebo mean -14.7, p95 -9.6; day-bootstrap 95% CI [-36.1, +23.0]; without 5 best days -14.0
+  without each year's best trade -69/+11/+31 bp: FRAGILE
+  rank value +10.1% (worst year -43.3%); verdict: fails -- trades 822/1423/1696 ok; bp -64/+13/+33 FAIL; return -43.3%/+15.5%/+58.2% FAIL; stress -26.7 bp FAIL; mean -5.8 vs placebo p95 -9.6 bp ok
+
+m6-breadth5-tf1h4h-seed1 [c0fbd5aca036] limit L(1+0.05u), exit E1, pct>=0.8, tf 1h/4h, 10 slots
+  source: M6 breadth5 rule tf1h4h, run breadth5-20261113T114150Z, seed 1; selected candidates 2022-24 49278; 3.0s (book 0.06s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022       1006  0.58     -42.7  0.44   -37.7% -44.5%    13.0    +64 |   -69.5
+  2023       1864  0.54     +36.5  0.54   +87.6% -27.2%    13.0    +56 |   +13.6
+  2024       1651  0.58      +9.6  0.51    +5.6% -41.8%    12.8    +27 |   -18.6
+  2022-24    4521  0.57      +9.1  0.51   +23.4% -44.5%    12.9    +47   (pooled)
+  per tf 2022-24 (trades/bp): 1h 3595/-1, 4h 926/+50
+  mean bp (of yearly) +1.1; stress -24.9; placebo mean -12.2, p95 -6.0; day-bootstrap 95% CI [-25.3, +27.8]; without 5 best days -6.7
+  without each year's best trade -47/+35/+5 bp: FRAGILE
+  rank value +18.5% (worst year -37.7%); verdict: fails -- trades 1006/1864/1651 ok; bp -43/+36/+10 FAIL; return -37.7%/+87.6%/+5.6% FAIL; stress -24.9 bp FAIL; mean +1.1 vs placebo p95 -6.0 bp ok
+
+m6-breadth5-tf1h4h-seed2 [8d939f2cc5e2] limit L(1+0.05u), exit E1, pct>=0.8, tf 1h/4h, 10 slots
+  source: M6 breadth5 rule tf1h4h, run breadth5-20261113T114150Z, seed 2; selected candidates 2022-24 42439; 3.0s (book 0.06s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022       1200  0.57     -57.1  0.46   -52.2% -55.4%    11.9    +38 |   -84.6
+  2023       1572  0.53     +49.5  0.53  +107.9% -27.5%    13.1    +64 |   +32.8
+  2024       1705  0.55     +29.4  0.51   +50.6% -34.2%    15.0    +34 |   +10.6
+  2022-24    4477  0.55     +13.3  0.50   +49.7% -55.4%    13.5    +46   (pooled)
+  per tf 2022-24 (trades/bp): 1h 3445/+4, 4h 1032/+43
+  mean bp (of yearly) +7.2; stress -13.7; placebo mean -11.6, p95 -6.1; day-bootstrap 95% CI [-17.5, +32.2]; without 5 best days -1.3
+  without each year's best trade -63/+48/+25 bp: FRAGILE
+  rank value +35.4% (worst year -52.2%); verdict: fails -- trades 1200/1572/1705 ok; bp -57/+50/+29 FAIL; return -52.2%/+107.9%/+50.6% FAIL; stress -13.7 bp FAIL; mean +7.2 vs placebo p95 -6.1 bp ok
+
+m6-breadth5-tf1h4h-seed3 [c3302c321e00] limit L(1+0.05u), exit E1, pct>=0.8, tf 1h/4h, 10 slots
+  source: M6 breadth5 rule tf1h4h, run breadth5-20261113T114150Z, seed 3; selected candidates 2022-24 46187; 3.0s (book 0.06s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        677  0.64     -76.0  0.41   -44.5% -46.3%    13.3    +60 |  -102.3
+  2023       1463  0.54     +52.7  0.54  +105.0% -25.8%    15.0    +60 |   +24.5
+  2024       1634  0.56     +16.5  0.49   +20.0% -46.6%    13.1    +47 |    -7.4
+  2022-24    3774  0.56     +13.9  0.49   +36.5% -46.6%    13.8    +54   (pooled)
+  per tf 2022-24 (trades/bp): 1h 2853/-6, 4h 921/+74
+  mean bp (of yearly) -2.3; stress -28.4; placebo mean -16.3, p95 -11.1; day-bootstrap 95% CI [-46.3, +39.3]; without 5 best days -18.2
+  without each year's best trade -97/+50/+14 bp: FRAGILE
+  rank value +26.8% (worst year -44.5%); verdict: fails -- trades 677/1463/1634 ok; bp -76/+53/+17 FAIL; return -44.5%/+105.0%/+20.0% FAIL; stress -28.4 bp FAIL; mean -2.3 vs placebo p95 -11.1 bp ok
+
+m6-breadth5-tf1h4h-seed4 [7556c0715f68] limit L(1+0.05u), exit E1, pct>=0.8, tf 1h/4h, 10 slots
+  source: M6 breadth5 rule tf1h4h, run breadth5-20261113T114150Z, seed 4; selected candidates 2022-24 43771; 3.0s (book 0.06s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022        752  0.65     -97.5  0.42   -54.8% -54.8%    11.6    +27 |  -121.0
+  2023       1926  0.56     +15.2  0.49   +28.6% -39.6%    12.1    +38 |    -6.1
+  2024       1818  0.54     +33.0  0.51   +68.1% -31.5%    12.7    +50 |   +10.0
+  2022-24    4496  0.56      +3.6  0.49    -2.4% -62.6%    12.3    +41   (pooled)
+  per tf 2022-24 (trades/bp): 1h 3699/-1, 4h 797/+23
+  mean bp (of yearly) -16.4; stress -39.0; placebo mean -15.8, p95 -11.1; day-bootstrap 95% CI [-49.2, +11.2]; without 5 best days -22.7
+  without each year's best trade -101/+14/+28 bp: FRAGILE
+  rank value +13.9% (worst year -54.8%); verdict: fails -- trades 752/1926/1818 ok; bp -97/+15/+33 FAIL; return -54.8%/+28.6%/+68.1% FAIL; stress -39.0 bp FAIL; mean -16.4 vs placebo p95 -11.1 bp FAIL
+
+m6-breadth5-tf1h4h per-seed rank values: seed 0 +10.12%, seed 1 +18.49%, seed 2 +35.43%, seed 3 +26.84%, seed 4 +13.95%; mean +20.96%; spread (max - min) 25.31 pp
+
+m6-breadth5-slots20 [9723fa2e64c6] limit L(1+0.05u), exit E1, pct>=0.8, 20 slots
+  source: M6 breadth5 rule slots20, seed mean of 5, run breadth5-20261113T114150Z; selected candidates 2022-24 45750; 2.9s (book 0.05s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022       1209  0.61     -59.4  0.45   -33.3% -41.6%    32.5    +55 |   -77.7
+  2023       2102  0.53    +114.7  0.57  +206.5% -16.9%    27.6    +97 |   +90.6
+  2024       2154  0.54     +77.6  0.53   +96.2% -35.0%    40.3    +82 |   +53.0
+  2022-24    5465  0.55     +61.5  0.53  +300.9% -41.6%    33.7    +82   (pooled)
+  per tf 2022-24 (trades/bp): 1h 3900/+11, 4h 1197/+100, 1d 238/+523, 1w 109/+463, 1M 21/+12
+  mean bp (of yearly) +44.3; stress +22.0; placebo mean -8.2, p95 -2.6; day-bootstrap 95% CI [-1.3, +89.3]; without 5 best days +22.8
+  without each year's best trade -65/+106/+64 bp: FRAGILE
+  rank value +89.8% (worst year -33.3%); verdict: fails -- trades 1209/2102/2154 ok; bp -59/+115/+78 FAIL; return -33.3%/+206.5%/+96.2% FAIL; stress +22.0 bp ok; mean +44.3 vs placebo p95 -2.6 bp ok
+
+m6-breadth5-slots20-seed0 [5a435f4abe3b] limit L(1+0.05u), exit E1, pct>=0.8, 20 slots
+  source: M6 breadth5 rule slots20, run breadth5-20261113T114150Z, seed 0; selected candidates 2022-24 47934; 3.0s (book 0.05s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022       1241  0.62    -113.5  0.45   -57.3% -62.7%    36.9    +22 |  -137.7
+  2023       2279  0.53     +57.2  0.53   +78.5% -20.2%    24.2    +67 |   +38.1
+  2024       2381  0.56     +61.2  0.52   +68.4% -43.7%    43.1    +34 |   +42.3
+  2022-24    5901  0.56     +22.9  0.51   +28.3% -62.7%    34.5    +44   (pooled)
+  per tf 2022-24 (trades/bp): 1h 4114/-2, 4h 1390/+48, 1d 249/+533, 1w 125/-466, 1M 23/+99
+  mean bp (of yearly) +1.6; stress -19.1; placebo mean -24.0, p95 -17.4; day-bootstrap 95% CI [-47.1, +47.5]; without 5 best days -19.0
+  without each year's best trade -117/+53/+49 bp: FRAGILE
+  rank value +29.9% (worst year -57.3%); verdict: fails -- trades 1241/2279/2381 ok; bp -113/+57/+61 FAIL; return -57.3%/+78.5%/+68.4% FAIL; stress -19.1 bp FAIL; mean +1.6 vs placebo p95 -17.4 bp ok
+
+m6-breadth5-slots20-seed1 [1cc80cba9fda] limit L(1+0.05u), exit E1, pct>=0.8, 20 slots
+  source: M6 breadth5 rule slots20, run breadth5-20261113T114150Z, seed 1; selected candidates 2022-24 56026; 3.1s (book 0.06s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022       1433  0.59    -101.2  0.45   -60.2% -66.4%    49.2    +17 |  -129.2
+  2023       2901  0.54     +53.8  0.54  +108.2% -22.4%    24.4    +51 |   +34.7
+  2024       2481  0.57     +29.6  0.51   +17.0% -49.2%    36.4    +30 |   +13.2
+  2022-24    6815  0.56     +12.4  0.51    -3.1% -66.4%    34.0    +36   (pooled)
+  per tf 2022-24 (trades/bp): 1h 5022/+6, 4h 1338/+43, 1d 283/+289, 1w 124/-191, 1M 48/-1277
+  mean bp (of yearly) -5.9; stress -27.1; placebo mean -19.1, p95 -13.4; day-bootstrap 95% CI [-44.6, +33.9]; without 5 best days -22.1
+  without each year's best trade -105/+47/+26 bp: FRAGILE
+  rank value +21.7% (worst year -60.2%); verdict: fails -- trades 1433/2901/2481 ok; bp -101/+54/+30 FAIL; return -60.2%/+108.2%/+17.0% FAIL; stress -27.1 bp FAIL; mean -5.9 vs placebo p95 -13.4 bp ok
+
+m6-breadth5-slots20-seed2 [e6200e87f1be] limit L(1+0.05u), exit E1, pct>=0.8, 20 slots
+  source: M6 breadth5 rule slots20, run breadth5-20261113T114150Z, seed 2; selected candidates 2022-24 46983; 3.0s (book 0.05s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022       1698  0.58     -99.3  0.45   -61.2% -64.2%    29.7    +39 |  -128.3
+  2023       2412  0.52     +96.9  0.55  +193.3% -26.9%    23.2    +85 |   +76.0
+  2024       2552  0.55     +59.5  0.51   +72.0% -46.2%    34.0    +51 |   +38.6
+  2022-24    6662  0.55     +32.6  0.51   +95.5% -64.2%    29.0    +60   (pooled)
+  per tf 2022-24 (trades/bp): 1h 4739/+13, 4h 1551/+66, 1d 269/+447, 1w 91/-606, 1M 12/-1192
+  mean bp (of yearly) +19.1; stress -4.6; placebo mean -19.2, p95 -13.1; day-bootstrap 95% CI [-20.7, +58.0]; without 5 best days -2.9
+  without each year's best trade -108/+89/+48 bp: FRAGILE
+  rank value +68.0% (worst year -61.2%); verdict: fails -- trades 1698/2412/2552 ok; bp -99/+97/+60 FAIL; return -61.2%/+193.3%/+72.0% FAIL; stress -4.6 bp FAIL; mean +19.1 vs placebo p95 -13.1 bp ok
+
+m6-breadth5-slots20-seed3 [63ddde06f1fc] limit L(1+0.05u), exit E1, pct>=0.8, 20 slots
+  source: M6 breadth5 rule slots20, run breadth5-20261113T114150Z, seed 3; selected candidates 2022-24 52448; 3.0s (book 0.05s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022       1131  0.64     -70.1  0.42   -36.2% -40.2%    15.5    +69 |  -100.4
+  2023       2369  0.53     +60.1  0.54   +98.3% -28.8%    25.7    +62 |   +34.5
+  2024       2302  0.56     +47.3  0.51   +40.5% -50.1%    46.7    +52 |   +15.2
+  2022-24    5802  0.56     +29.6  0.50   +77.7% -50.1%    32.0    +59   (pooled)
+  per tf 2022-24 (trades/bp): 1h 4083/+2, 4h 1357/+75, 1d 255/+225, 1w 62/+0, 1M 45/+110
+  mean bp (of yearly) +12.4; stress -16.9; placebo mean -8.0, p95 -2.9; day-bootstrap 95% CI [-32.1, +55.6]; without 5 best days -4.0
+  without each year's best trade -83/+56/+39 bp: FRAGILE
+  rank value +34.2% (worst year -36.2%); verdict: fails -- trades 1131/2369/2302 ok; bp -70/+60/+47 FAIL; return -36.2%/+98.3%/+40.5% FAIL; stress -16.9 bp FAIL; mean +12.4 vs placebo p95 -2.9 bp ok
+
+m6-breadth5-slots20-seed4 [c811429b2649] limit L(1+0.05u), exit E1, pct>=0.8, 20 slots
+  source: M6 breadth5 rule slots20, run breadth5-20261113T114150Z, seed 4; selected candidates 2022-24 49689; 3.0s (book 0.05s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022       1230  0.65     -75.3  0.43   -40.1% -44.3%    13.5    +55 |   -98.2
+  2023       2795  0.54     +45.5  0.51   +75.9% -23.7%    28.4    +42 |   +16.8
+  2024       2646  0.54     +82.3  0.52  +143.0% -35.3%    35.3    +72 |   +60.2
+  2022-24    6671  0.55     +37.8  0.50  +156.0% -44.3%    28.4    +56   (pooled)
+  per tf 2022-24 (trades/bp): 1h 5140/+7, 4h 1157/+15, 1d 259/+304, 1w 93/+1251, 1M 22/+197
+  mean bp (of yearly) +17.5; stress -7.1; placebo mean -6.0, p95 -3.0; day-bootstrap 95% CI [-19.3, +54.2]; without 5 best days +1.0
+  without each year's best trade -78/+43/+71 bp: FRAGILE
+  rank value +59.6% (worst year -40.1%); verdict: fails -- trades 1230/2795/2646 ok; bp -75/+46/+82 FAIL; return -40.1%/+75.9%/+143.0% FAIL; stress -7.1 bp FAIL; mean +17.5 vs placebo p95 -3.0 bp ok
+
+m6-breadth5-slots20 per-seed rank values: seed 0 +29.86%, seed 1 +21.67%, seed 2 +68.01%, seed 3 +34.19%, seed 4 +59.59%; mean +42.66%; spread (max - min) 46.34 pp
+
+m6-breadth5-tf1d [96336bdd3d33] limit L(1+0.05u), exit E1, pct>=0.8, tf 1d, 10 slots
+  source: M6 breadth5 rule tf1d, seed mean of 5, run breadth5-20261113T114150Z; selected candidates 2022-24 4215; 0.6s (book 0.02s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022         12  0.58    -838.2  0.00    -9.9% -13.1%   192.0    +68 |  -864.3
+  2023         95  0.37    +649.9  0.58   +76.0% -15.9%   192.0   +359 |  +607.8
+  2024        100  0.51    +392.8  0.43   +33.1% -24.1%   192.0   +283 |  +373.0
+  2022-24     207  0.46    +439.5  0.47  +111.2% -24.1%   192.0   +305   (pooled)
+  per tf 2022-24 (trades/bp): 1d 207/+439
+  mean bp (of yearly) +68.2; stress +38.8; placebo mean -184.2, p95 -94.9; day-bootstrap 95% CI [-335.8, +397.9]; without 5 best days -237.1
+  without each year's best trade -898/+453/+211 bp: FRAGILE
+  rank value +33.1% (worst year -9.9%); verdict: fails -- trades 12/95/100 FAIL; bp -838/+650/+393 FAIL; return -9.9%/+76.0%/+33.1% FAIL; stress +38.8 bp ok; mean +68.2 vs placebo p95 -94.9 bp ok
+
+m6-breadth5-tf1d-seed0 [a6bf4bd24aa0] limit L(1+0.05u), exit E1, pct>=0.8, tf 1d, 10 slots
+  source: M6 breadth5 rule tf1d, run breadth5-20261113T114150Z, seed 0; selected candidates 2022-24 3443; 0.6s (book 0.02s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022         35  0.61    -305.9  0.29   -11.0% -23.3%   192.0   +137 |  -289.4
+  2023         75  0.31    +650.1  0.61   +56.8% -20.2%   192.0   +387 |  +625.1
+  2024        136  0.54    +278.3  0.48   +23.3% -26.0%   192.0     +8 |  +253.8
+  2022-24     246  0.49    +308.5  0.49   +72.0% -26.4%   192.0   +142   (pooled)
+  per tf 2022-24 (trades/bp): 1d 246/+309
+  mean bp (of yearly) +207.5; stress +196.5; placebo mean -158.2, p95 -11.5; day-bootstrap 95% CI [-103.4, +604.4]; without 5 best days -41.2
+  without each year's best trade -407/+542/+223 bp: FRAGILE
+  rank value +23.0% (worst year -11.0%); verdict: fails -- trades 35/75/136 FAIL; bp -306/+650/+278 FAIL; return -11.0%/+56.8%/+23.3% FAIL; stress +196.5 bp ok; mean +207.5 vs placebo p95 -11.5 bp ok
+
+m6-breadth5-tf1d-seed1 [df7473ecfa83] limit L(1+0.05u), exit E1, pct>=0.8, tf 1d, 10 slots
+  source: M6 breadth5 rule tf1d, run breadth5-20261113T114150Z, seed 1; selected candidates 2022-24 4914; 0.6s (book 0.02s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022         51  0.65     -50.2  0.35    -4.5% -21.9%   192.0    +31 |  -150.1
+  2023        106  0.48    +245.0  0.55   +28.2% -21.5%   192.0    +44 |  +234.1
+  2024        126  0.53    +135.2  0.38    +2.2% -41.0%   192.0   -153 |  +152.1
+  2022-24     283  0.52    +142.9  0.44   +25.0% -41.0%   192.0    -46   (pooled)
+  per tf 2022-24 (trades/bp): 1d 283/+143
+  mean bp (of yearly) +110.0; stress +78.7; placebo mean -262.8, p95 -176.4; day-bootstrap 95% CI [-162.6, +450.0]; without 5 best days -90.9
+  without each year's best trade -155/+165/-11 bp: FRAGILE
+  rank value +8.6% (worst year -4.5%); verdict: fails -- trades 51/106/126 FAIL; bp -50/+245/+135 FAIL; return -4.5%/+28.2%/+2.2% FAIL; stress +78.7 bp ok; mean +110.0 vs placebo p95 -176.4 bp ok
+
+m6-breadth5-tf1d-seed2 [503aa906219e] limit L(1+0.05u), exit E1, pct>=0.8, tf 1d, 10 slots
+  source: M6 breadth5 rule tf1d, run breadth5-20261113T114150Z, seed 2; selected candidates 2022-24 3632; 0.6s (book 0.02s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022         23  0.70   -1149.4  0.04   -24.2% -25.1%   192.0   -224 | -1146.7
+  2023         94  0.37    +373.7  0.49   +31.6% -26.0%   192.0    +88 |  +354.6
+  2024        102  0.53    +369.4  0.53   +20.3% -24.2%   192.0   +111 |  +347.9
+  2022-24     219  0.50    +211.7  0.46   +20.1% -27.0%   192.0    +66   (pooled)
+  per tf 2022-24 (trades/bp): 1d 219/+212
+  mean bp (of yearly) -135.4; stress -148.1; placebo mean -282.4, p95 -197.0; day-bootstrap 95% CI [-547.9, +250.6]; without 5 best days -449.2
+  without each year's best trade -1235/+172/+308 bp: FRAGILE
+  rank value +9.3% (worst year -24.2%); verdict: fails -- trades 23/94/102 FAIL; bp -1149/+374/+369 FAIL; return -24.2%/+31.6%/+20.3% FAIL; stress -148.1 bp FAIL; mean -135.4 vs placebo p95 -197.0 bp ok
+
+m6-breadth5-tf1d-seed3 [ea8de69f9cef] limit L(1+0.05u), exit E1, pct>=0.8, tf 1d, 10 slots
+  source: M6 breadth5 rule tf1d, run breadth5-20261113T114150Z, seed 3; selected candidates 2022-24 3637; 0.6s (book 0.02s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022         19  0.68   -1064.8  0.00   -19.3% -25.3%   192.0    +55 | -1095.7
+  2023        111  0.42     -15.4  0.42    +3.3% -26.9%   192.0    -79 |   -25.5
+  2024        141  0.52    +246.7  0.46   +22.7% -20.7%   192.0    -16 |  +223.9
+  2022-24     271  0.49     +47.4  0.41    +2.3% -29.2%   192.0    -37   (pooled)
+  per tf 2022-24 (trades/bp): 1d 271/+47
+  mean bp (of yearly) -277.8; stress -299.1; placebo mean -235.9, p95 -100.0; day-bootstrap 95% CI [-510.5, -45.9]; without 5 best days -440.6
+  without each year's best trade -1095/-94/+202 bp: FRAGILE
+  rank value +2.2% (worst year -19.3%); verdict: fails -- trades 19/111/141 FAIL; bp -1065/-15/+247 FAIL; return -19.3%/+3.3%/+22.7% FAIL; stress -299.1 bp FAIL; mean -277.8 vs placebo p95 -100.0 bp FAIL
+
+m6-breadth5-tf1d-seed4 [7a1f197e3173] limit L(1+0.05u), exit E1, pct>=0.8, tf 1d, 10 slots
+  source: M6 breadth5 rule tf1d, run breadth5-20261113T114150Z, seed 4; selected candidates 2022-24 4955; 0.6s (book 0.02s)
+  year     trades  fill   bp/trade  win   return  maxDD  hold_h  vsBTC | stress bp
+  2022         14  0.61    -938.4  0.00   -12.7% -14.6%   192.0    +93 |  -999.4
+  2023        138  0.41    +152.4  0.51   +23.2% -19.6%   192.0    -46 |  +131.1
+  2024         93  0.50    +563.6  0.52   +40.8% -24.6%   192.0   +253 |  +534.7
+  2022-24     245  0.46    +246.1  0.48   +51.5% -24.6%   192.0    +76   (pooled)
+  per tf 2022-24 (trades/bp): 1d 245/+246
+  mean bp (of yearly) -74.2; stress -111.2; placebo mean -206.3, p95 -104.6; day-bootstrap 95% CI [-404.8, +264.5]; without 5 best days -317.4
+  without each year's best trade -964/+123/+449 bp: FRAGILE
+  rank value +17.1% (worst year -12.7%); verdict: fails -- trades 14/138/93 FAIL; bp -938/+152/+564 FAIL; return -12.7%/+23.2%/+40.8% FAIL; stress -111.2 bp FAIL; mean -74.2 vs placebo p95 -104.6 bp ok
+
+m6-breadth5-tf1d per-seed rank values: seed 0 +23.03%, seed 1 +8.59%, seed 2 +9.26%, seed 3 +2.24%, seed 4 +17.11%; mean +12.05%; spread (max - min) 20.80 pp
