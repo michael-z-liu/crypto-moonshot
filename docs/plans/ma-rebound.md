@@ -3,8 +3,8 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `worktree-bridge-cse_015bssAVNSvc6d3Ch9Adf7UE` (created by the desktop app; kept)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-13T13:51Z
-- **Last report to the user:** 2026-11-13T12:51Z (chat, after the second usage limit)
+- **Updated:** 2026-11-13T14:02Z
+- **Last report to the user:** 2026-11-13T14:02Z (holdout reveal)
 
 ## Goal
 
@@ -197,7 +197,7 @@ The user asked to be told that things are moving, at most every few hours unless
 - **Worker:** sonnet, finished by the master
 - **Commits:** af31463, e2c6411, 94ab490
 
-### M6: Finalists, pick and reveal (in progress)
+### M6: Finalists, pick and reveal (done)
 
 - **Delivers:** finalists with 5 seeds, `results/M6_pick.md` committed and pushed before the
   reveal, then `results/M6.md` with 2025-26 for every row, the bootstrap CI, the rank correlation
@@ -205,9 +205,10 @@ The user asked to be told that things are moving, at most every few hours unless
 - **Done when:** the pick's commit precedes the reveal commit on the pushed branch; the reveal
   table covers every ledger row; the check command passes.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** 0777268, 088cc22, f2221cb, 6d0d4ff, cb32ed5, 849cab2 (pick record, pushed in
+  5cf2ca2 before the reveal), e7953a2, 2072178 (reveal)
 
-### M7: Report and hand-off (todo)
+### M7: Report and hand-off (in progress)
 
 - **Delivers:** `docs/research/ma-rebound.md`, an updated `research/README.md`, the PR.
 - **Done when:** the report states what held up and what did not, with caveats; the check command
@@ -360,6 +361,20 @@ The user asked to be told that things are moving, at most every few hours unless
   2022-24 rank, so biased upward by selection, `m6-breadth5-base` (top base-rule row) and
   `m6-otherma5-pct0.9` (top of all 25 rows). The 2025-26 summary number per row is the mean of
   the 2025 and 2026 book returns (2026 ends 2026-11-02), next to the pooled 2025-26 figures.
+
+- 2026-11-13 (M6b): accepted; `research/ma_rebound/results/M6.md`. The holdout was opened once, after
+  the pick record was pushed (5cf2ca2 precedes 2072178). **No pick, nothing confirmed.**
+  - The protocol's finalist `m6-base5-base` lost in both years: 2025 -32 bp per trade and -36.1%;
+    2026 (to 11-02) -12 bp and -15.1%; pooled -23 bp (CI -65 to +17), -45.8%; all 5 seeds lost.
+  - Every candidate, same rule: -45 bp, -86.7% and -73.1%. The model loses less but still loses.
+  - Of 54 scored rows, 5 were positive in 2025, 6 in 2026, 2 in both (two 1d-only rules with about
+    60 trades a year, one resting on five trades).
+  - Spearman of the 2022-24 rank with 2025-26: +0.43 over all rows, -0.13 within the M6 rows.
+  - DSR over 54 trials: finalist 0.04; the best row 0.80.
+  - No model, 2025-26: every limit fill -70 bp (2025) and -34 bp (2026); daily MAs -167 bp against
+    +366 bp in 2020-24; study minus placebo MAs -4 bp (CI -10 to +3).
+  - The master checked the finalist's and the comparator's 2025 and 2026 numbers against their
+    sealed files.
 
 ## Blocked on
 
