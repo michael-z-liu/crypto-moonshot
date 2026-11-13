@@ -1,0 +1,7 @@
+variant,bp_2022,bp_2023,bp_2024,mean_bp,worst_bp,cost06_bp,late_bp,ex5_bp,ci_lo,ci_hi,trades_yr,qualifies,fragile,reasons
+path_all,162.16,219.08,74.83,152.02,74.83,121.11,88.79,85.13,69.29,235.52,239.7,true,false,c1 yearly bp +162/+219/+75 all > 0; c2 0.6% cost mean +121.1 bp > 0; c3 one candle late mean +88.8 bp > 0; c4 mean +152.0 vs placebo p95 -65.8 bp beats
+ens3,54.9,293.59,98.94,149.15,54.9,118.74,87.49,98.81,57.0,248.6,164.3,true,true,c1 yearly bp +55/+294/+99 all > 0; c2 0.6% cost mean +118.7 bp > 0; c3 one candle late mean +87.5 bp > 0; c4 mean +149.1 vs placebo p95 -60.7 bp beats
+S4:ctx,268.02,218.34,78.85,188.4,78.85,159.2,111.41,111.53,97.33,280.27,225.7,true,false,c1 yearly bp +268/+218/+79 all > 0; c2 0.6% cost mean +159.2 bp > 0; c3 one candle late mean +111.4 bp > 0; c4 mean +188.4 vs placebo p95 -61.5 bp beats
+S4:long7d,158.79,228.87,32.11,139.92,32.11,109.55,65.9,81.01,52.17,221.39,212.3,true,false,c1 yearly bp +159/+229/+32 all > 0; c2 0.6% cost mean +109.6 bp > 0; c3 one candle late mean +65.9 bp > 0; c4 mean +139.9 vs placebo p95 -70.1 bp beats
+S4:m1last,90.08,193.96,71.47,118.5,71.47,88.19,67.7,50.04,6.22,221.0,261.7,true,true,c1 yearly bp +90/+194/+71 all > 0; c2 0.6% cost mean +88.2 bp > 0; c3 one candle late mean +67.7 bp > 0; c4 mean +118.5 vs placebo p95 -64.6 bp beats
+S4:inputs_all,153.21,184.56,48.1,128.62,48.1,97.49,73.55,57.85,11.81,227.0,239.7,true,false,c1 yearly bp +153/+185/+48 all > 0; c2 0.6% cost mean +97.5 bp > 0; c3 one candle late mean +73.6 bp > 0; c4 mean +128.6 vs placebo p95 -65.8 bp beats

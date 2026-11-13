@@ -1,0 +1,11 @@
+S3:allch_xs [cd4f381c9e31] pct>=0.98, 5 slots, sizing EqualSlots(slots=5), hold 1:00:00, fee 0.001 slip 0.0005 lat 0 per side
+  candidates 2022-24 25194, 23s
+  year  trades     bp   win     pnl$    ret%    dd%  | bp 0.6%  bp late
+  2022     395 +126.3  0.56    +6741   +67.4  -25.7  |   +96.0    +76.9
+  2023     242 +155.5  0.62   +17586  +105.7   -6.0  |  +125.0    +66.8
+  2024     283  +65.4  0.64   +13519   +38.9  -17.0  |   +35.2    +23.6
+  mean 2022-24 +115.7 bp (worst year +65.4); 0.6% +85.4; late +55.7
+  placebo mean -80.2, p95 -70.3; day-bootstrap 95% CI [+52.6, +184.3]; without 5 best days +66.4
+  without each year's best trade +34/+147/+61 bp: not fragile
+  verdict: QUALIFIES -- c1 yearly bp +126/+155/+65 all > 0; c2 0.6% cost mean +85.4 bp > 0; c3 one candle late mean +55.7 bp > 0; c4 mean +115.7 vs placebo p95 -70.3 bp beats
+  source: m12_cnn_wf allch_xs {'channels': (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 'seq': 96, 'target': 'y1h', 'loss': 'xs', 'arch': 'cnn', 'scalars': ('liq',), 'universe': 'all', 'seeds': 2, 'epochs': 6, 'width': 1} folds yearly (cache_all/wf/allch_xs.npz)

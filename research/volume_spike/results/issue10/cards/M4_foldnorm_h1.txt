@@ -1,0 +1,11 @@
+M4:foldnorm:h1 [b678cfb3d5c4] pct>=0.98, 5 slots, sizing CashCapped(slots=5), hold 1:00:00, fee 0.001 slip 0.0005 lat 0.0005 per side
+  candidates 2022-24 23006, 13s
+  year  trades     bp   win     pnl$    ret%    dd%  | bp 0.6%  bp late
+  2022     306 +140.5  0.55    +3069   +30.7  -36.7  |  +110.1   +121.7
+  2023     101 +327.3  0.72   +11513   +88.1   -2.1  |  +296.4   +128.2
+  2024     299  +44.6  0.57    +6282   +25.6  -26.0  |   +14.5     +6.8
+  mean 2022-24 +170.8 bp (worst year +44.6); 0.6% +140.3; late +85.6
+  placebo mean -96.3, p95 -84.9; day-bootstrap 95% CI [+82.5, +262.8]; without 5 best days +108.5
+  without each year's best trade +22/+308/+31 bp: not fragile
+  verdict: QUALIFIES -- c1 yearly bp +141/+327/+45 all > 0; c2 0.6% cost mean +140.3 bp > 0; c3 one candle late mean +85.6 bp > 0; c4 mean +170.8 vs placebo p95 -84.9 bp beats
+  source: i10_train foldnorm {'base': {'channels': (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 'seq': 96, 'target': 'path', 'loss': 'quantile', 'arch': 'cnn', 'scalars': ('liq',), 'universe': 'all', 'seeds': 3, 'epochs': 6, 'width': 1}, 'select': 'corr', 'patience': 2, 'fixed_epochs': 6, 'top_frac': 0.02, 'hold': 'y1h', 'select_head': 'h1', 'weight': 'none', 'tail_k': 3.0, 'half_life': 1.0, 'window_years': None, 'norm': 'fold', 'volscale': False, 'vol_floor': 0.001, 'target_offset': None} (cache_all/wf_i10/foldnorm.npz pct)

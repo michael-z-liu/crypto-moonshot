@@ -1,0 +1,11 @@
+M4:xs_univ:h1 [f5613faafb58] pct>=0.98, 5 slots, sizing CashCapped(slots=5), hold 1:00:00, fee 0.001 slip 0.0005 lat 0.0005 per side
+  candidates 2022-24 15127, 35s
+  year  trades     bp   win     pnl$    ret%    dd%  | bp 0.6%  bp late
+  2022     639  +78.2  0.56    +5700   +57.0  -33.0  |   +48.0    +18.0
+  2023     721  +41.4  0.58   +11361   +72.4  -17.9  |   +11.3     -8.8
+  2024     918   +3.7  0.55     -414    -1.5  -37.2  |   -26.3    -11.6
+  mean 2022-24 +41.1 bp (worst year +3.7); 0.6% +11.0; late -0.8
+  placebo mean -79.8, p95 -71.3; day-bootstrap 95% CI [+7.0, +76.3]; without 5 best days +17.0
+  without each year's best trade +21/+38/-3 bp: FRAGILE
+  verdict: fails -- c1 yearly bp +78/+41/+4 all > 0; c2 0.6% cost mean +11.0 bp > 0; c3 one candle late mean -0.8 bp <= 0; c4 mean +41.1 vs placebo p95 -71.3 bp beats
+  source: i10_train xs_univ {'base': {'channels': (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12), 'seq': 96, 'target': 'path', 'loss': 'quantile', 'arch': 'cnn', 'scalars': ('liq',), 'universe': 'all', 'seeds': 3, 'epochs': 6, 'width': 1}, 'select': 'corr', 'patience': 2, 'fixed_epochs': 6, 'top_frac': 0.02, 'hold': 'y1h', 'select_head': 'h1', 'weight': 'none', 'tail_k': 3.0, 'half_life': 1.0, 'window_years': None, 'norm': 'frozen', 'volscale': False, 'vol_floor': 0.001, 'target_offset': 'wf_i10/univ_fwd.npy'} (cache_all/wf_i10/xs_univ.npz pct)
