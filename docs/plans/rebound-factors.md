@@ -109,7 +109,7 @@ of the three years, and the 10%-stop book's return is positive and above the ran
 
 ## Milestones
 
-### M1: Coin-day panel and labels (todo)
+### M1: Coin-day panel and labels (in progress)
 
 - **Delivers:** `research/rebound_factors/` with `common.py`, the cache link and `.gitignore`
   entries; `build_panel.py` writing the eligible entries with `P`; `build_labels.py` writing
