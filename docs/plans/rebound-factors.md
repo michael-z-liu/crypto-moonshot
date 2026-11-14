@@ -3,8 +3,8 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/rebound-factors` (stacked on PR #14's head; the study code it reuses is not on `main` yet)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-14T14:25Z
-- **Last report to the user:** 2026-11-14T11:20Z (build started)
+- **Updated:** 2026-11-14T14:50Z
+- **Last report to the user:** 2026-11-14T14:50Z (M5 reveal)
 
 ## Goal
 
@@ -152,15 +152,15 @@ of the three years, and the 10%-stop book's return is positive and above the ran
 - **Worker:** opus
 - **Commits:** 689be9e, 2121fbe, f854905, f59204e
 
-### M5: Reveal on 2024-26 (in progress)
+### M5: Reveal on 2024-26 (done)
 
 - **Delivers:** `m5_confirm.py` reading the spec and the sealed labels once; `results/m5_*.md`.
 - **Done when:** results are committed exactly as they come out; the verdict against the
   protocol's *Confirmed* rule is stated; the check command passes.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** 25c126e
 
-### M6: Report and dashboard (todo)
+### M6: Report and dashboard (in progress)
 
 - **Delivers:** `docs/research/rebound-factors.md`, a row in `research/README.md`, a "Factors" tab
   on the session dashboard, the PR.
@@ -218,6 +218,12 @@ of the three years, and the 10%-stop book's return is positive and above the ran
   is small and compounding book returns are not realistic.
 - 2026-11-14 (M5 brief): alongside the protocol's book, M5 reports a fixed-stake book ($1,000 per
   slot, no compounding) and the picks' daily volume. The Confirmed rule is unchanged.
+
+- 2026-11-14 (M5): **not confirmed.** On 2024-26 the picks' hit10 beat same-day random in all three
+  years (23.3% against a random 95th percentile of 21.3%; base 20.0%), but the edge is a third of
+  discovery's and the 10%-stop book lost 44.7% (random median -78.8%). Mean net return per trade
+  +0.2% (month bootstrap -1.6..+2.4), -0.4% under stress. Both factors kept their sign but
+  shrank: low liquidity +5.7 pp to +1.2 pp, deep drawdown +3.1 pp to +1.6 pp.
 
 ## Blocked on
 
