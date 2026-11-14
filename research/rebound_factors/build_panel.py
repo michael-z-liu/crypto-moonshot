@@ -47,15 +47,15 @@ from common import (
     universe,
 )
 
-PANEL_SCHEMA = {
-    "symbol": pl.String,
-    "d_us": pl.Int64,
+PANEL_SCHEMA: dict[str, pl.DataType] = {
+    "symbol": pl.String(),
+    "d_us": pl.Int64(),
     "D": pl.Datetime("us", "UTC"),
-    "P": pl.Float64,
-    "liq": pl.Float64,
-    "days_listed": pl.Int32,
-    "year": pl.Int32,
-    "split": pl.String,
+    "P": pl.Float64(),
+    "liq": pl.Float64(),
+    "days_listed": pl.Int32(),
+    "year": pl.Int32(),
+    "split": pl.String(),
 }
 
 
@@ -96,7 +96,7 @@ def panel_rows(
     )
     ts = pl.from_epoch(pl.col("d_us"), time_unit="us").dt.replace_time_zone("UTC")
     df = df.with_columns(D=ts, year=ts.dt.year().cast(pl.Int32), split=split_expr())
-    return df.select(list(PANEL_SCHEMA)).cast(PANEL_SCHEMA)
+    return df.select(list(PANEL_SCHEMA)).cast(pl.Schema(PANEL_SCHEMA))
 
 
 def coin_panel(symbol: str) -> pl.DataFrame:
