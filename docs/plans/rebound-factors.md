@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/rebound-factors` (stacked on PR #14's head; the study code it reuses is not on `main` yet)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-14T12:40Z
+- **Updated:** 2026-11-14T14:25Z
 - **Last report to the user:** 2026-11-14T11:20Z (build started)
 
 ## Goal
@@ -143,16 +143,16 @@ of the three years, and the 10%-stop book's return is positive and above the ran
 - **Worker:** sonnet
 - **Commits:** c4680a6
 
-### M4: Combined model and frozen spec (in progress)
+### M4: Combined model and frozen spec (done)
 
 - **Delivers:** `m4_model.py` (walk-forward GBM, seeds, the simple rule, pick rule and book on
   discovery), `results/m4_*.md`, and `results/spec.json` with the frozen choice.
 - **Done when:** walk-forward results by year and seed are committed; the spec is committed and
   pushed before any sealed outcome is read; the check command passes.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** 689be9e, 2121fbe, f854905, f59204e
 
-### M5: Reveal on 2024-26 (todo)
+### M5: Reveal on 2024-26 (in progress)
 
 - **Delivers:** `m5_confirm.py` reading the spec and the sealed labels once; `results/m5_*.md`.
 - **Done when:** results are committed exactly as they come out; the verdict against the
@@ -204,6 +204,20 @@ of the three years, and the 10%-stop book's return is positive and above the ran
   the within-day half), so M4 relies on the bootstrap intervals and walk-forward results.
 - 2026-11-14 (M4 brief): because the best coin factor is illiquidity, the book gets a stress run
   with 0.3% extra cost a side, and the spec must hold under it on discovery.
+
+- 2026-11-14 (M4): the gradient-boosted models did not generalise across years (pooled AUC 0.48 to
+  0.51): they learn the regime of their training years. The frozen spec is the transparent rule
+  `rule_liq_dd_nogate`, `k10_q0.95`: score = mean within-day rank of low liquidity and deep 90-day
+  drawdown, up to 10 entries a day in the top 5% of scores, no market gate, 10% stop. Discovery
+  walk-forward 2021-23: hit10 of book trades 39.7% / 33.0% / 35.4% (base 31 / 22 / 25), stress
+  mean net return per trade +4.2% (month bootstrap +2.2..+6.5).
+- 2026-11-14 (M4): caveats recorded for the report. The frozen variant was added after a first
+  run was seen (the BTC-gated rules could not reach 100 trades in 2022; in-sample score
+  percentiles were replaced by out-of-fold ones); only this variant met the choice rule. Its
+  factors were themselves found on all of 2020-23. The picks trade about $1-3M a day, so capacity
+  is small and compounding book returns are not realistic.
+- 2026-11-14 (M5 brief): alongside the protocol's book, M5 reports a fixed-stake book ($1,000 per
+  slot, no compounding) and the picks' daily volume. The Confirmed rule is unchanged.
 
 ## Blocked on
 
