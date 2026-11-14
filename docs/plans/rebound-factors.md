@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/rebound-factors` (stacked on PR #14's head; the study code it reuses is not on `main` yet)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-14T11:20Z
+- **Updated:** 2026-11-14T11:45Z
 - **Last report to the user:** 2026-11-14T11:20Z (build started)
 
 ## Goal
@@ -109,7 +109,7 @@ of the three years, and the 10%-stop book's return is positive and above the ran
 
 ## Milestones
 
-### M1: Coin-day panel and labels (in progress)
+### M1: Coin-day panel and labels (done)
 
 - **Delivers:** `research/rebound_factors/` with `common.py`, the cache link and `.gitignore`
   entries; `build_panel.py` writing the eligible entries with `P`; `build_labels.py` writing
@@ -121,9 +121,9 @@ of the three years, and the 10%-stop book's return is positive and above the ran
   discovery entries against the raw 5m candles agrees; counts per year are committed (counts only
   for 2024-26); the check command passes.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** ca71278, 6c4debe, 7db045d, cbacb74
 
-### M2: Factors (todo)
+### M2: Factors (in progress)
 
 - **Delivers:** `build_factors.py` writing about 50 factors per entry for all years to
   `cache/factors.parquet`, a factor dictionary in `results/factors.md` (name, family, kind,
@@ -176,6 +176,16 @@ of the three years, and the 10%-stop book's return is positive and above the ran
   scan showed the touch carries no information, and daily entries make market and coin factors
   easy to separate.
 - 2026-11-14: branch stacked on PR #14's head because `research/ma_rebound/` is not on `main`.
+
+- 2026-11-14 (M1): 592,347 entries, 576 coins; discovery 282,923, confirm 299,711. Discovery base
+  rates of hit10 by year: 27.5%, 31.1%, 22.3%, 24.5%.
+- 2026-11-14 (M1): `P` must come from a candle in the 24 h before `D` (a coin delisted days earlier
+  is not an entry). Stops fill at the lower of the stop price and the hitting candle's open
+  (conservative on gaps). A delisting inside the window exits at the last close (`series_end`).
+- 2026-11-14 (M1): the logic tests are asserts in `check_panel.py` (`--logic-only`), not pytest:
+  each study has a top-level `common` module that `mypy src tests` cannot resolve.
+- 2026-11-14 (M1): `labels.parquet` also holds the December 2023 gap entries, whose windows reach
+  into January 2024. M3 and M4 must filter on `split == "discovery"`.
 
 ## Blocked on
 
