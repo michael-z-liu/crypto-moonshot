@@ -17,7 +17,10 @@ Pieces
   the training days) and a within-day sort on the mean of one to two coin-factor ranks. Days
   failing the gate score below every day passing it. No fitting beyond the gate threshold.
 - Score percentile (`percentile_of`): a score's position in the reference distribution, the
-  scores of the training entries, so the pick threshold is usable live.
+  scores of the training entries, so the pick threshold is usable live. For the GBM these are
+  out-of-fold scores (`oof_scores`: 4 contiguous blocks of the training period, purged 30 days
+  on each side), because in-sample scores of a boosted model are more extreme than its scores
+  on new entries (M4 run 1 used in-sample scores; see `results/m4_model.md`).
 - Pick rule (`picks`): each day, up to `k` entries with score percentile at least `q`, in score
   order, optionally only on days whose market gate holds.
 - Book (`book`): $10,000, 10 equal slots of realised equity, one position per coin, each day's
@@ -30,6 +33,7 @@ from __future__ import annotations
 
 import heapq
 import json
+from collections.abc import Hashable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -188,7 +192,7 @@ class Gate:
 class TransparentRule:
     """Gate, then sort within the day on the mean of the coin ranks (direction -1: low is good)."""
 
-    gate: Gate
+    gate: Gate | None  # None: every day passes
     coin: tuple[tuple[str, int], ...]
 
 
@@ -207,7 +211,7 @@ def gate_holds(frame: pl.DataFrame, gate: Gate, threshold: float) -> B64:
     return np.asarray(v >= threshold, dtype=np.bool_)
 
 
-def transparent_score(rule: TransparentRule, frame: pl.DataFrame, threshold: float) -> F64:
+def transparent_score(rule: TransparentRule, frame: pl.DataFrame, threshold: float | None) -> F64:
     """Coin composite in [0, 1] (mean of the oriented ranks, a null rank counts as 0.5), minus 1
     on days failing the gate, so every gated-in entry outranks every gated-out one."""
     parts = []
@@ -215,12 +219,15 @@ def transparent_score(rule: TransparentRule, frame: pl.DataFrame, threshold: flo
         r = frame[RANK_PREFIX + f].cast(pl.Float64).fill_nan(None).fill_null(0.5).to_numpy()
         parts.append(r if direction > 0 else 1.0 - r)
     comp = np.mean(parts, axis=0)
+    if rule.gate is None or threshold is None:
+        return np.asarray(comp, dtype=np.float64)
     ok = gate_holds(frame, rule.gate, threshold)
     return np.asarray(np.where(ok, comp, comp - 1.0), dtype=np.float64)
 
 
 def transparent_features(rule: TransparentRule) -> list[str]:
-    return [rule.gate.factor, *(f for f, _ in rule.coin)]
+    g = [] if rule.gate is None else [rule.gate.factor]
+    return [*g, *(f for f, _ in rule.coin)]
 
 
 # --- score percentile ------------------------------------------------------------------------
@@ -261,9 +268,10 @@ class Method:
 @dataclass
 class Scored:
     frame: pl.DataFrame  # test entries with `score`, `pct` and (when a gate is set) `gate_ok`
-    reference: F64  # training scores
+    reference: F64  # training scores (GBM: out-of-fold ensemble scores)
     gate_threshold: float | None
     models: list[Model]
+    seed_refs: F64  # (n_train, n_seeds) per-seed reference scores (GBM: out of fold)
 
 
 def score_period(
@@ -283,19 +291,65 @@ def score_period(
         assert method.settings is not None
         assert method.seeds
         models = fit_ensemble(train, method.features, method.settings, method.seeds)
-        ref = score_ensemble(models, train)
+        seed_refs = oof_scores(train, method.features, method.settings, method.seeds)
+        ref = np.asarray(seed_refs.mean(axis=1), dtype=np.float64)
         s = score_ensemble(models, test)
     else:
         assert method.transparent is not None
-        thr_t = gate_threshold(train, method.transparent.gate)
+        tg = method.transparent.gate
+        thr_t = None if tg is None else gate_threshold(train, tg)
         ref = transparent_score(method.transparent, train, thr_t)
         s = transparent_score(method.transparent, test, thr_t)
+        seed_refs = ref[:, None]
     out = test.with_columns(score=pl.Series(s), pct=pl.Series(percentile_of(ref, s)))
     thr: float | None = None
     if gate is not None:
         thr = gate_threshold(train, gate)
         out = out.with_columns(gate_ok=pl.Series(gate_holds(test, gate, thr)))
-    return Scored(frame=out, reference=ref, gate_threshold=thr, models=models)
+    return Scored(frame=out, reference=ref, gate_threshold=thr, models=models, seed_refs=seed_refs)
+
+
+N_FOLDS = 4
+
+
+def fold_of(d_us: I64, n_folds: int = N_FOLDS) -> I64:
+    """Contiguous blocks of days with about equal entry counts (entries need not be sorted)."""
+    order = np.argsort(d_us, kind="stable")
+    cut = np.zeros(len(d_us), dtype=np.int64)
+    cut[order] = np.minimum(np.arange(len(d_us)) * n_folds // max(len(d_us), 1), n_folds - 1)
+    # a day must not straddle two folds: give each day the fold of its first entry
+    days, first = np.unique(d_us[order], return_index=True)
+    day_fold = cut[order][first]
+    return np.asarray(day_fold[np.searchsorted(days, d_us)], dtype=np.int64)
+
+
+def oof_mask(d_us: I64, fold: I64, k: int) -> B64:
+    """Training rows for held-out fold k: other folds, minus a 30-day purge on each side of the
+    held-out block (their windows overlap the held-out windows)."""
+    lo = int(d_us[fold == k].min())
+    hi = int(d_us[fold == k].max())
+    return np.asarray((d_us < lo - WINDOW_US) | (d_us > hi + WINDOW_US), dtype=np.bool_)
+
+
+def oof_scores(
+    train: pl.DataFrame, features: list[str], settings: Settings, seeds: list[int]
+) -> F64:
+    """(n_train, n_seeds) out-of-fold scores of the training entries: the reference for the
+    score percentile. In-sample scores of a boosted model are more extreme than its scores on
+    new entries, so a threshold on them would be unusable live; out-of-fold scores (4 contiguous
+    blocks, purged 30 days on each side) behave like scores on new data."""
+    train = train.filter(pl.col(TARGET_COL).is_not_null())
+    d = train["d_us"].to_numpy().astype(np.int64)
+    fold = fold_of(d)
+    out = np.full((train.height, len(seeds)), np.nan)
+    for k in range(N_FOLDS):
+        held = fold == k
+        fit_rows = train.filter(pl.Series(oof_mask(d, fold, k)))
+        test_rows = train.filter(pl.Series(held))
+        for j, seed in enumerate(seeds):
+            out[held, j] = score(fit(fit_rows, features, settings, seed), test_rows)
+    assert not np.isnan(out).any()
+    return np.asarray(out, dtype=np.float64)
 
 
 # --- pick rule -------------------------------------------------------------------------------
@@ -341,7 +395,7 @@ def stressed(ret: F64, extra_cost: float) -> F64:
     return np.asarray((1.0 + ret) * (1.0 - extra_cost) / (1.0 + extra_cost) - 1.0)
 
 
-def taken_trades(d_us: I64, symbol: list[str], exit_t: I64, slots: int = SLOTS) -> B64:
+def taken_trades(d_us: I64, symbol: Sequence[Hashable], exit_t: I64, slots: int = SLOTS) -> B64:
     """Which picks the book takes, in the given order (sorted by day, then score).
 
     A pick is taken when, after freeing every position with `exit_t <= D`, fewer than `slots`
@@ -351,7 +405,7 @@ def taken_trades(d_us: I64, symbol: list[str], exit_t: I64, slots: int = SLOTS) 
     n = len(d_us)
     taken = np.zeros(n, dtype=np.bool_)
     heap: list[tuple[int, int]] = []  # (exit_t, index)
-    held: set[str] = set()
+    held: set[Hashable] = set()
     for i in range(n):
         d = int(d_us[i])
         while heap and heap[0][0] <= d:
@@ -482,7 +536,7 @@ def spec_to_json(spec: Spec) -> dict[str, Any]:
             "transparent": None
             if m.transparent is None
             else {
-                "gate": asdict(m.transparent.gate),
+                "gate": None if m.transparent.gate is None else asdict(m.transparent.gate),
                 "coin": [[f, d] for f, d in m.transparent.coin],
             },
         },
@@ -508,7 +562,7 @@ def spec_from_json(d: dict[str, Any]) -> Spec:
         transparent=None
         if t is None
         else TransparentRule(
-            gate=Gate(**t["gate"]), coin=tuple((str(f), int(x)) for f, x in t["coin"])
+            gate=_gate_from(t["gate"]), coin=tuple((str(f), int(x)) for f, x in t["coin"])
         ),
     )
     r = d["pick_rule"]

@@ -7,6 +7,7 @@
    gate), and the book (slot limit, one position per coin, a slot freeing at `exit_t`, score
    order within a day, equity compounding with realised-equity slots, the extra cost per side,
    the cash cap), and a spec round trip through json.
+   The out-of-fold folds of the score reference (contiguous, purged 30 days).
 2. Real data: for each walk-forward year the training entries' windows end before the year
    starts (also by their recorded `exit_t`), and no sealed row is anywhere: the discovery frame,
    the cached walk-forward scores and the committed results stop before 2024-01-01. The sealed
@@ -35,6 +36,8 @@ from model import (
     TransparentRule,
     add_ranks,
     book,
+    fold_of,
+    oof_mask,
     percentile_of,
     picks,
     spec_from_json,
@@ -134,6 +137,21 @@ def logic_transparent() -> None:
     s = transparent_score(rule, fr, threshold=0.5)
     want = [(0.8 + 0.6) / 2, (0.2 + 0.5) / 2, (0.8 + 0.6) / 2 - 1.0]
     check("transparent: oriented rank mean, null as 0.5, gate offset", np.allclose(s, want), str(s))
+
+
+def logic_oof() -> None:
+    d = (np.repeat(np.arange(100), 3) * DAY).astype(np.int64)
+    f = fold_of(d)
+    contiguous = bool((np.diff(f) >= 0).all()) and set(f.tolist()) == {0, 1, 2, 3}
+    one_fold_a_day = all(len(set(f[d == x].tolist())) == 1 for x in np.unique(d))
+    check("oof: 4 contiguous folds, a day in one fold", contiguous and one_fold_a_day)
+    m = oof_mask(d, f, 1)
+    lo, hi = d[f == 1].min(), d[f == 1].max()
+    gap = not bool(m[(d >= lo - WINDOW_US) & (d <= hi + WINDOW_US)].any())
+    check("oof: fold training rows purged 30 days around the held-out block", gap and bool(m.any()))
+    rule = TransparentRule(None, (("c_a", -1),))
+    s = transparent_score(rule, pl.DataFrame({"r_c_a": [0.2, 0.9]}), None)
+    check("transparent: no gate, plain oriented rank", np.allclose(s, [0.8, 0.1]))
 
 
 def logic_book() -> None:
@@ -274,6 +292,7 @@ def main() -> None:
     logic_percentile_and_train()
     logic_picks()
     logic_transparent()
+    logic_oof()
     logic_book()
     logic_spec()
     if not a.logic_only:
