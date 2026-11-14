@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/rebound-factors` (stacked on PR #14's head; the study code it reuses is not on `main` yet)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-14T12:15Z
+- **Updated:** 2026-11-14T12:40Z
 - **Last report to the user:** 2026-11-14T11:20Z (build started)
 
 ## Goal
@@ -134,16 +134,16 @@ of the three years, and the 10%-stop book's return is positive and above the ran
 - **Worker:** opus
 - **Commits:** a04da83, cf30df9, aabed04, 82ebcf6 (exclusions, master)
 
-### M3: Single-factor results on 2020-23 (in progress)
+### M3: Single-factor results on 2020-23 (done)
 
 - **Delivers:** `m3_single.py` and `results/m3_single.csv` / `.md` per the protocol, with the list
   of stable factors.
 - **Done when:** the table covers every factor and the three labels; the sealed folder is never
   opened; the check command passes.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** c4680a6
 
-### M4: Combined model and frozen spec (todo)
+### M4: Combined model and frozen spec (in progress)
 
 - **Delivers:** `m4_model.py` (walk-forward GBM, seeds, the simple rule, pick rule and book on
   discovery), `results/m4_*.md`, and `results/spec.json` with the frozen choice.
@@ -194,6 +194,16 @@ of the three years, and the 10%-stop book's return is positive and above the ran
   for all years in `build_exclusions.py`: a consecutive-candle open/close ratio beyond 3x is a
   break; entries with a break within 200 days before `D` or inside the window are excluded
   (1,661 discovery, 249 confirm). M3-M5 apply `cache/exclusions.parquet`.
+
+- 2026-11-14 (M3): on discovery (281,224 entries, base hit10 25.8%, mean net return of the 10%-stop
+  trade +1.0%): the strongest "when" factor is BTC's 30-day return (top quintile of days +9.6 pp
+  hit10, month-bootstrap 95% +3.6..+15.2); the strongest "which coin" factor is low liquidity
+  (bottom decile within the day +5.7 pp), then beaten-down coins (far below the 200-day SMA, deep
+  90-day drawdown, weak 90-day return, +3 pp). The MA-touch flag is not among the top 20. The
+  protocol's stability flag is a weak filter (a shuffled label passes 22 of 45 coin factors on
+  the within-day half), so M4 relies on the bootstrap intervals and walk-forward results.
+- 2026-11-14 (M4 brief): because the best coin factor is illiquidity, the book gets a stress run
+  with 0.3% extra cost a side, and the spec must hold under it on discovery.
 
 ## Blocked on
 
