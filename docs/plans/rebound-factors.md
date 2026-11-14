@@ -1,10 +1,10 @@
 # Rebound factors: what tells a +30% move apart before it happens?
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `feat/rebound-factors` (stacked on PR #14's head; the study code it reuses is not on `main` yet)
-- **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-14T14:50Z
-- **Last report to the user:** 2026-11-14T14:50Z (M5 reveal)
+- **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/17 (base: PR #14's branch)
+- **Updated:** 2026-11-14T16:40Z
+- **Last report to the user:** 2026-11-14T16:40Z (PR ready)
 
 ## Goal
 
@@ -160,13 +160,13 @@ of the three years, and the 10%-stop book's return is positive and above the ran
 - **Worker:** sonnet
 - **Commits:** 25c126e
 
-### M6: Report and dashboard (in progress)
+### M6: Report and dashboard (done)
 
 - **Delivers:** `docs/research/rebound-factors.md`, a row in `research/README.md`, a "Factors" tab
   on the session dashboard, the PR.
 - **Done when:** the check command passes and the PR is open.
 - **Worker:** master
-- **Commits:**
+- **Commits:** 469d857 (report); the dashboard tab lives in the session artifact, not the repo
 
 ## Decisions
 
