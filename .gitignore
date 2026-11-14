@@ -58,3 +58,6 @@ htmlcov/
 # MA-rebound study: 2025-26 results sealed until M6 (rebuilt from local scores)
 /research/ma_rebound/results/sealed/
 /research/ma_rebound/results/ledger.lock
+
+# Rebound-factors study: 2024-26 outcomes sealed until the M4 spec is pushed
+/research/rebound_factors/results/sealed/
