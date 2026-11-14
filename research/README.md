@@ -5,12 +5,14 @@ orders, and nothing in `src/` imports from here. Reusable code lives in `src/cry
 when a research idea is worth keeping, it is ported there with tests (as the backtest engine and
 the capitulation rules were).
 
-There are two lines of work:
+There are three lines of work:
 
 - `volume_spike/`: does a sudden 5-minute volume spike predict a price move, and can a strategy
   be built on it?
 - `ma_rebound/`: does a pullback to a major moving average rebound, and can a CNN pick the good
   setups? (It could not: see the report.)
+- `rebound_factors/`: which factors known at entry separate the coin-days that go on to +30%
+  within 30 days? (Two weak ones survive; not enough to trade.)
 
 ## Studies
 
@@ -26,6 +28,7 @@ scripts; the MA-rebound study stands alone.
 | Issue #10 improvements | Do the improvement ideas from issue #10 hold up? | `i10_*.py` | `docs/research/cnn-issue10.md` | `docs/plans/cnn-improvements.md` |
 | Forward paper test | How does the 2h CNN rule do on candles after every study's data end? | `paper.py` | `volume_spike/results/paper/summary.md` | `docs/plans/cnn-robustness.md` (P1) |
 | MA rebound | Does buying a pullback to a major SMA pay, and can a walk-forward CNN pick the good ones? | `ma_rebound/`: `fetch_daily.py`, `events.py` and `build_*.py`, `m2_baseline.py`, `book.py`, `scorecard.py`, `build_inputs.py`, `train.py`, `gbm.py`, `m4_score.py` .. `m6_reveal.py`, `check_*.py` | `docs/research/ma-rebound.md` | `docs/plans/ma-rebound.md` |
+| Rebound factors | Which factors tell a +30% move within 30 days apart before it happens? | `rebound_factors/`: `build_panel.py`, `build_labels.py`, `build_factors.py`, `build_exclusions.py`, `m3_single.py`, `model.py`, `m4_model.py`, `m5_confirm.py`, `check_*.py` | `docs/research/rebound-factors.md` | `docs/plans/rebound-factors.md` |
 
 Reporting: `report_data.py`, `report_wf.py`, `report_examples.py` and `report/` build the visual
 casebook (the built page and its data are gitignored); `plots.py` draws the summary charts in
