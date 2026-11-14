@@ -43,6 +43,7 @@ MA_BARS_1D = MA_CACHE / "parts" / "bars_1d"
 PANEL = CACHE / "panel.parquet"
 LABELS = CACHE / "labels.parquet"  # discovery and the unused gap only
 SEALED_LABELS = SEALED_CACHE / "labels.parquet"  # every entry with D >= 2024-01-01
+FACTORS = CACHE / "factors.parquet"  # every panel entry, all years (factors use only the past)
 
 MINUTE = 60_000_000
 FIVE = 5 * MINUTE
@@ -126,18 +127,23 @@ def universe() -> list[str]:
 # --- candles ---------------------------------------------------------------------------------
 
 CANDLE_COLS = ("open", "high", "low", "close", "quote_volume")
+FLOW_COLS = ("trade_count", "taker_buy_quote_volume")  # read with `flow=True` (M2 factors)
 
 
-def read_5m(symbol: str, end_us: int = DATA_END_US) -> pl.DataFrame:
-    """A coin's 5m candles that closed by `end_us`: `t` (open time, µs), OHLC, quote volume."""
+def read_5m(symbol: str, end_us: int = DATA_END_US, flow: bool = False) -> pl.DataFrame:
+    """A coin's 5m candles that closed by `end_us`: `t` (open time, µs), OHLC, quote volume.
+
+    With `flow`, also the trade count (as Float64) and the taker-buy quote volume.
+    """
+    cols = (*CANDLE_COLS, *FLOW_COLS) if flow else CANDLE_COLS
     folder = KLINES_5M / f"symbol={symbol}"
     files = sorted(folder.glob("*.parquet"))
     if not files:
-        schema = {"t": pl.Int64, **dict.fromkeys(CANDLE_COLS, pl.Float64)}
+        schema = {"t": pl.Int64, **dict.fromkeys(cols, pl.Float64)}
         return pl.DataFrame(schema=schema)
-    df = pl.read_parquet(files, columns=["open_time", *CANDLE_COLS])
-    df = df.with_columns(t=pl.col("open_time").dt.epoch("us")).select("t", *CANDLE_COLS)
-    return df.filter(pl.col("t") + FIVE <= end_us).sort("t")
+    df = pl.read_parquet(files, columns=["open_time", *cols])
+    df = df.with_columns(pl.col(cols).cast(pl.Float64), t=pl.col("open_time").dt.epoch("us"))
+    return df.select("t", *cols).filter(pl.col("t") + FIVE <= end_us).sort("t")
 
 
 def first_day_pre2020(symbol: str) -> int | None:
