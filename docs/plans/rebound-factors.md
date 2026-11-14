@@ -3,7 +3,7 @@
 - **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/rebound-factors` (stacked on PR #14's head; the study code it reuses is not on `main` yet)
 - **PR:** <!-- link, once opened -->
-- **Updated:** 2026-11-14T11:45Z
+- **Updated:** 2026-11-14T12:15Z
 - **Last report to the user:** 2026-11-14T11:20Z (build started)
 
 ## Goal
@@ -123,7 +123,7 @@ of the three years, and the 10%-stop book's return is positive and above the ran
 - **Worker:** opus
 - **Commits:** ca71278, 6c4debe, 7db045d, cbacb74
 
-### M2: Factors (in progress)
+### M2: Factors (done)
 
 - **Delivers:** `build_factors.py` writing about 50 factors per entry for all years to
   `cache/factors.parquet`, a factor dictionary in `results/factors.md` (name, family, kind,
@@ -132,9 +132,9 @@ of the three years, and the 10%-stop book's return is positive and above the ran
   check on real data for a sample of coins and days); coverage and basic distribution per factor
   are committed; the check command passes.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** a04da83, cf30df9, aabed04, 82ebcf6 (exclusions, master)
 
-### M3: Single-factor results on 2020-23 (todo)
+### M3: Single-factor results on 2020-23 (in progress)
 
 - **Delivers:** `m3_single.py` and `results/m3_single.csv` / `.md` per the protocol, with the list
   of stable factors.
@@ -186,6 +186,14 @@ of the three years, and the 10%-stop book's return is positive and above the ran
   each study has a top-level `common` module that `mypy src tests` cannot resolve.
 - 2026-11-14 (M1): `labels.parquet` also holds the December 2023 gap entries, whose windows reach
   into January 2024. M3 and M4 must filter on `split == "discovery"`.
+
+- 2026-11-14 (M2): 65 factors (20 market, 45 coin), all from daily bars built from the 5m candles;
+  every one passes the truncate-at-D check. Habit and `m_moon30` are no-stop analogs.
+- 2026-11-14 (M2 review): nine redenominations / token swaps (COCOS, DREP, SUN, BTCST, LUNA,
+  VIDT, BNX, QUICK, and STRAX in 2024) make false hits and false factor values. Mechanical rule
+  for all years in `build_exclusions.py`: a consecutive-candle open/close ratio beyond 3x is a
+  break; entries with a break within 200 days before `D` or inside the window are excluded
+  (1,661 discovery, 249 confirm). M3-M5 apply `cache/exclusions.parquet`.
 
 ## Blocked on
 
