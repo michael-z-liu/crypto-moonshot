@@ -18,16 +18,22 @@ from __future__ import annotations
 
 import numpy as np
 import polars as pl
-from common import CACHE, DAY, PANEL, RESULTS, WINDOW_US, read_5m, universe, utc
+from common import CACHE, DATA_END_US, DAY, PANEL, RESULTS, WINDOW_US, read_5m, universe, utc
 
 BREAK_RATIO = 3.0
 LOOKBACK_US = 200 * DAY
 EXCLUSIONS = CACHE / "exclusions.parquet"
 
 
-def breaks(symbol: str) -> list[tuple[str, int, float, float]]:
-    """(symbol, open time of the candle after the break, open / previous close, halt hours)."""
-    c = read_5m(symbol)
+def breaks(
+    symbol: str, end_us: int = DATA_END_US, c: pl.DataFrame | None = None
+) -> list[tuple[str, int, float, float]]:
+    """(symbol, open time of the candle after the break, open / previous close, halt hours).
+
+    From the coin's candles closed by `end_us`, or from the frame `c` when given (`forward.py`).
+    """
+    if c is None:
+        c = read_5m(symbol, end_us)
     if c.height < 2:
         return []
     t = c["t"].to_numpy().astype(np.int64)
@@ -37,11 +43,10 @@ def breaks(symbol: str) -> list[tuple[str, int, float, float]]:
     return [(symbol, int(t[i + 1]), float(r[i]), float((t[i + 1] - t[i]) / 3.6e9)) for i in idx]
 
 
-def main() -> None:
-    found = [b for s in universe() for b in breaks(s)]
-    br = pl.DataFrame(found, schema=["symbol", "break_t", "ratio", "halt_hours"], orient="row")
-    panel = pl.read_parquet(PANEL, columns=["symbol", "d_us", "split"])
-    ex = (
+def excluded_entries(panel: pl.DataFrame, br: pl.DataFrame) -> pl.DataFrame:
+    """The panel entries (columns symbol, d_us, split) with a break in (D - 200 d, D + 30 d];
+    `br` has `symbol` and `break_t`."""
+    return (
         panel.join(br.select("symbol", "break_t"), on="symbol")
         .filter(
             (pl.col("break_t") > pl.col("d_us") - LOOKBACK_US)
@@ -51,6 +56,13 @@ def main() -> None:
         .agg(pl.col("break_t").min())
         .sort("symbol", "d_us")
     )
+
+
+def main() -> None:
+    found = [b for s in universe() for b in breaks(s)]
+    br = pl.DataFrame(found, schema=["symbol", "break_t", "ratio", "halt_hours"], orient="row")
+    panel = pl.read_parquet(PANEL, columns=["symbol", "d_us", "split"])
+    ex = excluded_entries(panel, br)
     ex.select("symbol", "d_us", "break_t").write_parquet(EXCLUSIONS)
     lines = [
         "# Excluded entries: price-series breaks",

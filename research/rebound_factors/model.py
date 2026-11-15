@@ -495,10 +495,18 @@ def year_start_us(year: int) -> int:
     return int(datetime(year, 1, 1, tzinfo=UTC).timestamp()) * 1_000_000
 
 
-def assemble(fac: pl.DataFrame, labels: pl.DataFrame, exclusions: pl.DataFrame) -> pl.DataFrame:
+def assemble(
+    fac: pl.DataFrame,
+    labels: pl.DataFrame,
+    exclusions: pl.DataFrame,
+    require_outcome: bool = True,
+) -> pl.DataFrame:
     """The model frame: factors with within-day ranks (computed on `fac`, every panel entry of
     each day), inner-joined with `labels` on (symbol, d_us), minus the excluded entries, minus
-    entries without an outcome (`no_entry`). Sorted by day, then symbol."""
+    entries without an outcome (`no_entry`). Sorted by day, then symbol.
+
+    `require_outcome=False` keeps the entries whose label is null (`forward.py`: windows not yet
+    complete); every other step is the same."""
     _market, coin = factor_names(fac.columns)
     fac = add_ranks(
         fac.with_columns(pl.col([c for c in fac.columns if c[:2] in ("m_", "c_")]).fill_nan(None)),
@@ -507,7 +515,9 @@ def assemble(fac: pl.DataFrame, labels: pl.DataFrame, exclusions: pl.DataFrame) 
     df = labels.join(fac, on=["symbol", "d_us"], how="inner").join(
         exclusions.select("symbol", "d_us"), on=["symbol", "d_us"], how="anti"
     )
-    return df.filter(pl.col(TARGET_COL).is_not_null()).sort("d_us", "symbol")
+    if require_outcome:
+        df = df.filter(pl.col(TARGET_COL).is_not_null())
+    return df.sort("d_us", "symbol")
 
 
 # --- spec ------------------------------------------------------------------------------------

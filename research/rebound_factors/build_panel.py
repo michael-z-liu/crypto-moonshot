@@ -60,16 +60,25 @@ PANEL_SCHEMA: dict[str, pl.DataType] = {
 
 
 def panel_rows(
-    symbol: str, t: I64, close: F64, quote_volume: F64, pre_first_day: int | None
+    symbol: str,
+    t: I64,
+    close: F64,
+    quote_volume: F64,
+    pre_first_day: int | None,
+    last_d_us: int = LAST_D_US,
 ) -> pl.DataFrame:
-    """The eligible entries of one coin from its 5m candles (sorted by open time `t`)."""
+    """The eligible entries of one coin from its 5m candles (sorted by open time `t`).
+
+    `last_d_us` is the last `D` to build (default: the study's `LAST_D`); `forward.py` passes its
+    own end.
+    """
     if len(t) == 0:
         return pl.DataFrame(schema=PANEL_SCHEMA)
     day = t // DAY
     d0 = int(day[0])
     first_day = d0 if pre_first_day is None else min(d0, pre_first_day)
     lo_day = max(FIRST_D_US // DAY, first_day + MIN_DAYS_LISTED)
-    hi_day = min(LAST_D_US // DAY, int(day[-1]) + 1)  # P needs a candle in the day before D
+    hi_day = min(last_d_us // DAY, int(day[-1]) + 1)  # P needs a candle in the day before D
     if hi_day < lo_day:
         return pl.DataFrame(schema=PANEL_SCHEMA)
     daily = np.bincount(day - d0, weights=quote_volume)
