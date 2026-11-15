@@ -195,6 +195,6 @@ percentile (5th to 95th for the book) in brackets. Fixed stake: $1,000 a trade, 
 The 2023 span is 11 months (discovery `D` ends 2023-12-01) and 2026 is 9 months (confirm `D` ends
 2026-10-02). A gate that is open for a third of the days thins a rule that already trades a few
 hundred times a year: the forward test needs 100 gated trades and 180 days of complete windows,
-so it cannot read out before the end of May 2027 (210 days after 2026-11-02) even if the gate
+so it cannot read out before the end of May 2027 (data end 2027-05-30, 209 days after 2026-11-02) even if the gate
 is open all that time.
 

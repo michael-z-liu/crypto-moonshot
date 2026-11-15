@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import math
 import time
-from typing import Any
 
 import m5_confirm as m5
 import numpy as np
@@ -38,7 +37,6 @@ import polars as pl
 from build_factors import rmean
 from common import (
     CONFIRM_END_US,
-    DAY,
     DISCOVERY_END_US,
     F64,
     FACTORS,
@@ -50,7 +48,7 @@ from common import (
 )
 from m4_model import N_BOOT, SEED
 from m5_confirm import Rows, col_f, fmean, pc
-from model import STOP_VARIANTS, Spec, load_spec, picks
+from model import Spec, load_spec, picks
 
 type I8 = npt.NDArray[np.int8]
 
@@ -160,15 +158,24 @@ def arm_a(rows: Rows, scope: str, t: pl.DataFrame) -> None:
 
 def day_table(rows: Rows) -> None:
     """Days with the gate open / closed / null, per year and per period (panel days)."""
-    f = pl.read_parquet(FACTORS, columns=["d_us", GATE_FACTOR]).group_by("d_us").agg(pl.col(GATE_FACTOR).first())
+    f = (
+        pl.read_parquet(FACTORS, columns=["d_us", GATE_FACTOR])
+        .group_by("d_us")
+        .agg(pl.col(GATE_FACTOR).first())
+    )
     f = f.filter(
         (pl.col("d_us") >= FIRST_D_US)
-        & ((pl.col("d_us") <= DISCOVERY_END_US) | ((pl.col("d_us") >= SEALED_START_US) & (pl.col("d_us") <= CONFIRM_END_US)))
+        & (
+            (pl.col("d_us") <= DISCOVERY_END_US)
+            | ((pl.col("d_us") >= SEALED_START_US) & (pl.col("d_us") <= CONFIRM_END_US))
+        )
     ).sort("d_us")
     st = gate_state(col_f(f, GATE_FACTOR))
     d = f["d_us"].to_numpy().astype(np.int64)
     year = np.array([utc(int(x)).year for x in d])
-    scopes: list[tuple[str, npt.NDArray[np.bool_]]] = [(str(y), year == y) for y in (*DISC_YEARS, *CONF_YEARS)]
+    scopes: list[tuple[str, npt.NDArray[np.bool_]]] = [
+        (str(y), year == y) for y in (*DISC_YEARS, *CONF_YEARS)
+    ]
     scopes += [("2020-23", year <= 2023), ("2024-26", year >= 2024)]
     for name, m in scopes:
         rows.add("days", name, "open", float((st[m] == 1).sum()))
@@ -199,32 +206,60 @@ def arm_b(
 # --- csv -------------------------------------------------------------------------------------
 
 
-def tidy(parts: list[tuple[str, pl.DataFrame]]) -> pl.DataFrame:
+def rows_frame(r: Rows) -> pl.DataFrame:
+    """`Rows.frame()`, also for no rows."""
+    if r.rows:
+        return r.frame()
+    schema = dict.fromkeys(("table", "scope", "stop", "stress", "metric"), pl.String)
+    return pl.DataFrame(schema=schema | {"value": pl.Float64, "n": pl.Float64})
+
+
+def tidy(parts: list[tuple[str, Rows]]) -> pl.DataFrame:
+    """One tidy frame from several `Rows`, tagged with a variant name."""
     cols = ["table", "variant", "scope", "stop", "stress", "metric", "value", "n"]
-    return pl.concat(
-        [f.with_columns(variant=pl.lit(v)).select(cols) for v, f in parts]
-    )
+    return pl.concat([rows_frame(r).with_columns(variant=pl.lit(v)).select(cols) for v, r in parts])
 
 
 # --- main ------------------------------------------------------------------------------------
 
 
-def check_reproduction(spec: Spec, scored_d: pl.DataFrame, scored_c: pl.DataFrame, rows_u: Rows) -> None:
+def check_reproduction(
+    spec: Spec, scored_d: pl.DataFrame, scored_c: pl.DataFrame, rows_u: Rows
+) -> None:
     """The ungated rule must reproduce M4's discovery bands and M5's confirm results."""
     band = spec.extra["expected_band_discovery"]["per_year"]
     ungated = Rows(list(rows_u.rows)).frame()
-    look = {(r["table"], r["scope"], r["stop"], r["stress"], r["metric"]): r["value"] for r in ungated.iter_rows(named=True)}
+    look = {
+        (r["table"], r["scope"], r["stop"], r["stress"], r["metric"]): r["value"]
+        for r in ungated.iter_rows(named=True)
+    }
     for y in WF_YEARS:
         b = band[str(y)]
         assert int(look[("picks", str(y), "", "", "n_picks")]) == int(b["pick_n"]), y
         assert int(look[("trades", str(y), "10", "base", "trades")]) == int(b["trades_10_none"]), y
-        assert abs(look[("trades", str(y), "10", "base", "mean_ret")] - b["mean_ret_10_none"]) < 1e-9, y
-        assert abs(look[("book", str(y), "10", "base", "book_return")] - b["book_return_10_none"]) < 1e-9, y
-    m5csv = pl.read_csv(m5.OUT_CSV, schema_overrides={"scope": pl.String, "stop": pl.String, "stress": pl.String})
-    ref = {(r["table"], r["scope"], r["stop"] or "", r["stress"] or "", r["metric"]): r["value"] for r in m5csv.iter_rows(named=True)}
+        assert (
+            abs(look[("trades", str(y), "10", "base", "mean_ret")] - b["mean_ret_10_none"]) < 1e-9
+        ), y
+        assert (
+            abs(look[("book", str(y), "10", "base", "book_return")] - b["book_return_10_none"])
+            < 1e-9
+        ), y
+    m5csv = pl.read_csv(
+        m5.OUT_CSV, schema_overrides={"scope": pl.String, "stop": pl.String, "stress": pl.String}
+    )
+    ref = {
+        (r["table"], r["scope"], r["stop"] or "", r["stress"] or "", r["metric"]): r["value"]
+        for r in m5csv.iter_rows(named=True)
+    }
     for scope in ("2024", "2025", "2026", "overall"):
         mine = "2024-26" if scope == "overall" else scope
-        for key in (("picks", "n_picks", "", ""), ("trades", "trades", "10", "base"), ("trades", "mean_ret", "10", "base"), ("book", "book_return", "10", "base"), ("trades", "mean_ret", "10", "stress")):
+        for key in (
+            ("picks", "n_picks", "", ""),
+            ("trades", "trades", "10", "base"),
+            ("trades", "mean_ret", "10", "base"),
+            ("book", "book_return", "10", "base"),
+            ("trades", "mean_ret", "10", "stress"),
+        ):
             a = look[(key[0], mine, key[2], key[3], key[1])]
             b = ref[(key[0], scope, key[2], key[3], key[1])]
             assert abs(a - b) < 1e-6 * max(1.0, abs(b)), (scope, key, a, b)
@@ -234,7 +269,9 @@ def check_reproduction(spec: Spec, scored_d: pl.DataFrame, scored_c: pl.DataFram
 def main() -> None:
     t0 = time.perf_counter()
     spec = load_spec(m5.SPEC_JSON)
-    assert spec.rule.name == "k10_q0.95" and spec.extra["name"] == "rule_liq_dd_nogate" and spec.stop == "10"
+    assert spec.rule.name == "k10_q0.95"
+    assert spec.extra["name"] == "rule_liq_dd_nogate"
+    assert spec.stop == "10"
     df = m5.build_frame()
     disc = df.filter(pl.col("split") == "discovery")
     conf = df.filter(pl.col("split") == "confirm")
@@ -268,15 +305,17 @@ def main() -> None:
 
     out = tidy(
         [
-            ("all", rows_days.frame()),
-            ("all", rows_a.frame()),
-            ("ungated", rows_u.frame()),
-            ("gate_open", rows_g.frame()),
+            ("all", rows_days),
+            ("all", rows_a),
+            ("ungated", rows_u),
+            ("gate_open", rows_g),
         ]
     )
     out.write_csv(OUT_CSV, float_precision=6)
     write_md(out)
-    print(f"wrote {OUT_CSV.name} ({out.height} rows) and {OUT_MD.name} in {time.perf_counter() - t0:.0f}s")
+    print(
+        f"wrote {OUT_CSV.name} ({out.height} rows) and {OUT_MD.name} in {time.perf_counter() - t0:.0f}s"
+    )
 
 
 # --- markdown --------------------------------------------------------------------------------
@@ -304,12 +343,100 @@ def usd(x: float) -> str:
 class Tidy:
     def __init__(self, df: pl.DataFrame) -> None:
         self.d: dict[tuple[str, str, str, str, str, str], float] = {
-            (r["table"], r["variant"], r["scope"], r["stop"] or "", r["stress"] or "", r["metric"]): r["value"]
+            (
+                r["table"],
+                r["variant"],
+                r["scope"],
+                r["stop"] or "",
+                r["stress"] or "",
+                r["metric"],
+            ): r["value"]
             for r in df.iter_rows(named=True)
         }
 
-    def __call__(self, table: str, variant: str, scope: str, metric: str, stop: str = "", stress: str = "") -> float:
+    def __call__(
+        self, table: str, variant: str, scope: str, metric: str, stop: str = "", stress: str = ""
+    ) -> float:
         return self.d.get((table, variant, scope, stop, stress, metric), math.nan)
+
+
+ARM_A_LABELS = {
+    "hit10": "hit10 (+30% before -10%)",
+    "hit20": "hit20 (+30% before -20%)",
+    "hit_ns": "hit_ns (+30% at any time)",
+    "ret_10": "mean net return, 10% stop",
+    "ret_20": "mean net return, 20% stop",
+    "ret_ns": "mean net return, no stop",
+}
+
+
+def arm_a_table(g: Tidy, c: str, scopes: tuple[str, ...]) -> list[str]:
+    out = [
+        "| scope | entries open | entries closed | open | closed | open - closed | 95% interval |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for s in scopes:
+        out.append(
+            f"| {s} | {num(g('armA', 'all', s, 'entries_open'))} | {num(g('armA', 'all', s, 'entries_closed'))} "
+            f"| {pc(g('armA', 'all', s, f'{c}:open'))} | {pc(g('armA', 'all', s, f'{c}:closed'))} "
+            f"| {pp(g('armA', 'all', s, f'{c}:diff'))} | {ci(g('armA', 'all', s, f'{c}:diff_lo'), g('armA', 'all', s, f'{c}:diff_hi'))} |"
+        )
+    return out
+
+
+def arm_b_table(g: Tidy, scopes: tuple[str, ...]) -> list[str]:
+    out = [
+        "| scope | row | trades | hit10 of picks | mean net / trade | with 0.3% stress | month-bootstrap 95% (base) | book return | max drawdown | fixed-stake profit |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for s in scopes:
+        for v, name in (("ungated", "ungated rule"), ("gate_open", "gated rule")):
+            if math.isnan(g("picks", v, s, "hit10")):
+                out.append(f"| {s} | {name} | 0 | n/a | n/a | n/a | n/a | n/a | n/a | n/a |")
+                continue
+            out.append(
+                f"| {s} | {name} | {g('trades', v, s, 'trades', '10', 'base'):.0f} | {pc(g('picks', v, s, 'hit10'))}% "
+                f"| {pp(g('trades', v, s, 'mean_ret', '10', 'base'))}% | {pp(g('trades', v, s, 'mean_ret', '10', 'stress'))}% "
+                f"| {ci(g('trades', v, s, 'mean_ret_ci_lo', '10', 'base'), g('trades', v, s, 'mean_ret_ci_hi', '10', 'base'))}% "
+                f"| {pp(g('book', v, s, 'book_return', '10', 'base'), 0)}% | {pc(g('book', v, s, 'max_dd', '10', 'base'), 0)}% "
+                f"| {usd(g('fixed', v, s, 'profit', '10', 'base'))} |"
+            )
+        v = "gate_open"
+        if not math.isnan(g("picks", v, s, "hit10")):
+            out.append(
+                f"| {s} | random, open days | {g('random', v, s, 'trades_mean', '10', 'base'):.0f} "
+                f"| {pc(g('random', v, s, 'pick_hit10_p50'))}% ({pc(g('random', v, s, 'pick_hit10_p95'))}) "
+                f"| {pp(g('random', v, s, 'mean_ret_p50', '10', 'base'))}% ({pp(g('random', v, s, 'mean_ret_p95', '10', 'base'))}) "
+                f"| {pp(g('random', v, s, 'mean_ret_p50', '10', 'stress'))}% ({pp(g('random', v, s, 'mean_ret_p95', '10', 'stress'))}) "
+                f"| | {pp(g('random', v, s, 'book_return_p50', '10', 'base'), 0)}% ({pp(g('random', v, s, 'book_return_p5', '10', 'base'), 0)}..{pp(g('random', v, s, 'book_return_p95', '10', 'base'), 0)}) "
+                f"| {pc(g('random', v, s, 'max_dd_p50', '10', 'base'), 0)}% | |"
+            )
+    return out
+
+
+def other_stops_table(g: Tidy, scopes: tuple[str, ...]) -> list[str]:
+    out = [
+        "| scope | stop | ungated trades | ungated mean | ungated book | gated trades | gated mean | gated book | random book median (open days) |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for s in scopes:
+        for stop, nm in (("20", "20%"), ("ns", "none")):
+
+            def cell(v: str, s: str = s, stop: str = stop) -> tuple[str, str, str]:
+                if math.isnan(g("picks", v, s, "hit10")):
+                    return "0", "n/a", "n/a"
+                return (
+                    f"{g('trades', v, s, 'trades', stop, 'base'):.0f}",
+                    f"{pp(g('trades', v, s, 'mean_ret', stop, 'base'))} / {pp(g('trades', v, s, 'mean_ret', stop, 'stress'))}%",
+                    f"{pp(g('book', v, s, 'book_return', stop, 'base'), 0)}%",
+                )
+
+            u, o = cell("ungated"), cell("gate_open")
+            rnd = g("random", "gate_open", s, "book_return_p50", stop, "base")
+            out.append(
+                f"| {s} | {nm} | {u[0]} | {u[1]} | {u[2]} | {o[0]} | {o[1]} | {o[2]} | {pp(rnd, 0)}% |"
+            )
+    return out
 
 
 def write_md(df: pl.DataFrame) -> None:
@@ -324,15 +451,25 @@ def write_md(df: pl.DataFrame) -> None:
     a(f"> {PROTOCOL_REASON}")
     a("")
     a("The verdict will come from `forward.py` on entries after the data end (2026-11-02), once at")
-    a("least 180 days of them have complete windows and arm B has at least 100 trades (`results/forward.md`).")
+    a(
+        "least 180 days of them have complete windows and arm B has at least 100 trades (`results/forward.md`)."
+    )
     a("")
-    a("**Gate.** Open on day `D` when BTC's last daily close is above the mean of its last 50 daily")
+    a(
+        "**Gate.** Open on day `D` when BTC's last daily close is above the mean of its last 50 daily"
+    )
     a("closes (`m_btc_sma50 > 0`); closed otherwise, and when the factor is null. No tuning.")
     a("**Arm A**: every usable entry, gate open against closed (a null factor counts as closed).")
-    a("**Arm B**: the frozen rule's picks (`results/spec.json`, unchanged) on gate-open days only, in")
+    a(
+        "**Arm B**: the frozen rule's picks (`results/spec.json`, unchanged) on gate-open days only, in"
+    )
     a("the same 10-slot book; positions open when the gate closes are held to their own exit.")
-    a("Discovery arm B is the M4 walk-forward (2021-23, trained on earlier years only); confirm arm B")
-    a("is M5's scoring (retrained each 1 January). The ungated rows reproduce M4 and M5 exactly (asserted).")
+    a(
+        "Discovery arm B is the M4 walk-forward (2021-23, trained on earlier years only); confirm arm B"
+    )
+    a(
+        "is M5's scoring (retrained each 1 January). The ungated rows reproduce M4 and M5 exactly (asserted)."
+    )
     a("Generated by `m7_gate.py` from `m7_gate.csv`.")
     a("")
     a("## Days with the gate open")
@@ -343,99 +480,90 @@ def write_md(df: pl.DataFrame) -> None:
         o, c, n, t = (g("days", "all", s, k) for k in ("open", "closed", "null", "total"))
         a(f"| {s} | {t:.0f} | {o:.0f} | {c:.0f} | {n:.0f} | {pc(o / t, 0)}% |")
     a("")
-    a("Days are the days with at least one panel entry (2026: to the last confirm `D`, 2026-10-02).")
+    a(
+        "Days are the days with at least one panel entry (2026: to the last confirm `D`, 2026-10-02)."
+    )
     a("")
     a("## Arm A: every usable entry, gate open against closed")
     a("")
     a("Mean outcome of the entries on open days, on closed days, and the difference with a 95%")
-    a("interval from a bootstrap over calendar months. Rates in %, differences in percentage points;")
-    a("`ret_*` is the mean net return of the entry's trade (10% / 20% / no stop, fees and slippage in).")
+    a(
+        "interval from a bootstrap over calendar months. Rates in %, differences in percentage points;"
+    )
+    a(
+        "`ret_*` is the mean net return of the entry's trade (10% / 20% / no stop, fees and slippage in)."
+    )
     a("")
-    labels = {"hit10": "hit10 (+30% before -10%)", "hit20": "hit20 (+30% before -20%)", "hit_ns": "hit_ns (+30% at any time)", "ret_10": "mean net return, 10% stop", "ret_20": "mean net return, 20% stop", "ret_ns": "mean net return, no stop"}
-    for c in (*HITS, *RETS):
-        a(f"### {labels[c]}")
+    for col in (*HITS, *RETS):
+        a(f"### {ARM_A_LABELS[col]}")
         a("")
-        a("| scope | entries open | entries closed | open | closed | open - closed | 95% interval |")
-        a("| --- | --- | --- | --- | --- | --- | --- |")
-        for s in ARM_A_SCOPES:
-            a(
-                f"| {s} | {num(g('armA', 'all', s, 'entries_open'))} | {num(g('armA', 'all', s, 'entries_closed'))} "
-                f"| {pc(g('armA', 'all', s, f'{c}:open'))} | {pc(g('armA', 'all', s, f'{c}:closed'))} "
-                f"| {pp(g('armA', 'all', s, f'{c}:diff'))} | {ci(g('armA', 'all', s, f'{c}:diff_lo'), g('armA', 'all', s, f'{c}:diff_hi'))} |"
-            )
+        L.extend(arm_a_table(g, col, ARM_A_SCOPES))
         a("")
     a("## Arm B: the frozen rule on gate-open days")
     a("")
-    a("10% stop, 10 slots, $10,000 book per year and one continuous book per period. `hit10` of picks:")
-    a("every pick before the slot rules. Mean net return per trade is the book's taken trades; stress")
+    a(
+        "10% stop, 10 slots, $10,000 book per year and one continuous book per period. `hit10` of picks:"
+    )
+    a(
+        "every pick before the slot rules. Mean net return per trade is the book's taken trades; stress"
+    )
     a("adds 0.3% a side. The random rows are same-day random books drawn on the gate-open days'")
     a("entries (100 draws, as many entries a day as the gated picks): median, with the 95th")
-    a("percentile (5th to 95th for the book) in brackets. Fixed stake: $1,000 a trade, 10 open at most, no compounding.")
+    a(
+        "percentile (5th to 95th for the book) in brackets. Fixed stake: $1,000 a trade, 10 open at most, no compounding."
+    )
     a("")
-    a("| scope | row | trades | hit10 of picks | mean net / trade | with 0.3% stress | month-bootstrap 95% (base) | book return | max drawdown | fixed-stake profit |")
-    a("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
-    for s in ARM_B_SCOPES:
-        for v, name in (("ungated", "ungated rule"), ("gate_open", "gated rule")):
-            if math.isnan(g("picks", v, s, "hit10")):
-                a(f"| {s} | {name} | 0 | n/a | n/a | n/a | n/a | n/a | n/a | n/a |")
-                continue
-            a(
-                f"| {s} | {name} | {g('trades', v, s, 'trades', '10', 'base'):.0f} | {pc(g('picks', v, s, 'hit10'))}% "
-                f"| {pp(g('trades', v, s, 'mean_ret', '10', 'base'))}% | {pp(g('trades', v, s, 'mean_ret', '10', 'stress'))}% "
-                f"| {ci(g('trades', v, s, 'mean_ret_ci_lo', '10', 'base'), g('trades', v, s, 'mean_ret_ci_hi', '10', 'base'))}% "
-                f"| {pp(g('book', v, s, 'book_return', '10', 'base'), 0)}% | {pc(g('book', v, s, 'max_dd', '10', 'base'), 0)}% "
-                f"| {usd(g('fixed', v, s, 'profit', '10', 'base'))} |"
-            )
-        v = "gate_open"
-        if not math.isnan(g("picks", v, s, "hit10")):
-            a(
-                f"| {s} | random, open days | {g('random', v, s, 'trades_mean', '10', 'base'):.0f} "
-                f"| {pc(g('random', v, s, 'pick_hit10_p50'))}% ({pc(g('random', v, s, 'pick_hit10_p95'))}) "
-                f"| {pp(g('random', v, s, 'mean_ret_p50', '10', 'base'))}% ({pp(g('random', v, s, 'mean_ret_p95', '10', 'base'))}) "
-                f"| {pp(g('random', v, s, 'mean_ret_p50', '10', 'stress'))}% ({pp(g('random', v, s, 'mean_ret_p95', '10', 'stress'))}) "
-                f"| | {pp(g('random', v, s, 'book_return_p50', '10', 'base'), 0)}% ({pp(g('random', v, s, 'book_return_p5', '10', 'base'), 0)}..{pp(g('random', v, s, 'book_return_p95', '10', 'base'), 0)}) "
-                f"| {pc(g('random', v, s, 'max_dd_p50', '10', 'base'), 0)}% | |"
-            )
+    L.extend(arm_b_table(g, ARM_B_SCOPES))
     a("")
     a("### Other stops (mean net return per trade, base / stress; book return)")
     a("")
-    a("| scope | stop | ungated trades | ungated mean | ungated book | gated trades | gated mean | gated book | random book median (open days) |")
-    a("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
-    for s in ARM_B_SCOPES:
-        for stop, nm in (("20", "20%"), ("ns", "none")):
-            def cell(v: str) -> tuple[str, str, str]:
-                if math.isnan(g("picks", v, s, "hit10")):
-                    return "0", "n/a", "n/a"
-                return (
-                    f"{g('trades', v, s, 'trades', stop, 'base'):.0f}",
-                    f"{pp(g('trades', v, s, 'mean_ret', stop, 'base'))} / {pp(g('trades', v, s, 'mean_ret', stop, 'stress'))}%",
-                    f"{pp(g('book', v, s, 'book_return', stop, 'base'), 0)}%",
-                )
-
-            u, o = cell("ungated"), cell("gate_open")
-            rnd = g("random", "gate_open", s, "book_return_p50", stop, "base")
-            a(f"| {s} | {nm} | {u[0]} | {u[1]} | {u[2]} | {o[0]} | {o[1]} | {o[2]} | {pp(rnd, 0)}% |")
+    L.extend(other_stops_table(g, ARM_B_SCOPES))
     a("")
     a("## Share of time in the market, and how fast a gated test can run")
     a("")
-    a("| scope | days open | share of days | trades, ungated (10% stop) | trades, gated | gated trades a year |")
+    a(
+        "| scope | days open | share of days | trades, ungated (10% stop) | trades, gated | gated trades a year |"
+    )
     a("| --- | --- | --- | --- | --- | --- |")
-    spans = {"2021": 1.0, "2022": 1.0, "2023": 11 / 12, "2021-23": 35 / 12, "2024": 1.0, "2025": 1.0, "2026": 9 / 12, "2024-26": 33 / 12}
+    spans = {
+        "2021": 1.0,
+        "2022": 1.0,
+        "2023": 11 / 12,
+        "2021-23": 35 / 12,
+        "2024": 1.0,
+        "2025": 1.0,
+        "2026": 9 / 12,
+        "2024-26": 33 / 12,
+    }
     for s in ARM_B_SCOPES:
-        o, t = g("days", "all", s if s != "2021-23" else "2020-23", "open"), g("days", "all", s if s != "2021-23" else "2020-23", "total")
+        o, t = (
+            g("days", "all", s if s != "2021-23" else "2020-23", "open"),
+            g("days", "all", s if s != "2021-23" else "2020-23", "total"),
+        )
         if s == "2021-23":
             o = sum(g("days", "all", y, "open") for y in ("2021", "2022", "2023"))
             t = sum(g("days", "all", y, "total") for y in ("2021", "2022", "2023"))
         if s == "2024-26":
             o, t = g("days", "all", "2024-26", "open"), g("days", "all", "2024-26", "total")
-        tu, tg = g("trades", "ungated", s, "trades", "10", "base"), g("trades", "gate_open", s, "trades", "10", "base")
+        tu, tg = (
+            g("trades", "ungated", s, "trades", "10", "base"),
+            g("trades", "gate_open", s, "trades", "10", "base"),
+        )
         tg = 0.0 if math.isnan(tg) else tg
         a(f"| {s} | {o:.0f} | {pc(o / t, 0)}% | {tu:.0f} | {tg:.0f} | {tg / spans[s]:.0f} |")
     a("")
-    a("The 2023 span is 11 months (discovery `D` ends 2023-12-01) and 2026 is 9 months (confirm `D` ends")
-    a("2026-10-02). A gate that is open for a third of the days thins a rule that already trades a few")
-    a("hundred times a year: the forward test needs 100 gated trades and 180 days of complete windows,")
-    a("so it cannot read out before the end of May 2027 (210 days after 2026-11-02) even if the gate\nis open all that time.")
+    a(
+        "The 2023 span is 11 months (discovery `D` ends 2023-12-01) and 2026 is 9 months (confirm `D` ends"
+    )
+    a(
+        "2026-10-02). A gate that is open for a third of the days thins a rule that already trades a few"
+    )
+    a(
+        "hundred times a year: the forward test needs 100 gated trades and 180 days of complete windows,"
+    )
+    a(
+        "so it cannot read out before the end of May 2027 (data end 2027-05-30, 209 days after 2026-11-02) even if the gate\nis open all that time."
+    )
     a("")
     OUT_MD.write_text("\n".join(L) + "\n")
 
