@@ -1,0 +1,337 @@
+{
+  "method": {
+    "kind": "transparent",
+    "features": [
+      "c_log_liq",
+      "c_dd90",
+      "r_c_log_liq",
+      "r_c_dd90"
+    ],
+    "settings": null,
+    "seeds": [],
+    "transparent": {
+      "gate": null,
+      "coin": [
+        [
+          "c_log_liq",
+          -1
+        ],
+        [
+          "c_dd90",
+          -1
+        ]
+      ]
+    }
+  },
+  "pick_rule": {
+    "k": 10,
+    "q": 0.95,
+    "gate": null,
+    "name": "k10_q0.95"
+  },
+  "primary_stop": "10",
+  "name": "rule_liq_dd_nogate",
+  "frozen": "M4 of docs/plans/rebound-factors.md, discovery walk-forward 2021-23 only",
+  "target": "hit10: +30% within 30 days before -10% (from cache labels)",
+  "settings_name": null,
+  "lean_set": [
+    "m_btc_ret30",
+    "m_btc_ret7",
+    "c_liq_rank",
+    "c_sma200",
+    "c_rs90",
+    "c_dd90",
+    "c_qv_30_90",
+    "c_qv_1_30",
+    "c_sma50",
+    "c_tb1",
+    "c_range_7_30",
+    "c_tb7"
+  ],
+  "data": {
+    "frame": "model.assemble(factors, labels, exclusions): within-day ranks on every panel entry of the day, inner join with the labels, anti-join the exclusions, drop entries without an outcome",
+    "factors": "cache/factors.parquet",
+    "exclusions": "cache/exclusions.parquet",
+    "labels_discovery": "cache/labels.parquet, split == 'discovery'",
+    "labels_confirm": "cache/sealed/labels.parquet (M5 only)"
+  },
+  "score": "GBM: mean predicted probability over the seeds (model.score_ensemble); transparent: model.transparent_score with the gate threshold from the training days",
+  "training_rule": {
+    "mask": "model.train_mask: D + 30 days <= period start",
+    "periods": [
+      {
+        "test": "2024-01-01 .. 2024-12-31",
+        "start": "2024-01-01",
+        "train": "discovery entries (split == 'discovery', D 2020-01-31 .. 2023-12-01), all of which have windows ended before 2024-01-01"
+      },
+      {
+        "test": "2025-01-01 .. 2025-12-31",
+        "start": "2025-01-01",
+        "train": "every entry (discovery, gap and confirm, minus exclusions) with D + 30 days <= 2025-01-01"
+      },
+      {
+        "test": "2026-01-01 .. 2026-10-02",
+        "start": "2026-01-01",
+        "train": "every entry with D + 30 days <= 2026-01-01"
+      }
+    ],
+    "call": "model.score_period(method, train, test, pick_rule.gate, start) per period"
+  },
+  "score_percentile_reference": "the training scores of the same fit, as model.score_period computes them (`reference`; `pct` = share of reference scores at or below): GBM out-of-fold scores (model.oof_scores), transparent rule its plain score on the training entries. M5 recomputes it at each (re)training.",
+  "gate_threshold_rule": "pick-rule gate (if any) and transparent gate: the quantile `pct` of the gate factor over the distinct training days of the same fit",
+  "book": {
+    "start_equity": 10000,
+    "slots": 10,
+    "sizing": "realised equity / 10 at entry, capped at the cash not tied up in open positions",
+    "one_position_per_coin": true,
+    "order": "each day the picks in score order; no free slot or coin held: skipped",
+    "slot_frees": "at the trade's exit_t (a pick on day D can use a slot whose exit_t <= D)",
+    "trade_return": "ret_10 / ret_20 / ret_ns from the labels (fee 0.1% a side, 0.1% slippage on market fills)",
+    "stress": "model.book(..., extra_cost=0.003): 0.3% extra a side",
+    "books": "a fresh $10,000 book per calendar year, and one continuous book over the whole confirm period (the Confirmed rule's book)",
+    "random_books": "100 draws: on each day with n picks, n entries drawn without replacement from that day's eligible entries (every usable entry of the day), booked the same way"
+  },
+  "confirm_protocol": "Confirm (M5), once. On 2024-26: hit rate of the picks against the base rate and against random eligible entries on the same days (100 draws); the same per year; trade result and book after costs for each stop variant, against the same-day random book.",
+  "confirmed_criteria": "Confirmed means: the picks' `hit10` rate exceeds the same-day random draws' 95th percentile overall and in at least two of the three years, and the 10%-stop book's return is positive and above the random books' median.",
+  "decision": "eligible; best by the rule: rule_liq_dd_nogate k10_q0.95",
+  "seed_spread_worst_year_stress_ret10": NaN,
+  "importance_variant": "gbm_all",
+  "top_features": [
+    "m_breadth200",
+    "c_log_liq",
+    "m_btc_sma50",
+    "m_btc_ret30",
+    "c_dd90",
+    "m_ethbtc_ret30",
+    "m_btc_sma200",
+    "m_btc_vol7",
+    "m_disp_ret30",
+    "c_beta60"
+  ],
+  "expected_band_discovery": {
+    "per_year": {
+      "2021": {
+        "base_hit10": 0.31086323957322987,
+        "base_ret_10": 0.022613009109782402,
+        "pick_n": 3058.0,
+        "pick_hit10": 0.3973185088293002,
+        "random_pick_hit10_p95": 0.3342217135382603,
+        "trades_10_none": 692.0,
+        "mean_ret_10_none": 0.05516781981724246,
+        "book_return_10_none": 19.20036607237937,
+        "max_dd_10_none": -0.3904040130588533,
+        "random_book_return_p50_10_none": 2.910931402202171,
+        "random_mean_ret_p95_10_none": 0.03696417449475482,
+        "trades_10_stress": 692.0,
+        "mean_ret_10_stress": 0.048855749110459444,
+        "book_return_10_stress": 12.514139952602365,
+        "max_dd_10_stress": -0.4211315824466534,
+        "random_book_return_p50_10_stress": 1.5317575748640437,
+        "random_mean_ret_p95_10_stress": 0.030760998974347614,
+        "trades_20_none": 424.0,
+        "mean_ret_20_none": 0.09049497588939916,
+        "book_return_20_none": 18.109623591193177,
+        "max_dd_20_none": -0.3447313535305836,
+        "random_book_return_p50_20_none": 4.452906012441023,
+        "random_mean_ret_p95_20_none": 0.07363167976740448,
+        "trades_20_stress": 424.0,
+        "mean_ret_20_stress": 0.08397157623303197,
+        "book_return_20_stress": 13.874129364962927,
+        "max_dd_20_stress": -0.36542229578116214,
+        "random_book_return_p50_20_stress": 3.2716257622503027,
+        "random_mean_ret_p95_20_stress": 0.06720915725633338,
+        "trades_ns_none": 246.0,
+        "mean_ret_ns_none": 0.1568766619060949,
+        "book_return_ns_none": 21.27098575611021,
+        "max_dd_ns_none": -0.26859230513041477,
+        "random_book_return_p50_ns_none": 4.820218528199382,
+        "random_mean_ret_p95_ns_none": 0.12936918040684084,
+        "trades_ns_stress": 246.0,
+        "mean_ret_ns_stress": 0.1499561634300865,
+        "book_return_ns_stress": 18.2662489885475,
+        "max_dd_ns_stress": -0.2842898117718051,
+        "random_book_return_p50_ns_stress": 4.133691885055151,
+        "random_mean_ret_p95_ns_stress": 0.12261323316612206
+      },
+      "2022": {
+        "base_hit10": 0.22300738540659604,
+        "base_ret_10": -0.007537946579602111,
+        "pick_n": 3408.0,
+        "pick_hit10": 0.3095657276995305,
+        "random_pick_hit10_p95": 0.23157276995305165,
+        "trades_10_none": 494.0,
+        "mean_ret_10_none": 0.034201098241207574,
+        "book_return_10_none": 2.4107716136859563,
+        "max_dd_10_none": -0.47644840132940824,
+        "random_book_return_p50_10_none": -0.4035175919886135,
+        "random_mean_ret_p95_10_none": 0.003986091739519478,
+        "trades_10_stress": 494.0,
+        "mean_ret_10_stress": 0.028014451591708907,
+        "book_return_10_stress": 1.5535061281923421,
+        "max_dd_10_stress": -0.498690544094721,
+        "random_book_return_p50_10_stress": -0.5408491768268038,
+        "random_mean_ret_p95_10_stress": -0.0020198071143559355,
+        "trades_20_none": 307.0,
+        "mean_ret_20_none": 0.037501442678734585,
+        "book_return_20_none": 0.8505697204242493,
+        "max_dd_20_none": -0.5687186853240305,
+        "random_book_return_p50_20_none": -0.5316912931304689,
+        "random_mean_ret_p95_20_none": 0.0016520659990721836,
+        "trades_20_stress": 307.0,
+        "mean_ret_20_stress": 0.03129505319112511,
+        "book_return_20_stress": 0.5470067827889284,
+        "max_dd_20_stress": -0.5790778591694573,
+        "random_book_return_p50_20_stress": -0.6018111338342516,
+        "random_mean_ret_p95_20_stress": -0.004339870587163447,
+        "trades_ns_none": 178.0,
+        "mean_ret_ns_none": 0.014555557270244279,
+        "book_return_ns_none": -0.07345984572764697,
+        "max_dd_ns_none": -0.521684274744358,
+        "random_book_return_p50_ns_none": -0.6260079266766929,
+        "random_mean_ret_p95_ns_none": -0.008635434385786884,
+        "trades_ns_stress": 178.0,
+        "mean_ret_ns_stress": 0.00848643130452008,
+        "book_return_ns_stress": -0.17514522299109725,
+        "max_dd_ns_stress": -0.5345722177678358,
+        "random_book_return_p50_ns_stress": -0.661041732264728,
+        "random_mean_ret_p95_ns_stress": -0.014565830590856851
+      },
+      "2023": {
+        "base_hit10": 0.2452178434795528,
+        "base_ret_10": 0.018612974609412337,
+        "pick_n": 3202.0,
+        "pick_hit10": 0.3188632104934416,
+        "random_pick_hit10_p95": 0.2585883822610868,
+        "trades_10_none": 268.0,
+        "mean_ret_10_none": 0.057952021458486824,
+        "book_return_10_none": 2.5257934705308487,
+        "max_dd_10_none": -0.3011152762945587,
+        "random_book_return_p50_10_none": 1.0157936461647723,
+        "random_mean_ret_p95_10_none": 0.049970124657284114,
+        "trades_10_stress": 268.0,
+        "mean_ret_10_stress": 0.05162329550758868,
+        "book_return_10_stress": 2.026336455431614,
+        "max_dd_10_stress": -0.3323885390524334,
+        "random_book_return_p50_10_stress": 0.7340377292734318,
+        "random_mean_ret_p95_10_stress": 0.04368914684278401,
+        "trades_20_none": 193.0,
+        "mean_ret_20_none": 0.07749938617440945,
+        "book_return_20_none": 2.226685868241343,
+        "max_dd_20_none": -0.3777009027393212,
+        "random_book_return_p50_20_none": 0.9367826998510987,
+        "random_mean_ret_p95_20_none": 0.06819593801865048,
+        "trades_20_stress": 193.0,
+        "mean_ret_20_stress": 0.07105372683538014,
+        "book_return_20_stress": 1.8832616096356487,
+        "max_dd_20_stress": -0.40305576764302375,
+        "random_book_return_p50_20_stress": 0.7516565337939896,
+        "random_mean_ret_p95_20_stress": 0.06180593240737251,
+        "trades_ns_none": 163.0,
+        "mean_ret_ns_none": 0.0927364576967961,
+        "book_return_ns_none": 2.4428054281959426,
+        "max_dd_ns_none": -0.3328385869253888,
+        "random_book_return_p50_ns_none": 0.9082662546924083,
+        "random_mean_ret_p95_ns_none": 0.07715219555296254,
+        "trades_ns_stress": 163.0,
+        "mean_ret_ns_stress": 0.08619964937557903,
+        "book_return_ns_stress": 2.1234350837830056,
+        "max_dd_ns_stress": -0.34387057036357827,
+        "random_book_return_p50_ns_stress": 0.7510510848510139,
+        "random_mean_ret_p95_ns_stress": 0.07070861312692299
+      }
+    },
+    "range_over_years": {
+      "pick_hit10": [
+        0.3095657276995305,
+        0.3973185088293002
+      ],
+      "random_pick_hit10_p95": [
+        0.23157276995305165,
+        0.3342217135382603
+      ],
+      "mean_ret_10_none": [
+        0.034201098241207574,
+        0.057952021458486824
+      ],
+      "mean_ret_10_stress": [
+        0.028014451591708907,
+        0.05162329550758868
+      ],
+      "book_return_10_none": [
+        2.4107716136859563,
+        19.20036607237937
+      ],
+      "book_return_10_stress": [
+        1.5535061281923421,
+        12.514139952602365
+      ],
+      "random_book_return_p50_10_none": [
+        -0.4035175919886135,
+        2.910931402202171
+      ],
+      "trades_10_none": [
+        268.0,
+        692.0
+      ]
+    },
+    "pooled_book_trades_2021_23": {
+      "mean_ret_10_none": 0.04855750728718212,
+      "mean_ret_10_stress": 0.04228497982584312,
+      "mean_ret_20_none": 0.0701733703583742,
+      "mean_ret_20_stress": 0.06377153564037807,
+      "mean_ret_ns_none": 0.09590901299417477,
+      "mean_ret_ns_stress": 0.08935322627636326,
+      "mean_ret_ci_10_none": [
+        0.02913212486181749,
+        0.07151780890614207
+      ],
+      "mean_ret_ci_10_stress": [
+        0.02213285685193743,
+        0.06458121548187944
+      ],
+      "mean_ret_ci_20_none": [
+        0.039773072337974044,
+        0.10238918161738571
+      ],
+      "mean_ret_ci_20_stress": [
+        0.03284649671806081,
+        0.09430746100709078
+      ],
+      "mean_ret_ci_ns_none": [
+        0.0434613641873736,
+        0.14450351814687246
+      ],
+      "mean_ret_ci_ns_stress": [
+        0.032025375905846955,
+        0.13597775986324342
+      ]
+    },
+    "continuous_book_2021_23": {
+      "book_10_none": 186.07314017852383,
+      "random_book_p50_10_none": 2.706211019955508,
+      "max_dd_10_none": -0.47644840132940747,
+      "book_10_stress": 80.02872324150925,
+      "random_book_p50_10_stress": 0.6449970486227288,
+      "max_dd_10_stress": -0.4986905440947207,
+      "book_20_none": 64.15600843404852,
+      "random_book_p50_20_none": 3.044567407102903,
+      "max_dd_20_none": -0.568718798108953,
+      "book_20_stress": 37.290095808747694,
+      "random_book_p50_20_stress": 1.4478624268582587,
+      "max_dd_20_stress": -0.5790779749861308,
+      "book_ns_none": 52.92266618392726,
+      "random_book_p50_ns_none": 3.651855817697903,
+      "max_dd_ns_none": -0.522241088968605,
+      "book_ns_stress": 37.27187059314854,
+      "random_book_p50_ns_stress": 2.4359154075359304,
+      "max_dd_ns_stress": -0.5577275902037041,
+      "pick_hit10": 0.3404013239553165,
+      "random_pick_hit10_p95": 0.2690370293752586
+    },
+    "discovery_would_confirm": {
+      "pick_hit10_over_random_p95_years": 3,
+      "overall_pick_hit10_over_random_p95": true,
+      "book_10_positive_and_over_random_median": true
+    }
+  }
+}
