@@ -1,9 +1,9 @@
 # Rebound factors: what tells a +30% move apart before it happens?
 
-- **Status:** review <!-- building | blocked | review | done -->
+- **Status:** building <!-- building | blocked | review | done -->
 - **Branch:** `feat/rebound-factors` (stacked on PR #14's head; the study code it reuses is not on `main` yet)
 - **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/17 (base: PR #14's branch)
-- **Updated:** 2026-11-14T16:40Z
+- **Updated:** 2026-11-14T22:30Z
 - **Last report to the user:** 2026-11-14T16:40Z (PR ready)
 
 ## Goal
@@ -168,6 +168,40 @@ of the three years, and the 10%-stop book's return is positive and above the ran
 - **Worker:** master
 - **Commits:** 469d857 (report); the dashboard tab lives in the session artifact, not the repo
 
+### M7: Market gate, stated in advance, with a forward test (in progress)
+
+- **Delivers:** `m7_gate.py` (the gate on 2020-26, as description only) and `forward.py` (scores
+  entries after the data end as candles arrive), `results/m7_gate.md`, `results/forward.md`, a
+  section in the report.
+- **Done when:** the gate protocol below is committed and pushed before any gated result is
+  computed; the historical tables are committed and labelled as not evidence; `forward.py` runs on
+  the store as it is (no complete forward window yet) and on a labelled dry run over past months;
+  the check command passes.
+- **Worker:** sonnet
+- **Commits:**
+
+**Gate protocol (fixed 2026-11-14T22:30Z, before any gated result).** Requested by the user after
+the reveal, as the report's second lead.
+- *Gate:* open on day `D` when BTC's last daily close is above the mean of its last 50 daily
+  closes (`m_btc_sma50 > 0`); closed otherwise, and when the factor is null. No tuning, no
+  alternatives.
+- *Arms:* (A) every usable entry, gate open against gate closed; (B) the frozen rule
+  (`results/spec.json`, unchanged) taking picks only on gate-open days, in the same 10-slot book;
+  open positions are held to their own exit when the gate closes. Primary stop 10%; 20% and no
+  stop reported.
+- *History (2020-23 and 2024-26) is description, not evidence:* the factor was chosen after seeing
+  that it led M3 on 2020-23, and 2024-26 has been opened. Reported: days open, hit rates and mean
+  net return per entry and per trade with the gate open and closed, books against same-day random
+  books, per year.
+- *Forward test:* entries with `D` from 2026-11-02 (the data end of every study so far), on the
+  coins in the candle store that pass the study's liquidity rule, same labels, costs, exclusions
+  and book. It is read out once, at the first run where at least 180 days of forward entries
+  have complete windows and arm B has at least 100 trades; earlier runs are interim and say so.
+  **Confirmed** means, for arm B on the forward period: mean net return per trade with the 0.3%
+  extra cost above 0, the 10%-stop book's return positive and above the same-day random books'
+  median, and the picks' `hit10` above the same-day random 95th percentile. Also reported: arm A's
+  hit rate with the gate open against closed (needs at least 30 days of each).
+
 ## Decisions
 
 - 2026-11-14: user chose the target (+30% / 30 d with 10% stop, also scored at 20% and no stop),
@@ -224,6 +258,10 @@ of the three years, and the 10%-stop book's return is positive and above the ran
   discovery's and the 10%-stop book lost 44.7% (random median -78.8%). Mean net return per trade
   +0.2% (month bootstrap -1.6..+2.4), -0.4% under stress. Both factors kept their sign but
   shrank: low liquidity +5.7 pp to +1.2 pp, deep drawdown +3.1 pp to +1.6 pp.
+
+- 2026-11-15: the user asked to add the market-gate lead to this PR. No forward data exists yet
+  (candles end 2026-11-02), so M7 fixes the gate now, describes it on history without treating
+  that as proof, and adds the script that will score it as new candles arrive.
 
 ## Blocked on
 
