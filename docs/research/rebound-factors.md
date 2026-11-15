@@ -123,6 +123,38 @@ made $2,765 over the period at base costs and lost $4,669 under the stress, with
 peak-to-trough of $13,146. Without a stop the picks averaged +2.1% a trade (95% -2.8% to
 +6.6%) against a random median of -0.8%, and the book ended flat (+0.1%).
 
+## The market gate (added 2026-11-15)
+
+The second recommendation below was taken up at once: trade the frozen rule only when BTC's last
+daily close is above its 50-day average. The gate was fixed and pushed before any gated number was
+computed, with no alternatives. It cannot be judged on history: the factor was chosen because it
+led the 2020-23 results, and 2024-26 had been opened. The tables in
+[M7](../../research/rebound_factors/results/m7_gate.md) are therefore description, and the verdict
+will come from candles after 2026-11-02.
+
+| | 2020-23 | 2024-26 |
+| --- | --- | --- |
+| Days with the gate open | 51% (22% in 2022) | 56% |
+| Every entry, `hit10` with the gate open / closed | 30.0% / 21.8% | 22.2% / 17.3% |
+| Difference (95%, month bootstrap) | +8.2 pp (+1.6 to +15.0) | +4.9 pp (-2.3 to +12.7) |
+| Gated rule, trades | 666 (2021-23) | 755 |
+| Gated rule, mean net return per trade, base / extra cost | +6.9% / +6.2% | +0.7% / +0.1% |
+| Ungated rule, the same | +4.7% / +4.1% | +0.2% / -0.4% |
+| Gated book, 10% stop (random books on open days, median) | +4,046% (+1,020%) | -4% (-66%) |
+
+On 2024-26 the gate cut the book's loss from 45% to 4% and its worst drawdown from 75% to 61%,
+mostly by sitting out half the days; the mean trade stayed indistinguishable from zero (95% -2.0%
+to +4.0%). In 2022, the one year the gate was rarely open, the gated trades lost money.
+
+**Forward test.** `research/rebound_factors/forward.py` scores entries from 2026-11-02 on, as the
+candle store is extended, and writes
+[`results/forward.md`](../../research/rebound_factors/results/forward.md). It reads out once, at
+the first run with 180 days of resolved entries and 100 gated trades (a data end of 2027-05-30 at
+the earliest), and stores that verdict so later runs cannot change it. **Confirmed** means, for the
+gated rule: mean net return per trade above 0 with the 0.3% extra cost, the 10%-stop book positive
+and above the random books' median, and the picks' `hit10` above the random 95th percentile. On
+2026-11-02 the gate was closed.
+
 ## Caveats
 
 - **The frozen rule was added after a first M4 run had been seen** (the gated rules had too few
@@ -149,8 +181,8 @@ peak-to-trough of $13,146. Without a stop the picks averaged +2.1% a trade (95% 
   at most a few points. A better "which coin" answer needs new information: futures funding and
   open interest, listings and other dated events.
 - **The market phase is the lever, and it needs a different test.** Four years cannot establish
-  a timing rule. A simple, pre-stated gate (for example BTC above its 50-day SMA) should be
-  judged on forward data, alongside the exit: the 10% stop turned a hit-rate edge into a loss,
+  a timing rule. The pre-stated gate above is now waiting on forward data. The exit deserves the
+  same treatment: the 10% stop turned a hit-rate edge into a loss,
   and the no-stop variant did better in 2024-26, though not significantly.
 - **Reusable from this study:** the coin-day panel with sealed labels, the factor table with its
   look-ahead checks, the redenomination filter, and the book with same-day random benchmarks.

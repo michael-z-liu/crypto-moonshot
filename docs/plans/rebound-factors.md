@@ -1,9 +1,9 @@
 # Rebound factors: what tells a +30% move apart before it happens?
 
-- **Status:** building <!-- building | blocked | review | done -->
+- **Status:** review <!-- building | blocked | review | done -->
 - **Branch:** `feat/rebound-factors` (stacked on PR #14's head; the study code it reuses is not on `main` yet)
 - **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/17 (base: PR #14's branch)
-- **Updated:** 2026-11-14T22:30Z
+- **Updated:** 2026-11-15T01:20Z
 - **Last report to the user:** 2026-11-14T16:40Z (PR ready)
 
 ## Goal
@@ -168,7 +168,7 @@ of the three years, and the 10%-stop book's return is positive and above the ran
 - **Worker:** master
 - **Commits:** 469d857 (report); the dashboard tab lives in the session artifact, not the repo
 
-### M7: Market gate, stated in advance, with a forward test (in progress)
+### M7: Market gate, stated in advance, with a forward test (done)
 
 - **Delivers:** `m7_gate.py` (the gate on 2020-26, as description only) and `forward.py` (scores
   entries after the data end as candles arrive), `results/m7_gate.md`, `results/forward.md`, a
@@ -178,7 +178,7 @@ of the three years, and the 10%-stop book's return is positive and above the ran
   the store as it is (no complete forward window yet) and on a labelled dry run over past months;
   the check command passes.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** 3438640, 9992866, 43d2c5c
 
 **Gate protocol (fixed 2026-11-14T22:30Z, before any gated result).** Requested by the user after
 the reveal, as the report's second lead.
@@ -263,9 +263,16 @@ the reveal, as the report's second lead.
   (candles end 2026-11-02), so M7 fixes the gate now, describes it on history without treating
   that as proof, and adds the script that will score it as new candles arrive.
 
+- 2026-11-15 (M7): history, as description only: with the gate open `hit10` is 30.0% against 21.8%
+  closed on 2020-23 and 22.2% against 17.3% on 2024-26 (interval includes zero). The gated rule on
+  2024-26: 755 trades, +0.7% a trade (+0.1% with extra cost), book -4% against -45% ungated. The
+  forward test has 0 days so far; earliest readout at a data end of 2027-05-30. The user extends
+  the store with the command in `results/forward.md`, then runs `forward.py`.
+
 ## Blocked on
 
 ## Follow-ups
 
 - Futures funding and open interest, and listing/news events, as further factor families.
+- Run `forward.py` after each candle sync until its one-time readout (2027-05-30 at the earliest).
 - If confirmed: a forward paper test, then porting the rule to `src/`.
