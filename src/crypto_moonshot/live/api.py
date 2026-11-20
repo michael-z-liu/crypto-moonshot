@@ -90,7 +90,7 @@ def tick_message(tick: Tick) -> str:
     )
 
 
-@dataclass
+@dataclass(eq=False)
 class _Client:
     interval: Interval
     queue: asyncio.Queue[str | None] = field(
