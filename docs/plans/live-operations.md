@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `feat/live-operations` (stacked on PR #18, `worktree-bridge-cse_015bssAUbtXue4wkarka78Pb`)
 - **PR:**
-- **Updated:** 2026-11-20T22:35Z
+- **Updated:** 2026-11-21T00:05Z
 
 ## Goal
 
@@ -28,7 +28,7 @@ controls, a Docker image and a runbook.
 - **Worker:** master
 - **Commits:** 7d667fb
 
-### M2: Health, alerts and backups (in progress)
+### M2: Health, alerts and backups (done)
 
 - **Delivers:** API endpoints for trades, equity, signals, provider lateness and alerts (with
   acknowledge); health rules raising alert events (feed down, no ticks, provider missing batches,
@@ -36,9 +36,9 @@ controls, a Docker image and a runbook.
   online SQLite backups and `moonshot live backup`.
 - **Done when:** tests cover each rule and endpoint, the watchdog exit and a backup restore.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** 8ebbe52, 9a09a15, 5c44e11, a5f9ee4
 
-### M3: Web dashboard (todo)
+### M3: Web dashboard (in progress)
 
 - **Delivers:** a dashboard served by the daemon at `/` (no build step): token login, overview and
   health, strategies with equity charts, positions and orders, trades, signals and providers,
@@ -68,6 +68,11 @@ controls, a Docker image and a runbook.
 - 2026-11-20 (M1): added to the design beyond the plan: a single-instance lock on the state file,
   `moonshot live restore`, a `disk_low` rule, an event-loop-blocked watchdog (os._exit(3)), alert
   acknowledgement that hides but never silences a rule.
+- 2026-11-21 (M2): state schema v2 (an `alerts` table of active alerts; resolving deletes the row
+  and its ack). `provider_missing` = 3 non-on-time batches in a row; `plugin_failing` = 3 missed.
+  Served replays run the health monitor with time-based rules off; watchdogs are daemon-only.
+  The state lock covers every replay too. Exit codes: 1 locked state, 3 watchdog. `live status
+  --config` cannot read a v1 file until a daemon opens (migrates) it once.
 
 ## Blocked on
 
