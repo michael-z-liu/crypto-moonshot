@@ -1,9 +1,9 @@
 # Operating the trading daemon: health, alerts, dashboard, Docker
 
-- **Status:** building
+- **Status:** review
 - **Branch:** `feat/live-operations` (stacked on PR #18, `worktree-bridge-cse_015bssAUbtXue4wkarka78Pb`)
 - **PR:**
-- **Updated:** 2026-11-21T00:40Z
+- **Updated:** 2026-11-21T01:10Z
 
 ## Goal
 
@@ -48,14 +48,14 @@ controls, a Docker image and a runbook.
 - **Worker:** sonnet
 - **Commits:** b68716c, bb5fb28, 7696354, 294ef3f, 1e94050, d9af340 (master)
 
-### M4: Docker and runbook (in progress)
+### M4: Docker and runbook (done)
 
 - **Delivers:** Dockerfile (non-root, healthcheck), compose file (state, data and strategies
   volumes; token from an env file; restart policy), optional JSON logs, `docs/runbook.md` for
   Proxmox.
 - **Done when:** a CI job builds the image and checks a container's `/health`; runbook complete.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** 8c44d71, b6f5819, 5981a0f
 
 ## Decisions
 
@@ -78,7 +78,16 @@ controls, a Docker image and a runbook.
   Browser tests are opt-in locally (`-m browser`, `--tracing off`; pytest's own `--trace` is pdb)
   and run in a separate CI job. Review fixes: only the applicable pause/resume button is enabled;
   overview open positions come from `/equity` like the strategy page.
+- 2026-11-21 (M4): image on `python:3.13-slim-trixie` and uv 0.13.7, both pinned by digest;
+  non-root uid 10001; read-only root with tmpfs `/tmp`; `PYTHONDONTWRITEBYTECODE=1`; absolute
+  `/state` and `/strategies` paths in the container config; the host's `state/` folder must be
+  owned by uid 10001. `restart: unless-stopped` also restarts on a bad config (exit 2), so a config
+  mistake loops; documented. Built and smoke-tested only in the CI `docker` job.
 
 ## Blocked on
 
 ## Follow-ups
+
+- Check on the Proxmox host: `chown 10001:10001 state`, LXC nesting/keyctl, the healthcheck turns
+  healthy, the dashboard loads from the LAN, real RAM/disk use (`docker stats`).
+- The PR screenshots predate the M3 review fixes (overview open positions).
