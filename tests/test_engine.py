@@ -25,9 +25,11 @@ from crypto_moonshot.broker.base import ExitPlan, Side, client_order_id
 from crypto_moonshot.live.config import ConfigError, RunConfig, config_from_dict
 from crypto_moonshot.live.contract import CONTRACT_VERSION, SignalBatch, SignalIn
 from crypto_moonshot.live.engine import Engine, Step, build_specs
+from crypto_moonshot.live.feed import FeedDisconnected, Seeded, StaleSymbolsChanged
 from crypto_moonshot.live.replay import prepare_replay
 from crypto_moonshot.live.state import (
     BatchStatus,
+    EventLevel,
     OrderStatus,
     PositionStatus,
     SignalOutcome,
@@ -653,3 +655,71 @@ def test_strategies_trade_independently_under_the_account_rules(tmp_path: Path) 
     store.close()
     mine = trades.filter(pl.col("strategy") == "alpha")
     assert alone.select(mine.columns).equals(mine)
+
+
+def test_a_replay_does_not_wait_for_a_plugin_that_failed(tmp_path: Path) -> None:
+    for symbol in ("AAAUSDT", "BBBUSDT"):
+        write_bars(tmp_path, symbol, flat_bars(10), H1, at(0))
+    plugin = Scheduled({at(3): [("AAAUSDT", 0.0)]}, name="p", fail_at=[at(2)], exit=PLAN)
+    config = config_from_dict(
+        {
+            "state": str(tmp_path / "s.sqlite"),
+            "account": {"initial_cash": 1000.0},
+            "engine": {"replay_timeout": "30s"},
+            "strategies": [strategy("p", symbols=["AAAUSDT", "BBBUSDT"])],
+        }
+    )
+    run = prepare_replay(config, at(1), at(8), tmp_path, plugins={"p": plugin})
+    started = asyncio.run(_timed(run.run()))
+    assert started < 5  # not the 30 s replay timeout
+    assert run.store.batch_for("p", H1, at(2)).status is BatchStatus.MISSED  # type: ignore[union-attr]
+    assert [e.kind for e in run.store.events_since()].count("plugin_error") == 1
+    assert len(run.store.closed_positions()) + len(run.store.live_positions()) == 1
+    run.close()
+
+
+async def _timed(coro: Any) -> float:
+    loop = asyncio.get_running_loop()
+    started = loop.time()
+    await coro
+    return loop.time() - started
+
+
+async def test_stop_abandons_the_tick_being_collected(tmp_path: Path) -> None:
+    live = Live(tmp_path / "s.sqlite", [external()], engine={"signal_deadline": "60s"})
+    await live.start()
+    live.clock.now = at(1)
+    await live.feed.emit(0)
+    await until(lambda: H1 in live.engine._collecting)
+    await live.engine.stop()
+    assert live.task is not None
+    await live.task
+    assert live.store.last_tick(H1) is None
+    assert live.store.batches_for(H1, at(0)) == []  # nothing recorded as missed
+    live.store.close()
+
+
+def test_feed_events_go_to_the_event_feed(tmp_path: Path) -> None:
+    config = config_from_dict(
+        {
+            "state": str(tmp_path / "s.sqlite"),
+            "account": {"initial_cash": 1000.0},
+            "strategies": [external()],
+        }
+    )
+    with StateStore.open(config.state) as store:
+        engine = Engine(config, build_specs(config, None), store, clock=FakeClock(at(3)))
+        engine.on_feed_event(FeedDisconnected(0, "closed by peer"))
+        engine.on_feed_event(Seeded(H1, 6, 120, 100))
+        engine.on_feed_event(StaleSymbolsChanged(H1, ("AAAUSDT",)))
+        engine.on_feed_event(StaleSymbolsChanged(H1, ()))
+        events = store.events_since()
+    assert [(e.kind, e.level) for e in events] == [
+        ("feed_disconnected", EventLevel.WARNING),
+        ("seeded", EventLevel.INFO),
+        ("stale_symbols_changed", EventLevel.WARNING),
+        ("stale_symbols_changed", EventLevel.INFO),
+    ]
+    assert events[0].data == {"connection": 0, "reason": "closed by peer"}
+    assert events[2].data == {"interval": "1h", "symbols": ["AAAUSDT"]}
+    assert events[0].time == at(3)

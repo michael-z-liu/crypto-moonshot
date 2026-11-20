@@ -408,6 +408,8 @@ class Engine:
         self._frontier: dict[Interval, datetime] = {}
         self._collecting: dict[Interval, datetime] = {}
         self._received: dict[tuple[Interval, datetime], set[str]] = {}
+        self._failed: dict[tuple[Interval, datetime], set[str]] = {}
+        """In-process plugins that finished (or could not start) without a batch."""
         self._arrived = asyncio.Event()
         self._busy: dict[str, asyncio.Task[None]] = {}
         self._handed: dict[tuple[str, Interval], datetime] = {}
@@ -630,6 +632,8 @@ class Engine:
         self._step(Step.AFTER_BROKER, tick)
         specs = self._by_interval.get(interval, [])
         await self._collect(tick, specs)
+        if self._stopping:
+            return  # abandoned: decided again after a restart (its batches are kept)
         self._step(Step.AFTER_SIGNALS, tick)
         self._decide(tick, specs)
         self._last_tick_at = self.clock()
@@ -873,6 +877,7 @@ class Engine:
                 f"{type(exc).__name__}: {exc}",
                 {"strategy": spec.name, "candle_time": time.isoformat()},
             )
+            self._give_up(spec, time)
             return
         if self._collecting.get(spec.interval) != time:
             self._event(
@@ -884,6 +889,11 @@ class Engine:
             return
         self._record_on_time(spec, batch, self.clock())
 
+    def _give_up(self, spec: StrategySpec, time: datetime) -> None:
+        """No batch will come from this plugin for `time`: stop waiting for it."""
+        self._failed.setdefault((spec.interval, time), set()).add(spec.name)
+        self._arrived.set()
+
     def _start_plugin(self, spec: StrategySpec, tick: Tick) -> None:
         time = tick.open_time
         busy = self._busy.get(spec.name)
@@ -894,6 +904,7 @@ class Engine:
                 f"{spec.name}: still computing an earlier candle; {time.isoformat()} missed",
                 {"strategy": spec.name, "candle_time": time.isoformat()},
             )
+            self._give_up(spec, time)
             return
         if not any(symbol in tick.candles for symbol in spec.symbols):
             empty = SignalBatch(
@@ -918,6 +929,7 @@ class Engine:
         self._collecting[interval] = time
         have = self._received.setdefault(key, set())
         have.update(b.strategy for b in self.store.batches_for(interval, time))
+        failed = self._failed.setdefault(key, set())
         try:
             await self._notify(tick)
             for spec in specs:
@@ -931,12 +943,12 @@ class Engine:
                 deadline = time + interval.length + self.config.engine.signal_deadline
                 wait = (deadline - self.clock()).total_seconds()
             until = loop.time() + max(0.0, wait)
-            while not expected <= have and not self._stopping:
+            while not expected <= have | failed and not self._stopping:
                 remaining = until - loop.time()
                 if remaining <= 0:
                     break
                 self._arrived.clear()
-                if expected <= have:
+                if expected <= have | failed:
                     break
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(self._arrived.wait(), remaining)
@@ -1091,6 +1103,7 @@ class Engine:
             store.set_last_tick(interval, time)
         self._last_ticks[interval] = time
         self._received.pop((interval, time), None)
+        self._failed.pop((interval, time), None)
         if self._dirty:
             self._derive(sorted(self._dirty), entry_time)
 
