@@ -203,6 +203,7 @@ entry at the first that refuses (`first_rejection`). They read only the book, ne
 The trading platform runs these per strategy book and adds account-wide checks on top: maximum
 order size, maximum total exposure, no entries on a symbol whose latest candle is more than
 `stale_after` intervals old, and the pause and flatten controls (see Trading platform, Engine).
+`risk.standard_checks` builds the list in the one order both engines apply it.
 
 ### Brokers
 
@@ -308,18 +309,21 @@ account-wide limits and each strategy instance. Secrets never go in it: the API 
 (later) exchange keys come from the environment.
 
 ```toml
-mode = "paper"                     # paper | testnet | live (live also needs --mainnet)
-state = "state/paper.sqlite"
+mode = "paper"                     # paper | testnet | live (only paper runs in P1)
+state = "state/paper.sqlite"       # relative to the config file's folder
 
 [account]
 initial_cash = 10000               # paper and replay only; testnet/live read the balance
-max_order_usdt = 500
-max_total_exposure = 1.0           # open cost basis / account realised equity
+max_order_usdt = 500               # an entry's stake above this is refused
+max_total_exposure = 1.0           # open cost basis / realised equity, both summed over the books
 stale_after = 2                    # intervals: no entries on a symbol whose data is older
+costs = { fee = 0.001, slippage = 0.0005, latency = 0.0 }   # the simulated exchange's
 
 [engine]
 tick_timeout = "10s"               # wait this long after a close for every symbol's candle
 signal_deadline = "30s"            # after a candle closes, wait this long for signal batches
+entry_grace = "5m"                 # cancel a pending buy whose candle is this overdue
+replay_timeout = "1h"              # replay: longest real wait for a candle's batches
 
 [[strategies]]
 name = "r2"                        # instance name: unique, used in the state and the API
@@ -328,7 +332,7 @@ params = {}                        # passed to the plugin factory, if it is call
 symbols = "all"                    # a universe name or a list
 capital = 2000                     # this strategy's book
 sizing = { stake = 50 }            # or { slots = 5 } or { weighted_slots = 5 }
-risk = { max_positions = 200, daily_loss_limit = 0.1 }
+risk = { max_positions = 200, daily_loss_limit = 0.1 }   # also max_exposure, max_entries_per_day
 exit = { take_profit = 0.2, max_hold = "3d" }         # optional: overrides the plugin's plan
 
 [[strategies]]
@@ -341,6 +345,19 @@ capital = 3000
 sizing = { slots = 5 }
 exit = { max_hold = "2h" }
 ```
+
+- **Validation.** Every error names its field (`strategies[1] (cnn).warmup: ...`). Names are
+  unique; exactly one sizing key; an external strategy needs `interval` and `warmup` and takes
+  no `params`; the strategies' capital may not exceed `initial_cash`; durations are strings
+  (`models.parse_duration`).
+- **Mode.** `testnet` and `live` parse, but `RunConfig.require_runnable` (and the engine)
+  refuse them with a clear message: P1 places no exchange orders.
+- **Costs** are account-wide: the paper broker is one simulated exchange with one fee schedule.
+- **In-process plugins.** `interval`, if given, must match the plugin's; `warmup` replaces the
+  plugin's window length. `exit` overrides fields of the plugin's plan (a plan without any exit
+  opens no bracket). `max_positions` has no default, even with slot sizing.
+- **Universes** (`pool`, `all`) resolve against the data root's symbol lists at the strategy's
+  interval (`StrategyConfig.resolve_symbols`).
 
 #### Strategy plugins
 
@@ -401,8 +418,15 @@ class Strategy(Protocol):
   `moonshot backtest signals FILE --interval 5m` backtests a signal file produced anywhere (the
   columns of `Signals.frame`, exit plan from the command's options). Both commands take the
   other `backtest` options; `plugin` uses the plugin's `exit` unless the options override it.
-- **Runtime.** The engine calls in-process plugins in a worker thread with the tick's deadline, so
-  a slow plugin misses its batch like a late provider instead of stalling the loop.
+- **Runtime.** The engine reads a plugin's windows on the event-loop thread and calls
+  `on_candles` in a worker thread with the tick's deadline, so a slow plugin misses its batch
+  like a late provider instead of stalling the loop. A plugin still computing an earlier candle
+  misses the next one too (a thread cannot be killed); one that raises or returns a frame that
+  breaks the contract misses its batch with an error event. A plugin whose traded symbols have
+  no candle in a tick gets an empty batch without being called, and symbols whose latest candle
+  is more than `stale_after` intervals old are left out of its windows, both as in
+  `rolling_signals`. A plugin with `needs_windows = False` gets empty windows (the replay's
+  `PrecomputedStrategy`).
 
 #### Signal contract (v1)
 
@@ -434,8 +458,12 @@ when everyone has reported:
 - **Deadline.** The engine processes a candle's batches when every strategy of that interval has
   reported, or `signal_deadline` after the candle closed, whichever is first. A batch that arrives
   later is *late*: its entries are rejected as expired (an entry well after the open of *t+1* no
-  longer matches the backtest), its exits are still carried out. How late every batch was is
-  recorded, so provider latency is visible.
+  longer matches the backtest), its exits are still carried out (market sells for the next
+  candle open after it arrived). How late every batch was is recorded, so provider latency is
+  visible. A batch that missed the deadline is recorded as `missed`; when it turns up, that
+  record becomes `late` (it is not a duplicate). A batch may arrive before the engine has seen
+  its tick, once the candle has closed by the engine's clock; it joins that candle's
+  decisions.
 - **Exit overrides and info.** `exit` is a partial plan: a field left out keeps the strategy's
   value; durations are strings (`90m`, `2h`, `3d`, `1w`). `info` takes scalars only; the frame
   helpers (`frame_to_batch`, `batch_to_frame`) turn extra columns into `info` and back.
@@ -459,7 +487,7 @@ when everyone has reported:
 - **`Feed` interface** (`live/feed.py`), what the engine uses: `ticks()` (async iterator of
   `Tick(interval, open_time, candles, missing, emitted_at)`), `windows(interval, symbols, time,
   warmup)`, `last_candle`, `stale_symbols(interval, now, stale_after)`, `health()` and
-  `aclose()`. `LiveFeed` implements it over the WebSocket; the replay feed (M5) implements it
+  `aclose()`. `LiveFeed` implements it over the WebSocket; `ReplayFeed` (`live/replay.py`) implements it
   over stored candles with simulated time. Candles in ticks are `Candle` named tuples (the
   `KLINE_SCHEMA` columns); windows are frames.
 - **Ticks.** Closed candles are grouped by (interval, open time). A tick is emitted when every
@@ -483,39 +511,92 @@ when everyone has reported:
 
 #### Engine
 
-`live/engine.py`. For each tick (interval, candle *T*) of a live or replay feed:
+`live/engine.py` (the module docstring is the exact rule set). One asyncio component with an
+injected clock, driven by any `Feed`; it owns the paper broker and the books and writes
+everything to the state file, from the event-loop thread only and never across an `await`. For
+each tick (interval *I*, candle *T*, entry time *E = T + I*):
 
-1. **Broker first.** The broker gets the tick's candles and is advanced to the close of *T*
-   (`PaperBroker.add_candles`, then `advance`):
-   entries placed for the open of *T* fill, and every bracket checks candle *T*. Their fills are
-   recorded and the books updated, so exits at or before the next entry time free cash and slots
-   before new entries, as in the backtest.
-2. **Signals.** In-process plugins for that interval run on the windows; external providers get
-   the tick over the API. The engine collects batches until all have reported or the deadline.
-3. **Exits** from exit signals are placed (market sells for the open of *T+1*).
-4. **Entries**, across strategies, in order of priority then symbol (each strategy's book is
+1. **Broker first** (one transaction). Every series the broker needs on *I* (an open position
+   from its entry candle, a pending order from its time) gets its candles: the tick's candle
+   when the previous one was handed over, else the feed's window over the last `HISTORY_SLACK`
+   candles, which picks up late candles that filled a hole. Then `advance(E, interval=I)`:
+   entries placed for the open of *T* fill and every bracket checks candle *T*. Every event is
+   recorded (fills, positions, bracket order rows, cancellations), so exits at or before *E*
+   free cash and slots before new entries, as in the backtest. Pending buys whose entry candle
+   has not closed `entry_grace` after it should have are cancelled (`no_candle`). Each interval
+   advances only its own series, so a 1h bracket is never decided at a 5m tick before the 1h
+   candle has been handed over.
+2. **Signals.** Tick listeners run first (M6 broadcasts the tick to external providers there).
+   In-process plugins for *I* run on the windows (see Strategy plugins, Runtime); external
+   batches arrive through `Engine.submit_batch`. Every batch is recorded when it arrives. The
+   engine waits until every strategy of *I* has reported (or its plugin failed), or until
+   `signal_deadline` after the close by the clock; a tick emitted after the deadline is decided
+   at once. In replay it waits for every batch, up to `replay_timeout` of real time, so a replay
+   with an external strategy and no provider waits that long per candle.
+3. **Decisions** (one transaction, ending with the tick marker). Missing batches are recorded
+   as `missed`. The controls are read: a requested flatten sells every open position for *E*,
+   cancels pending entries and pauses. **Exits** from exit signals become market sells for *E*
+   (ignored, with a reason, when the strategy does not hold the symbol, its entry is still
+   pending or a sell is already pending). Then **entries**, across strategies, in order of
+   signal priority, then strategy name, then symbol (the tie-break; each strategy's book is
    separate, so the order matters only for account limits and symbols two strategies want).
-   Each passes, in order: pause, the account's one-strategy-per-symbol rule, staleness, the
-   strategy's sizing (on its book's realised equity) and risk checks (`risk.py`, unchanged),
-   cash in its book, then the account checks (`max_order_usdt`, `max_total_exposure`). The first
-   refusal is recorded as the signal's reason; the rest become market buys for the open of
-   *T+1*, carrying the exit plan. The stake is reserved in the book at once, as the backtest
-   spends it at entry.
-5. **Time exits** are part of the bracket for the paper broker; for an exchange broker (P3) the
+   Each passes, in order, and the first refusal is recorded as the signal's reason: `paused`;
+   `unknown_symbol` (not one of the strategy's symbols); `symbol_held` (one pending or open
+   position per symbol across strategies); `stale` (`feed.stale_symbols`); sizing on the
+   strategy's book (realised equity; `weighted_slots` reads the signal's `weight`); the book's
+   risk checks (`risk.first_rejection`, unchanged); `cash` in the book; `max_order_usdt`;
+   `max_total_exposure`. An accepted entry is a market buy for *E* with a deterministic client
+   order ID, carrying the strategy's exit plan with the signal's partial override; its order
+   row and pending position (stake reserved, `placed_at = E`) are written before the broker is
+   called. Refusals are summed into one event per tick.
+4. **Time exits** are part of the bracket for the paper broker; for an exchange broker (P3) the
    engine places them, because Binance has no order that expires after a holding time.
 
 - **Books.** Each strategy instance has its own `portfolio.Book` with its allocated capital, so
-  strategies cannot starve each other and each can be judged alone. Account checks read the sum.
-  Only one strategy may hold a symbol at a time (the brokers hold one position per symbol).
+  strategies cannot starve each other and each can be judged alone. Account checks read the
+  sum. Books are kept in memory for the decisions and re-derived from the state file
+  (`StateStore.derive_book`) after every step that changed it and whenever the UTC day changes:
+  they always equal `derive_book` (a test checks it after every tick), and a restarted engine
+  computes bit-for-bit the same stakes as one that never stopped.
 - **Controls.** `pause` stops new entries (exits keep working); `resume` lifts it; `flatten`
-  sells every position at market and pauses. Controls are stored in the state file, so they
-  survive a restart.
-- **Entry candle missing.** If candle *T+1* is missing for a symbol with a pending buy (a
-  hole: a later candle closes first), the broker cancels the buy (`no_entry_candle`) and its
-  stake is released. While no candle at or after *T+1* has closed at all, the buy stays pending
-  (a late candle may still arrive); the engine cancels it after a grace period of its choosing.
-  The backtest skips such a signal before sizing, so a live run can differ from a backtest only
-  when another entry in the same candle was refused for a slot the cancelled one held.
+  sells every position at market at the next tick, cancels pending entries and pauses.
+  Controls are stored in the state file, so they survive a restart; `Engine.pause`, `resume`
+  and `flatten` set them.
+- **Events.** Feed events (`Engine.on_feed_event` is the feed's sink), missed and late batches,
+  plugin errors and timeouts, refusals (one event per tick), cancelled entries, flattens,
+  restarts and missed ticks go to the state file's event feed.
+- **Errors.** A plugin never crashes the engine. Anything else (a broken state file, a bug)
+  propagates out of `Engine.run`: the daemon stops and recovers from the state file on
+  restart. `Engine.stop` abandons a tick still collecting batches; it is decided after the
+  restart (its recorded batches are kept).
+- **For the API (M6).** `submit_batch(batch, received_at) -> BatchOutcome` (`on_time`, `late`,
+  `duplicate`, or `refused` with a reason), `add_tick_listener`, `status()` (mode, controls,
+  books, positions, open orders, stale symbols, last ticks, providers, health; `to_json()`),
+  `pause`/`resume`/`flatten`, `on_feed_event`, `run(feed)` and `stop()`. `build_specs`,
+  `feed_subscriptions` (traded, context and held symbols) and `feed_warmups` give what the
+  daemon needs to build a `LiveFeed`.
+
+##### Where a replay can differ from the backtest
+
+The fills are the same (the paper broker calls `resolve_exit`); a few decisions can differ
+because the backtest knows some things earlier than a live run can. Each is tested
+(`tests/test_replay.py`), and the replay = backtest test uses a fixture where none occurs.
+
+- **A gap exit at the next entry time.** The backtest frees cash, a slot and the symbol from an
+  exit at exactly the next entry time *T+1* (a stop or take profit gapped through at the open
+  of *T+1*) before taking entries at *T+1*; live learns of that exit only when *T+1* closes, so
+  the slot is not free and the symbol is still held for entries at *T+1*. Time exits at exactly
+  *T+1* are known in time (at the close of *T*) and do not diverge.
+- **A missing entry candle.** The backtest skips such a signal before sizing; live reserves the
+  stake until the hole is detected (when a later candle closes, or after `entry_grace`), so
+  another entry in the same candle (or the next) may be refused for the slot or cash the
+  cancelled one held.
+- **`RuleStrategy` on a new listing's days 7-8.** With `on_candles` the replay gives no signals
+  until a symbol has `MIN_HISTORY` candles; a backtest through `compute_signals` signals from
+  day 7 (see Strategy plugins, Rule strategies).
+- **Refusal reasons** (not trades) can differ: live checks the account's one position per
+  symbol before the book's risk checks, so a signal the backtest counts as `slots_full` may be
+  recorded as `symbol_held`.
 
 #### Paper broker
 
@@ -554,8 +635,8 @@ by `until`, so candles handed over early never leak into it.
   Binance's charset). A bracket's ID is derived from its buy's (`child_order_id`).
 - **Intervals.** Each order fills on the candles of its strategy's interval (`place_order(order,
   interval=...)`, default the broker's); candles are kept per (symbol, interval) only while that
-  series has a position or a pending order, from the entry candle or order time on. No 1m fills
-  live.
+  series has a position or a pending order, from the entry candle or order time on.
+  `advance(until, interval=...)` decides only that interval's series. No 1m fills live.
 - **Recovery.** `snapshot()` / `PaperBroker.restore()` save and rebuild cash, positions (with
   brackets) and pending orders; the state store builds the same snapshot from its tables
   (`StateStore.broker_snapshot`). After a restore, `required_history()` lists each position whose
@@ -567,11 +648,9 @@ by `until`, so candles handed over early never leak into it.
   `SimulatedBroker`'s with the whole window, and each exit is applied at the first advance that
   can know it.
 - **Known differences from a backtest.** The fills are the same; what can differ is the engine's
-  timing around them. The backtest settles exits up to an entry's time before taking it, so a
-  gap exit at the open of candle *T+1* frees cash, a slot and the symbol for an entry at *T+1*;
-  live, that exit is known only when candle *T+1* closes, after the entries were placed. And a
-  candle that arrives after the advance that needed it is too late: the broker has decided
-  without it.
+  timing around them (see Engine, "Where a replay can differ from the backtest"). And a candle
+  that arrives after the advance that needed it is too late: the broker has decided without
+  it.
 
 #### State and recovery
 
@@ -607,27 +686,59 @@ one pending or open position per symbol across strategies.
   backtest never counts a skipped signal; entries count on the UTC day of `placed_at`, which the
   engine sets to the entry time (the open of *T+1*), where the backtest's book counts them. A
   test checks it equals a `Book` fed the same entries and closes in time order.
-- **Restart.** The daemon loads open positions and pending orders (`broker_snapshot`), rebuilds
-  the broker (`PaperBroker.restore`), adds candles from each position's entry on (a REST
-  backfill: the feed's windows may be shorter than a position's age), and advances it to now:
-  exits that happened while it was down are applied at their real times, as the exchange would
-  have done. Ticks missed while down are recorded as missed; their signals are not replayed
-  (they would be stale). An exchange broker (P3) reconciles open orders and balances with
-  Binance instead.
+- **Restart.** The engine checks the config against the stored strategies (a changed capital,
+  a changed `initial_cash` or a removed strategy with open positions is refused with a clear
+  message), loads open positions and pending orders (`broker_snapshot`), rebuilds the broker
+  (`PaperBroker.restore`) and derives the books. On the first tick of each interval it hands
+  the broker each position's candles from its entry on (and each pending order's from its
+  time): from the feed's windows when they reach back far enough, else from the `history`
+  fetcher (a `KlineFetcher`: the REST client live, the Parquet store in replay). That tick's
+  `advance` then applies exits that happened while it was down at their real times, as the
+  exchange would have done. Ticks missed while down are recorded as one `ticks_missed` event;
+  their signals are not replayed (they would be stale). An exchange broker (P3) reconciles open
+  orders and balances with Binance instead.
 - **Crash safety.** An exception inside a transaction rolls it back; a process killed mid-
   transaction (tested with `os._exit` and `kill -9`) leaves the last committed state on reopen.
-  M5 tests killing a replay at arbitrary points and restarting it: the end state must be
-  identical to an uninterrupted run.
+  Each tick is three steps: the broker step (one transaction), the batches (each recorded in
+  its own transaction as it arrives) and the decisions (one transaction that ends with the
+  tick marker). A tick whose marker was not committed is processed again after a restart: its
+  broker step finds nothing new (the restored broker already holds its effects), recorded
+  batches are reused instead of recomputed, and the decisions are made again from the same
+  state. The paper broker is rebuilt from the file, so placing its order inside the decision
+  transaction is safe; an exchange broker (P3) must commit the intent before calling the
+  exchange and reconcile by client order ID. `tests/test_recovery.py` interrupts a replay at
+  every step boundary (after the broker step, after the signals, between an order's intent and
+  the broker call, before the tick marker, after it), several times in a row and with a real
+  `os._exit` in a subprocess: every table, the book, the trades and the equity curve equal an
+  uninterrupted run.
 
 #### Replay
 
-`moonshot live replay --config FILE --start --end` runs the same engine over stored candles: the
-feed reads ticks from the Parquet store, the clock jumps to each close, and the deadline waits for
-every strategy's batch (external providers included) instead of wall-clock time. It writes the
-state file plus a trade list, equity curve and metrics in the backtest's format. Replay is how
-the platform is tested without keys or live markets: its trades must match `backtest.engine` on
-the same signals and settings, and a replay interrupted and restarted must match one that was
-not.
+`live/replay.py`. `moonshot live replay --config FILE --start --end` (M6) runs the same engine
+over stored candles (`run_replay`, or `prepare_replay` to wire the API before running):
+
+- **`ReplayFeed`** implements `Feed` over the Parquet store for `[start, end)`: one tick for
+  every candle time at which at least one subscribed symbol has a candle (several intervals in
+  order of close time, then interval length), windows sliced from series read once (from twice
+  the warm-up plus `HISTORY_SLACK` before `start`, rounded down to a month start), staleness by
+  the live rule. Its clock is the close time of the tick being processed, so every time the
+  engine writes is deterministic.
+- **Deadline.** Replay waits for every strategy's batch (external providers included) instead
+  of wall-clock time, up to `replay_timeout`.
+- **Resume.** A state file with processed ticks resumes after them; candles older than the
+  feed's windows come from the store (`StoreHistory`).
+- **Fast path.** With `signals="backtest"` a plugin that has `backtest_signals` is run once over
+  the range and its signals are served per tick (`PrecomputedStrategy`) instead of calling
+  `on_candles` on every candle; the default `on_candles` path gives exactly the live signals.
+- **Outputs.** The state file plus `trades.parquet`/`.csv` (the closed positions in the
+  backtest's columns, then `strategy` and the signals' info), `equity.csv` (the backtest's
+  curve code, from `initial_cash`; positions still open at the end are valued at their last
+  close and are not in the trade list), `yearly.csv` and `metrics.json` (overall metrics, trade
+  metrics per strategy, signal outcomes, open positions, the config).
+
+Replay is how the platform is tested without keys or live markets: its trades match
+`backtest.engine` on the same signals and settings (except the divergences listed under
+Engine), and a replay interrupted and restarted matches one that was not.
 
 #### API
 
@@ -680,10 +791,10 @@ src/crypto_moonshot/
 ├── portfolio.py        # the book and position sizing
 ├── risk.py
 ├── broker/             # base.py (orders, ExitPlan, Costs), candles.py, simulated.py, paper.py; binance.py (P3)
-├── backtest/           # engine.py, metrics.py, source.py (candle windows; Parquet-backed and in-memory)
+├── backtest/           # engine.py, metrics.py, results.py (result files), source.py (candle windows)
 ├── live/               # config.py (TOML run config), contract.py (signal batches), plugin.py (Strategy,
-│                       # loader, RuleStrategy), feed.py (ticks, windows; live and replay), state.py (SQLite),
-│                       # engine.py, api.py, daemon.py (wires them together)
+│                       # loader, RuleStrategy), feed.py (ticks, windows), state.py (SQLite), engine.py,
+│                       # replay.py (replay feed and runs), api.py, daemon.py (wires them together)
 └── provider.py         # SDK for external signal providers
 ```
 
