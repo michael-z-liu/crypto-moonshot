@@ -10,12 +10,22 @@ from typing import Any
 
 import polars as pl
 import pytest
-from engine_fakes import Bar, FakeClock, FakeFeed, Row, Scheduled, flat_bars, until
+from engine_fakes import (
+    Bar,
+    FakeClock,
+    FakeFeed,
+    Row,
+    Scheduled,
+    flat_bars,
+    until,
+    write_bars,
+)
 
 from crypto_moonshot.broker.base import ExitPlan, Side, client_order_id
 from crypto_moonshot.live.config import ConfigError, RunConfig, config_from_dict
 from crypto_moonshot.live.contract import CONTRACT_VERSION, SignalBatch, SignalIn
 from crypto_moonshot.live.engine import Engine, Step, build_specs
+from crypto_moonshot.live.replay import prepare_replay
 from crypto_moonshot.live.state import (
     BatchStatus,
     OrderStatus,
@@ -537,3 +547,109 @@ def test_the_engine_refuses_testnet_and_live(tmp_path: Path) -> None:
         )
         with StateStore.open(tmp_path / "s.sqlite") as store, pytest.raises(ConfigError):
             Engine(config, build_specs(config, None), store)
+
+
+# -- several strategies ---------------------------------------------------------------------
+
+
+def _multi_run(
+    root: Path, path: Path, strategies: list[dict[str, Any]], plugins: dict[str, Any]
+) -> tuple[pl.DataFrame, StateStore, int]:
+    """Replay the strategies over the flat store; checks every book against `derive_book`
+    after every tick. Returns the trades, the open store and the number of ticks checked."""
+    config = config_from_dict(
+        {
+            "state": str(path),
+            "account": {
+                "initial_cash": 2000.0,
+                "max_order_usdt": 150.0,
+                "max_total_exposure": 0.2,
+            },
+            "strategies": strategies,
+        }
+    )
+    checked = [0]
+    box: dict[str, Engine] = {}
+
+    def hook(step: str, tick: Any) -> None:
+        if step != Step.TICK_DONE:
+            return
+        engine = box["engine"]
+        for name, book in engine.books.items():
+            capital = engine.specs[name].capital
+            assert book == engine.store.derive_book(name, capital, engine.clock())
+        checked[0] += 1
+
+    run = prepare_replay(config, at(1), at(14), root, plugins=plugins, step_hook=hook)
+    box["engine"] = run.engine
+    result = asyncio.run(run.run())
+    return result.trades, run.store, checked[0]
+
+
+def test_strategies_trade_independently_under_the_account_rules(tmp_path: Path) -> None:
+    for symbol in SYMBOLS:
+        write_bars(tmp_path, symbol, flat_bars(20), H1, at(0))
+    hold = ExitPlan(max_hold=3 * HOUR)
+    alpha = {
+        at(1): [("AAAUSDT", 0.0)],
+        at(2): [("CCCUSDT", -1.0)],  # beats beta's CCC on priority
+        at(3): [("AAAUSDT", 0.0)],  # still holding AAA: one position per symbol
+        at(5): [("FFFUSDT", 0.0)],  # ties with beta's FFF: strategy name decides
+    }
+    beta = {
+        at(1): [("BBBUSDT", 0.0)],
+        at(2): [("CCCUSDT", 0.0)],
+        at(3): [("DDDUSDT", 0.0)],  # 100 + 120 + 100 open, + 120 > 0.2 x 2000
+        at(5): [("FFFUSDT", 0.0)],
+    }
+    gamma = {at(3): [("EEEUSDT", 0.0)]}  # a 200 stake > max_order_usdt
+    strategies = [
+        strategy("alpha", capital=1000.0),
+        strategy("beta", capital=500.0, sizing={"stake": 120.0}),
+        strategy("gamma", capital=500.0, sizing={"stake": 200.0}),
+    ]
+    plugins = {
+        "alpha": Scheduled(alpha, name="alpha", exit=hold),
+        "beta": Scheduled(beta, name="beta", exit=hold),
+        "gamma": Scheduled(gamma, name="gamma", exit=hold),
+    }
+    trades, store, checked = _multi_run(tmp_path, tmp_path / "multi.sqlite", strategies, plugins)
+    assert checked == 13
+    held = {(r["strategy"], r["symbol"], r["entry_time"]) for r in trades.iter_rows(named=True)}
+    assert held == {
+        ("alpha", "AAAUSDT", at(2)),
+        ("beta", "BBBUSDT", at(2)),
+        ("alpha", "CCCUSDT", at(3)),
+        ("alpha", "FFFUSDT", at(6)),
+    }
+    reasons = {
+        (b.strategy, b.candle_time, s.symbol): s.reason
+        for k in range(1, 14)
+        for b in store.batches_for(H1, at(k))
+        for s in b.signals
+        if s.outcome is SignalOutcome.REJECTED
+    }
+    assert reasons == {
+        ("beta", at(2), "CCCUSDT"): "symbol_held",
+        ("alpha", at(3), "AAAUSDT"): "symbol_held",
+        ("beta", at(3), "DDDUSDT"): "max_total_exposure",
+        ("gamma", at(3), "EEEUSDT"): "max_order_usdt",
+        ("beta", at(5), "FFFUSDT"): "symbol_held",
+    }
+    # Separate books: each strategy's cash moved only with its own trades.
+    for name, capital in (("alpha", 1000.0), ("beta", 500.0), ("gamma", 500.0)):
+        own = trades.filter(pl.col("strategy") == name)
+        book = store.derive_book(name, capital, at(14))
+        assert book.cash == pytest.approx(capital + float(own["pnl"].sum()))
+    store.close()
+
+    # Alpha alone (no account limit ever refused it) trades exactly the same.
+    alone, store, _ = _multi_run(
+        tmp_path,
+        tmp_path / "alone.sqlite",
+        [strategy("alpha", capital=1000.0)],
+        {"alpha": Scheduled(alpha, name="alpha", exit=hold)},
+    )
+    store.close()
+    mine = trades.filter(pl.col("strategy") == "alpha")
+    assert alone.select(mine.columns).equals(mine)

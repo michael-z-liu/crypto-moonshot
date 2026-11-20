@@ -32,7 +32,6 @@ from crypto_moonshot.backtest.engine import BacktestConfig, run_backtest
 from crypto_moonshot.backtest.source import ParquetCandleSource
 from crypto_moonshot.broker.base import Costs, ExitPlan, Side, client_order_id
 from crypto_moonshot.data.store import KlineStore
-from crypto_moonshot.live.plugin import rolling_signals
 from crypto_moonshot.live.replay import ReplayFeed, run_replay
 from crypto_moonshot.live.state import PositionStatus, StateStore
 from crypto_moonshot.portfolio import EqualSlots, FixedStake
@@ -40,20 +39,14 @@ from crypto_moonshot.strategy.base import Signals
 from crypto_moonshot.strategy.compute import compute_signals
 
 
-@pytest.fixture(scope="module")
-def root(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    path = tmp_path_factory.mktemp("replay")
-    write_replay_store(path)
-    return path
+@pytest.fixture
+def root(replay_root: Path) -> Path:
+    return replay_root
 
 
-@pytest.fixture(scope="module")
-def signals(root: Path) -> Signals:
-    """The rolling (live) signals of the rule over the replay range."""
-    store = KlineStore(root)
-    series = {s: store.read_series(s, H1) for s in COINS}
-    context = {"BTCUSDT": store.read_series("BTCUSDT", H1)}
-    return rolling_signals(rule_strategy(), series, context, at(START), at(END))
+@pytest.fixture
+def signals(replay_signals: Signals) -> Signals:
+    return replay_signals
 
 
 def backtest(
