@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `worktree-bridge-cse_015bssAUbtXue4wkarka78Pb`
 - **PR:**
-- **Updated:** 2026-11-20T14:20Z
+- **Updated:** 2026-11-20T14:45Z
 
 ## Goal
 
@@ -32,7 +32,7 @@ separate provider process, not in the trader.
 - **Worker:** master
 - **Commits:** 841ecfc
 
-### M2: Plugin contract (in progress)
+### M2: Plugin contract (done)
 
 - **Delivers:** the live strategy protocol and loader (`module:attr` or `path/file.py:attr`, with
   params), the adapter for existing `SignalRule`s (capitulation), `moonshot backtest plugin
@@ -41,9 +41,9 @@ separate provider process, not in the trader.
   adapter candle by candle over a rolling window gives the same signals as `compute_signals`;
   both CLI commands produce results on fake data.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** a2bbed8, fed9191, 54011ba, 99fde41, 8754178, ef9b290, 3bddad3, 35f2474
 
-### M3: Market data feed (todo)
+### M3: Market data feed (in progress)
 
 - **Delivers:** combined Binance kline WebSocket (closed candles only), a tick assembled per
   candle time with a timeout, reconnect with backoff (incl. the 24-hour drop), REST backfill of
@@ -103,6 +103,13 @@ separate provider process, not in the trader.
   with a bearer token from `MOONSHOT_API_TOKEN`; deps added later: websockets, fastapi, uvicorn.
 - 2026-11-20: `on_candles` takes traded symbols' windows and context windows separately (M2), so
   `RuleStrategy` knows which symbols to compute candidates for.
+- 2026-11-20 (M2): `RuleStrategy` warm-up defaults to `MIN_HISTORY` (8 days, 2304 5m candles).
+  Known edge: the full-history computation signals on a symbol's candles 2016-2303 (days 7-8
+  after listing) once the series ever reaches 8 days; a live window cannot, so those rare
+  signals appear in backtests only. Documented; excluded from the parity test only.
+- 2026-11-20 (M2): `on_candles` frames have no `open_time`; exit-override columns are partial
+  (null keeps the strategy's value); backtests of plugins keep only entries and apply the single
+  config exit plan (per-signal overrides apply live only).
 
 ## Blocked on
 
