@@ -49,9 +49,11 @@ the rest of the closed candles. Duplicate candles (same open time) keep the firs
 Orders keep the `Order.id` they were given (the engine's deterministic client order IDs); a
 bracket's ID is derived from its buy's (`child_order_id`). One position per symbol.
 
-Known differences from a backtest, all from information the backtest has and a live run does
-not: a candle that arrives after the advance that needed it (the broker has already decided
-without it), and nothing else in the broker itself (see `docs/architecture.md`, Paper broker).
+Fills equal the backtest's; two things can still differ, both from information the backtest has
+earlier than a live run: a candle that arrives after the advance that needed it (the broker has
+decided without it), and a gap exit at the open of candle *T+1*, which the backtest settles
+before its entries at *T+1* but which is known live only when that candle closes (see
+`docs/architecture.md`, Paper broker).
 """
 
 from __future__ import annotations

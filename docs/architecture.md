@@ -485,7 +485,8 @@ when everyone has reported:
 
 `live/engine.py`. For each tick (interval, candle *T*) of a live or replay feed:
 
-1. **Broker first.** The broker is advanced to the close of *T* (`PaperBroker.on_candles`):
+1. **Broker first.** The broker gets the tick's candles and is advanced to the close of *T*
+   (`PaperBroker.add_candles`, then `advance`):
    entries placed for the open of *T* fill, and every bracket checks candle *T*. Their fills are
    recorded and the books updated, so exits at or before the next entry time free cash and slots
    before new entries, as in the backtest.
@@ -509,50 +510,114 @@ when everyone has reported:
 - **Controls.** `pause` stops new entries (exits keep working); `resume` lifts it; `flatten`
   sells every position at market and pauses. Controls are stored in the state file, so they
   survive a restart.
-- **Entry candle missing.** If candle *T+1* never arrives for a symbol with a pending buy (a
-  hole), the buy is cancelled and its stake released. The backtest skips such a signal before
-  sizing, so a live run can differ from a backtest only when another entry in the same candle was
-  refused for a slot the cancelled one held.
+- **Entry candle missing.** If candle *T+1* is missing for a symbol with a pending buy (a
+  hole: a later candle closes first), the broker cancels the buy (`no_entry_candle`) and its
+  stake is released. While no candle at or after *T+1* has closed at all, the buy stays pending
+  (a late candle may still arrive); the engine cancels it after a grace period of its choosing.
+  The backtest skips such a signal before sizing, so a live run can differ from a backtest only
+  when another entry in the same candle was refused for a slot the cancelled one held.
 
 #### Paper broker
 
-`broker/paper.py`. Fills against candles as they arrive, with exactly the backtest's rules:
+`broker/paper.py`. Fills against closed candles as they arrive, with exactly the backtest's
+rules (the module docstring is the full rule set). The engine hands it candles
+(`add_candles(symbol, candles)`, any order, duplicates ignored) and moves it forward
+(`advance(until)`); it never reads a clock, and a decision uses only candles that have *closed*
+by `until`, so candles handed over early never leak into it.
 
-- A market order placed for time *t* fills at the open of the first candle at or after *t*, once
-  that candle has closed, with `Costs` as in `SimulatedBroker`. The fill time is the candle's
-  open time.
-- Each open bracket is re-evaluated on every new candle by calling `resolve_exit` on the
-  position's candles so far (from the entry candle, `ended=False`); the first exit it returns is
-  applied. Because it is the same function, a position fed candle by candle exits exactly where
-  `SimulatedBroker` would; a parity test checks this over random paths and exit plans.
-- Brackets are evaluated on candles of the position's strategy interval (no 1m fills live).
-- A paper account's cash, positions and brackets are rebuilt from the state file on restart.
+- **Market buy** for time *t*: the stake is reserved at placement (a buy above the free cash is
+  rejected, `OrderRejected` with a `RejectReason`). It fills at the open of candle *t* once that
+  candle has closed, with `Costs` as in `SimulatedBroker` and fill time *t*. If the first
+  closed candle at or after *t* opens later, the buy is cancelled with `no_entry_candle` and its
+  cash released, as the backtest skips the signal.
+- **Market sell** (the whole position, or part of one without a bracket): fills at the open of
+  the first candle at or after its time, once that candle has closed. Selling the whole
+  position cancels its bracket. If the bracket exits first (or at the same time: a gap at the
+  open of the sell's candle), the sell is cancelled with `position_closed`.
+- **Brackets.** On every `advance` each open bracket calls `resolve_exit` on the position's
+  closed candles from the entry candle (`ended=False`) and applies the exit only once it is
+  certain. A take profit or stop found in a prefix is the first hit of the full window too (the
+  scan goes forward, the trailing peak looks back), so it is applied as soon as its candle has
+  closed; a gap fill at a candle's open is applied at that candle's close, with the open as its
+  fill time. **A time exit is certain only once every candle that opens before the deadline has
+  closed** (`until >= entry + ceil(max_hold / interval) x interval`): `resolve_exit` returns a
+  time exit for any unended window without a hit, even one that stops short of the deadline,
+  which the backtest never sees because it always loads the window through `max_hold`.
+  `series_end` never happens live (a series never ends; a delisted symbol's position stays open
+  until the engine sells it).
+- **Events.** `advance` returns `EntryFilled` (fill and the new position, with `entry_ref` and
+  the bracket ID), `ExitFilled` (fill, position, what remains after a partial sell) and
+  `OrderCancelled` (order, reason) in time order across symbols, crediting cash in that order.
+  An event's time is when it happened, at or before `until`.
+- **IDs.** Orders keep the ID they are given: the engine passes deterministic client order IDs
+  (`broker.base.client_order_id(strategy, symbol, candle_time, side)`, 36 characters in
+  Binance's charset). A bracket's ID is derived from its buy's (`child_order_id`).
+- **Intervals.** Each order fills on the candles of its strategy's interval (`place_order(order,
+  interval=...)`, default the broker's); candles are kept per (symbol, interval) only while that
+  series has a position or a pending order, from the entry candle or order time on. No 1m fills
+  live.
+- **Recovery.** `snapshot()` / `PaperBroker.restore()` save and rebuild cash, positions (with
+  brackets) and pending orders; the state store builds the same snapshot from its tables
+  (`StateStore.broker_snapshot`). After a restore, `required_history()` lists each position whose
+  entry candle is missing; once its candles from the entry on are added, `advance(now)` applies
+  the exits that happened while the daemon was down, at their real times.
+- **Parity.** A test feeds random paths (gaps, holes, candles touching both levels, trailing
+  stops, close fills, time exits inside candles, no exit yet) one candle at a time, in bursts,
+  out of order, ahead of time and with advances inside candles: the fills equal
+  `SimulatedBroker`'s with the whole window, and each exit is applied at the first advance that
+  can know it.
+- **Known differences from a backtest.** The fills are the same; what can differ is the engine's
+  timing around them. The backtest settles exits up to an entry's time before taking it, so a
+  gap exit at the open of candle *T+1* frees cash, a slot and the symbol for an entry at *T+1*;
+  live, that exit is known only when candle *T+1* closes, after the entries were placed. And a
+  candle that arrives after the advance that needed it is too late: the broker has decided
+  without it.
 
 #### State and recovery
 
-`live/state.py`: one SQLite file per run (WAL mode, schema version in a `meta` table, migrations
-applied at start-up), written only by the daemon. Tables: `meta`, `strategies` (config and
-capital), `ticks` (last processed candle per interval), `batches` (strategy, candle time,
-received time, lateness, status), `signals` (each signal, its outcome and reason), `orders`
-(client order ID, strategy, symbol, side, amounts, exit plan, status), `fills`, `positions`
-(entry and exit details, P&L), `controls` (paused, flatten requested), `events` (time, level,
-kind, message: the alert feed the UI shows) and `providers` (last batch seen).
+`live/state.py`: one SQLite file per run (stdlib `sqlite3`), written only by the daemon. WAL
+journal, `synchronous=FULL`, foreign keys on; the schema version lives in `meta` and migrations
+are applied at open in one transaction (a file from a newer build is refused). Datetimes are
+stored as fixed-width ISO-8601 UTC text and always read back as aware UTC datetimes.
 
+Tables: `meta`; `strategies` (name, config JSON, capital); `ticks` (last processed candle per
+interval); `batches` (strategy, interval, candle time, received time, lateness, status
+`on_time`/`late`/`missed`); `signals` (each signal, its outcome `placed`/`rejected`/`expired`/
+`ignored` and reason); `orders` (client order ID, strategy, symbol, interval, side, type,
+amounts, exit plan, time, status `pending`/`filled`/`cancelled`/`rejected`, reason, signal);
+`fills`; `positions` (strategy, symbol, interval, status `pending`/`open`/`closed`/`cancelled`,
+placed time, entry order, entry and exit details, bracket ID, proceeds, P&L, signal info);
+`controls` (paused, flatten requested); `events` (time, level, kind, message, data: the alert
+feed the UI shows; ids only grow) and `providers` (last batch, last seen). A unique index allows
+one pending or open position per symbol across strategies.
+
+- **Typed API.** Records are dataclasses (`OrderRecord`, `PositionRecord`, `BatchRecord`, ...);
+  `transaction()` makes one tick step atomic and nests as savepoints; every write outside one
+  runs in its own. Statuses only move forward (an order leaves `pending` once; a position goes
+  pending -> open -> closed, or pending -> cancelled); a write that would move one back raises.
 - **Intent before action.** An order row is written with status `pending` before the broker is
   called and updated after, in one transaction per tick step. Client order IDs are deterministic
-  (strategy, symbol, candle time, side; hashed to Binance's 36 characters), so a retry or a
-  restart can never place an order twice.
-- **Books are derived, not stored.** On start-up each book is rebuilt from `positions` and
-  `fills` (capital, plus closed P&L, minus open cost; today's P&L and entries from today's rows),
-  so there is no second copy that can drift.
-- **Restart.** The daemon loads open positions and pending orders, re-seeds the windows and
-  backfills candles since the last processed tick, and lets the broker catch up: the paper broker
-  re-runs `resolve_exit` from each entry, so exits that happened while it was down are applied at
-  their real times, as the exchange would have done. Ticks missed while down are recorded as
-  missed; their signals are not replayed (they would be stale). An exchange broker (P3)
-  reconciles open orders and balances with Binance instead.
-- **Crash safety** is tested by killing a replay at arbitrary points and restarting it: the end
-  state must be identical to an uninterrupted run.
+  (strategy, symbol, candle time, side; hashed to Binance's 36 characters) and are the primary
+  key, so a retry or a restart can never place an order twice. A bracket is an order row too
+  (type `bracket`), so its exit fill has an order.
+- **Books are derived, not stored.** `derive_book(strategy, capital, now)` rebuilds a
+  `portfolio.Book` from positions alone: cash = capital + closed P&L - cost of open and pending
+  positions (a pending entry's stake is reserved); the day's starting equity, P&L, worst running
+  P&L (exit order) and entries from today's rows. A cancelled entry never counts, as the
+  backtest never counts a skipped signal; entries count on the UTC day of `placed_at`, which the
+  engine sets to the entry time (the open of *T+1*), where the backtest's book counts them. A
+  test checks it equals a `Book` fed the same entries and closes in time order.
+- **Restart.** The daemon loads open positions and pending orders (`broker_snapshot`), rebuilds
+  the broker (`PaperBroker.restore`), adds candles from each position's entry on (a REST
+  backfill: the feed's windows may be shorter than a position's age), and advances it to now:
+  exits that happened while it was down are applied at their real times, as the exchange would
+  have done. Ticks missed while down are recorded as missed; their signals are not replayed
+  (they would be stale). An exchange broker (P3) reconciles open orders and balances with
+  Binance instead.
+- **Crash safety.** An exception inside a transaction rolls it back; a process killed mid-
+  transaction (tested with `os._exit` and `kill -9`) leaves the last committed state on reopen.
+  M5 tests killing a replay at arbitrary points and restarting it: the end state must be
+  identical to an uninterrupted run.
 
 #### Replay
 
