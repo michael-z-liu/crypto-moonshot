@@ -299,8 +299,9 @@ separate processes, anywhere on the network, that run strategies the daemon shou
 (heavy libraries, models, GPUs). Everything in the daemon runs on one asyncio event loop with an
 injected clock: wall-clock UTC live, simulated time in replay.
 
-Status: P1 (`docs/plans/live-paper-engine.md`) builds paper mode and replay; the web UI,
-controls UI and Docker image are P2; the Binance broker is P3 (see Build order).
+Status: P1 (`docs/plans/live-paper-engine.md`) built paper mode, replay, the API, the provider SDK
+and the CLI; the web UI, controls UI and Docker image are P2; the Binance broker is P3 (see
+Build order). Strategy authors: see [strategy-plugins.md](strategy-plugins.md).
 
 #### Run config
 
@@ -341,14 +342,16 @@ source = "external"                # an external provider posts this strategy's 
 interval = "5m"
 symbols = "pool"
 warmup = 2016
+context_symbols = ["BTCUSDT"]      # extra symbols the provider's plugin reads; the daemon subscribes them
 capital = 3000
 sizing = { slots = 5 }
 exit = { max_hold = "2h" }
 ```
 
 - **Validation.** Every error names its field (`strategies[1] (cnn).warmup: ...`). Names are
-  unique; exactly one sizing key; an external strategy needs `interval` and `warmup` and takes
-  no `params`; the strategies' capital may not exceed `initial_cash`; durations are strings
+  unique; exactly one sizing key; an external strategy needs `interval` and `warmup`, takes
+  no `params` and may list `context_symbols` (an in-process plugin declares its own, so the
+  field is refused there); the strategies' capital may not exceed `initial_cash`; durations are strings
   (`models.parse_duration`).
 - **Mode.** `testnet` and `live` parse, but `RunConfig.require_runnable` (and the engine)
   refuse them with a clear message: P1 places no exchange orders.
@@ -526,7 +529,7 @@ each tick (interval *I*, candle *T*, entry time *E = T + I*):
    has not closed `entry_grace` after it should have are cancelled (`no_candle`). Each interval
    advances only its own series, so a 1h bracket is never decided at a 5m tick before the 1h
    candle has been handed over.
-2. **Signals.** Tick listeners run first (M6 broadcasts the tick to external providers there).
+2. **Signals.** Tick listeners run first (the API broadcasts the tick to external providers there).
    In-process plugins for *I* run on the windows (see Strategy plugins, Runtime); external
    batches arrive through `Engine.submit_batch`. Every batch is recorded when it arrives. The
    engine waits until every strategy of *I* has reported (or its plugin failed), or until
@@ -569,10 +572,11 @@ each tick (interval *I*, candle *T*, entry time *E = T + I*):
   propagates out of `Engine.run`: the daemon stops and recovers from the state file on
   restart. `Engine.stop` abandons a tick still collecting batches; it is decided after the
   restart (its recorded batches are kept).
-- **For the API (M6).** `submit_batch(batch, received_at) -> BatchOutcome` (`on_time`, `late`,
+- **For the API.** `submit_batch(batch, received_at) -> BatchOutcome` (`on_time`, `late`,
   `duplicate`, or `refused` with a reason), `add_tick_listener`, `status()` (mode, controls,
   books, positions, open orders, stale symbols, last ticks, providers, health; `to_json()`),
-  `pause`/`resume`/`flatten`, `on_feed_event`, `run(feed)` and `stop()`. `build_specs`,
+  `pause`/`resume`/`flatten`, `on_feed_event`, `record_event`, `collecting(interval)` (the candle
+  being collected), `running`, `run(feed)` and `stop()`. `build_specs`,
   `feed_subscriptions` (traded, context and held symbols) and `feed_warmups` give what the
   daemon needs to build a `LiveFeed`.
 
@@ -670,6 +674,9 @@ placed time, entry order, entry and exit details, bracket ID, proceeds, P&L, sig
 feed the UI shows; ids only grow) and `providers` (last batch, last seen). A unique index allows
 one pending or open position per symbol across strategies.
 
+- **Read-only open.** `StateStore.open_readonly` (`moonshot live status --config` with the daemon
+  down) opens an existing file without creating, migrating or writing anything, and refuses one
+  of another schema version.
 - **Typed API.** Records are dataclasses (`OrderRecord`, `PositionRecord`, `BatchRecord`, ...);
   `transaction()` makes one tick step atomic and nests as savepoints; every write outside one
   runs in its own. Statuses only move forward (an order leaves `pending` once; a position goes
@@ -714,8 +721,9 @@ one pending or open position per symbol across strategies.
 
 #### Replay
 
-`live/replay.py`. `moonshot live replay --config FILE --start --end` (M6) runs the same engine
-over stored candles (`run_replay`, or `prepare_replay` to wire the API before running):
+`live/replay.py`. `moonshot live replay --config FILE --start --end` runs the same engine
+over stored candles (`run_replay`, or `prepare_replay` to wire the API before running, as
+`--serve` does):
 
 - **`ReplayFeed`** implements `Feed` over the Parquet store for `[start, end)`: one tick for
   every candle time at which at least one subscribed symbol has a candle (several intervals in
@@ -742,28 +750,97 @@ Engine), and a replay interrupted and restarted matches one that was not.
 
 #### API
 
-`live/api.py`, served by the daemon (FastAPI on uvicorn, in the same event loop), versioned under
-`/api/v1`. Every endpoint except `health` needs `Authorization: Bearer <MOONSHOT_API_TOKEN>`;
-the token comes from the environment and is never logged. The daemon binds to localhost unless
-configured otherwise (on the LAN host, in Docker).
+`live/api.py` (`create_app(engine, feed, token)`), served by the daemon (FastAPI on uvicorn, in
+the same event loop, so handlers run on the thread that owns the state file), versioned under
+`/api/v1`. Every endpoint except `health` needs `Authorization: Bearer <MOONSHOT_API_TOKEN>`,
+the WebSocket included. The token is a `SecretStr` in `Settings`, compared with
+`hmac.compare_digest`, never put in a URL (the WebSocket reads the header only; a missing or
+wrong one gets a plain HTTP 401 before the handshake) and never logged or echoed: uvicorn's access
+log is off and its logging configuration is not used, so nothing about a request is logged. The
+daemon refuses to start without a token. It binds to `127.0.0.1` unless `--host` says otherwise
+(on the LAN host, in Docker); there is no TLS, so anything beyond a private network needs a
+reverse proxy or VPN. The interactive docs are off; `GET /openapi.json` (with the token) serves
+the schema.
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /health` | alive, feed lag, last tick |
-| `GET /status` | mode, controls, each strategy's book, positions, open orders, stale symbols, providers |
-| `GET /candles?interval=&symbols=&limit=` | windows for a provider's warm-up (Arrow IPC, or JSON) |
-| `WS /ticks?interval=` | each tick as it is emitted, with its closed candles |
+| `GET /health` | no auth: alive, mode, running, feed connected / connections / lag, last tick per interval |
+| `GET /status` | `Engine.status().to_json()`: mode, controls, each strategy's book, positions, open orders, stale symbols, providers |
+| `GET /strategies/{name}` | what a provider needs: interval, symbols, warm-up, context symbols, `stale_after`, exit plan, contract version, `external` |
+| `GET /candles?interval=&symbols=&limit=&format=arrow\|json` | the latest closed candles per symbol (default Arrow IPC stream with a `symbol` column; JSON `{"columns", "windows"}`); a provider's warm-up. 422 for an interval nothing trades or a symbol nobody subscribes |
+| `WS /ticks?interval=` | one message per tick of that interval (below) |
 | `POST /signals` | a signal batch (the contract above) |
-| `POST /control/{pause,resume,flatten}` | controls |
-| `GET /events?since=` | the event feed |
+| `POST /control/{pause,resume,flatten}` | controls; the reply holds the resulting controls |
+| `GET /events?since=&limit=` | events with an id above `since`, oldest first (without `since`, the latest `limit`); `last_id` is the cursor |
+
+- **`POST /signals`** calls `Engine.submit_batch`: 202 `{"status": "on_time" | "late",
+  "batch_id", "lateness_seconds"}`, 409 `duplicate` (retrying is safe), 422 `refused` (with the
+  reason: unknown or in-process strategy, another interval, a candle that has not closed) or
+  `invalid` (the body breaks the contract; `errors` lists each field). 401 without the token.
+- **Tick stream.** The API registers a tick listener with the engine. Each tick becomes one JSON
+  message `{"type": "tick", "interval", "candle_time", "columns", "candles": {symbol: [values in
+  `columns` order]}, "missing"}` with every symbol of the interval that closed the candle (traded
+  and context symbols), sent to the clients of that interval. A client first gets
+  `{"type": "hello", "interval", "last_tick", "collecting", "contract"}`: `collecting` is the
+  candle whose batches the engine is waiting for right now, so a provider that connects (or
+  reconnects) after that tick was sent answers it from `/candles`. A finished replay sends
+  `{"type": "end", "reason"}` and closes the sockets.
+- **The broadcast never blocks the engine.** The listener only does `put_nowait` into one bounded
+  queue (64 ticks) per client; a client whose queue is full is dropped (closed with code 1013)
+  and a `ws_client_dropped` warning event is written. Sending happens in per-client tasks.
 
 #### External providers
 
-`crypto_moonshot/provider.py` is a small SDK: `run_provider(strategy, url, token)` fetches the
-warm-up windows, follows the tick stream, keeps its own windows, calls the *same*
-`Strategy.on_candles` and posts the batch. `moonshot provider run SOURCE --url --params` runs a
-plugin this way, so the same plugin file runs in process or out of process unchanged. A provider
-may be written in any language: it only needs the endpoints and the contract above.
+`provider.py` is a small SDK: `run_provider(strategy, url=, token=, name=)` (async; `run_provider_sync`
+for a script, `Provider` for tests) reads `GET /strategies/{name}`, opens `WS /ticks`, fetches the
+warm-up windows (`/candles`), keeps its own windows (each tick's candles appended, bounded to
+`warmup` plus the feed's slack), calls the *same* `Strategy.on_candles` and posts the batch.
+`moonshot provider run SOURCE --name NAME --url URL [--param k=v]` loads a plugin with
+`load_strategy` and runs it this way, so the same plugin file runs in process or out of process
+unchanged. A provider may be written in any language: it only needs the endpoints and the
+contract above (see [strategy-plugins.md](strategy-plugins.md)).
+
+- **Same inputs.** A provider builds its plugin's windows the way `Engine._plugin_inputs` does
+  (traded symbols' windows ending at the tick's candle, bounded to `warmup`, symbols whose latest
+  candle is more than `stale_after` intervals old left out, context windows with an empty frame
+  for a missing symbol), and posts an empty batch without calling the plugin when no traded
+  symbol closed. A test compares the two on a feed with a stale symbol and a missing context
+  candle. The plugin's own `exit` and `warmup` are not used: the daemon's config decides.
+- **Failure handling.** The plugin runs in a worker thread, so pings keep working during a long
+  model call. A dropped connection (or a daemon that is not up yet) is retried with backoff,
+  re-fetching the windows each time and answering a pending candle (`hello.collecting`). A wrong
+  token, an unknown strategy, an in-process strategy, an interval mismatch or a context symbol
+  the daemon does not subscribe is fatal with a message saying what to change; so is a plugin
+  that raises (unless `--keep-going`, which skips that candle and lets the daemon record it
+  missed). Refused batches are logged as errors and counted.
+- **Known difference.** A candle that reaches the daemon late for an earlier tick joins the
+  daemon's windows (for in-process plugins) but not the provider's until it reconnects.
+- **Dependencies.** The provider process needs this package installed (the SDK, polars and the
+  contract) next to the plugin's own libraries; the daemon needs none of them.
+
+#### Daemon
+
+`live/daemon.py` wires everything into one process (`moonshot live run`, paper only). `run_daemon`
+checks the token (`MOONSHOT_API_TOKEN`) and the mode first, loads the strategies (`build_specs`),
+opens the state file, builds the `Engine`, the `BinanceClient` and the `LiveFeed`
+(`feed_subscriptions` and `feed_warmups`, `tick_timeout`, `stale_after`, `on_event =
+engine.on_feed_event`, the stream URL from `MOONSHOT_STREAM_URL`), and serves the API on uvicorn in
+the same event loop (a bound socket, so a taken port fails first; uvicorn's own signal handling
+is replaced by the daemon's).
+
+- **A long-running REST client.** `BinanceClient` aborts for good after `max_rate_limit_hits` HTTP
+  429s (right for a one-off `data sync`); the daemon builds it with a limit of a million, so
+  backfill keeps waiting out each `Retry-After` instead. An HTTP 418 (IP ban) still makes the
+  client refuse requests: backfills then fail and are reported as events until a restart.
+- **Shutdown.** SIGINT and SIGTERM (or the `stop` event) stop the engine after the tick in
+  progress (a tick still collecting batches is abandoned and decided again after the restart),
+  close the feed, shut the API down (open sockets are closed), then close the state file. An
+  engine failure does the same and exits with an error. `daemon_started` and `daemon_stopped`
+  events bracket a run.
+- **Replay serving.** `serve_replay(prepare_replay(...), settings, ...)` is `moonshot live replay
+  --serve`: the same API over a replay's engine and feed. It waits for a tick client for every
+  external strategy (`--provider-timeout`), runs the replay, tells the providers it is over and
+  stops the server. An interrupt leaves the state file resumable.
 
 ## Run modes
 
@@ -781,7 +858,7 @@ may be written in any language: it only needs the endpoints and the contract abo
 
 ```
 src/crypto_moonshot/
-├── cli.py              # Typer app; data_cli.py `data`, backtest_cli.py `backtest`, live_cli.py `live` and `provider`
+├── cli.py              # Typer app (`python -m crypto_moonshot` too); data_cli.py `data`, backtest_cli.py `backtest`, live_cli.py `live` and `provider`
 ├── cli_output.py       # summary, status and backtest tables (rich in a terminal, plain text otherwise)
 ├── progress.py         # sync progress renderers: bars and lines
 ├── config.py           # settings from MOONSHOT_* environment variables (data dir, API token, later keys)
@@ -794,8 +871,10 @@ src/crypto_moonshot/
 ├── backtest/           # engine.py, metrics.py, results.py (result files), source.py (candle windows)
 ├── live/               # config.py (TOML run config), contract.py (signal batches), plugin.py (Strategy,
 │                       # loader, RuleStrategy), feed.py (ticks, windows), state.py (SQLite), engine.py,
-│                       # replay.py (replay feed and runs), api.py, daemon.py (wires them together)
+│                       # replay.py (replay feed and runs), api.py (HTTP + WebSocket), daemon.py (wires them together)
 └── provider.py         # SDK for external signal providers
+
+examples/               # paper.toml (a run config) and strategies/ma_cross.py (an example plugin)
 ```
 
 Commands:
@@ -807,11 +886,20 @@ Commands:
 - `moonshot backtest plugin SOURCE`: backtest any strategy plugin
 - `moonshot backtest signals FILE`: backtest a signal file produced anywhere
 - `moonshot backtest convert-scores NPZ META OUT`: make a score file from a research CNN output
-- `moonshot live run --config FILE`: run the daemon (`mode` from the config; P1 accepts `paper`)
-- `moonshot live replay --config FILE --start --end`: run the engine over stored candles
-- `moonshot live status|pause|resume|flatten`: talk to a running daemon (`status` reads the state
-  file when the daemon is down)
-- `moonshot provider run SOURCE --url URL`: run a plugin as an external provider
+- `moonshot live run --config FILE [--host --port --data-dir]`: run the daemon (`mode` from the
+  config; P1 accepts `paper`; needs `MOONSHOT_API_TOKEN`)
+- `moonshot live replay --config FILE --start --end [--out --state --signals rolling|backtest
+  --serve --host --port --json]`: run the engine over stored candles and print the metrics like
+  `moonshot backtest` (`--serve` keeps the API up for external providers)
+- `moonshot live status [--url] [--config] [--json]`, `live pause|resume|flatten [--url]`
+  (`flatten` asks to confirm unless `--yes`): talk to a running daemon; `status --config` reads
+  the state file (read-only) when no daemon answers
+- `moonshot provider run SOURCE --name NAME --url URL [--param k=v] [--keep-going]`: run a plugin as
+  an external provider (token from `MOONSHOT_API_TOKEN`)
+
+Exit codes of the `live` and `provider` commands: 0 ok, 1 runtime failure (the daemon stopped, a
+refused token, an unreachable daemon), 2 usage or configuration error (no token, a bad config, a
+plugin that does not load, `testnet`/`live` mode), 130 interrupted. Errors go to stderr.
 
 Dependencies so far: polars, numpy (the broker and engine work on arrays), httpx, pydantic-settings,
 rich, typer; the trading platform adds websockets, fastapi and uvicorn. Expected later: duckdb.
