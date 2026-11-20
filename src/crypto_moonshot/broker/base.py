@@ -6,6 +6,8 @@ long only and quoted in USDT, so a symbol such as `BTCUSDT` holds the base asset
 
 from __future__ import annotations
 
+import hashlib
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import StrEnum
@@ -134,6 +136,53 @@ class Costs:
 
 def _new_id() -> str:
     return uuid4().hex
+
+
+CLIENT_ORDER_ID = re.compile(r"[.A-Za-z0-9:/_-]{1,36}")
+"""Binance's rule for client order IDs (`newClientOrderId`)."""
+
+
+def _hashed_id(tag: str, *parts: str) -> str:
+    digest = hashlib.sha256("\x1f".join(parts).encode()).hexdigest()
+    return f"cm{tag}-{digest[:32]}"
+
+
+def client_order_id(strategy: str, symbol: str, candle_time: datetime, side: Side) -> str:
+    """The deterministic client order ID of `strategy`'s `side` order in `symbol` for the signal
+    candle `candle_time`: the same inputs always give the same ID, so a retry or a restart cannot
+    place an order twice.
+
+    `cm<b|s>-` plus 32 hex digits of a SHA-256 over the inputs (36 characters, within Binance's
+    `[.A-Za-z0-9:/_-]{1,36}`); 128 bits make a collision practically impossible.
+    """
+    tag = "b" if side is Side.BUY else "s"
+    return _hashed_id(tag, strategy, symbol, as_utc(candle_time).isoformat(), side.value)
+
+
+def child_order_id(parent_id: str, role: str) -> str:
+    """A deterministic ID for an order a broker derives from another (e.g. the bracket of a buy:
+    `role="bracket"`), in the same format as `client_order_id`."""
+    return _hashed_id("x", parent_id, role)
+
+
+class RejectReason(StrEnum):
+    """Why a broker refused an order at placement."""
+
+    CASH = "cash"
+    SYMBOL_HELD = "symbol_held"
+    NOT_HOLDING = "not_holding"
+    SELL_PENDING = "sell_pending"
+    BRACKET_OPEN = "bracket_open"
+    QUANTITY = "quantity"
+    DUPLICATE_ID = "duplicate_id"
+
+
+class OrderRejected(ValueError):
+    """A broker refused an order; `reason` says why (recorded with the order)."""
+
+    def __init__(self, reason: RejectReason, message: str) -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 @dataclass(frozen=True, slots=True)

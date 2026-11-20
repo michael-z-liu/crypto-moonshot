@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import Protocol
 
 import numpy as np
 import numpy.typing as npt
@@ -25,6 +27,21 @@ def to_us(dt: datetime) -> int:
 def from_us(us: int) -> datetime:
     """Aware UTC datetime from microseconds since the Unix epoch."""
     return EPOCH + timedelta(microseconds=us)
+
+
+class Bar(Protocol):
+    """A single candle with an open time and OHLC prices (e.g. the feed's `Candle`)."""
+
+    @property
+    def open_time(self) -> datetime: ...
+    @property
+    def open(self) -> float: ...
+    @property
+    def high(self) -> float: ...
+    @property
+    def low(self) -> float: ...
+    @property
+    def close(self) -> float: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +80,27 @@ class Candles:
             high=frame["high"].to_numpy().astype(np.float64),
             low=frame["low"].to_numpy().astype(np.float64),
             close=frame["close"].to_numpy().astype(np.float64),
+            ended=ended,
+        )
+
+    @classmethod
+    def from_bars(cls, bars: Iterable[Bar], interval: Interval, *, ended: bool = True) -> Candles:
+        """Build from single candles (any order; a repeated open time keeps the first)."""
+        rows: dict[int, Bar] = {}
+        for bar in bars:
+            rows.setdefault(to_us(bar.open_time), bar)
+        times = sorted(rows)
+        prices = np.array(
+            [(rows[t].open, rows[t].high, rows[t].low, rows[t].close) for t in times],
+            dtype=np.float64,
+        ).reshape(-1, 4)
+        return cls(
+            interval=interval,
+            open_time=np.array(times, dtype=np.int64),
+            open=prices[:, 0].copy(),
+            high=prices[:, 1].copy(),
+            low=prices[:, 2].copy(),
+            close=prices[:, 3].copy(),
             ended=ended,
         )
 
