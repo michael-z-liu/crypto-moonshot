@@ -842,6 +842,81 @@ is replaced by the daemon's).
   external strategy (`--provider-timeout`), runs the replay, tells the providers it is over and
   stops the server. An interrupt leaves the state file resumable.
 
+#### Operations
+
+How the daemon is run unattended (P2, `docs/plans/live-operations.md`): on the user's Proxmox
+host in Docker, watched from a browser on the LAN. Alerts appear in the dashboard only (no push
+channel). The runbook (`docs/runbook.md`) is the operator's guide; this section is the design.
+
+- **Health rules** (`live/health.py`). A monitor task in the daemon evaluates a fixed set of rules
+  every `health_every` (default 15 s, by the injected clock, so tests drive it). Each rule has a
+  key (e.g. `feed_disconnected`, or `provider_missing:cnn`) and is either ok or firing; moving to
+  firing writes an `alert` event (level `warning` or `error`, data `{rule, key, state: "firing",
+  detail}`) and moving back writes one with `state: "resolved"`, so a condition that lasts writes
+  two events, not one per check. Rules:
+
+  | Rule | Fires when | Level |
+  | --- | --- | --- |
+  | `feed_disconnected` | a feed connection has been down longer than `feed_grace` (60 s) | error |
+  | `no_ticks` | no tick of an interval for 2 intervals plus `tick_timeout` (and the daemon has run that long) | error |
+  | `provider_missing:<strategy>` | an external strategy missed its last 3 batches (or sent them late) | warning |
+  | `plugin_failing:<strategy>` | an in-process plugin raised, timed out or broke the contract on its last 3 candles | warning |
+  | `daily_loss_limit:<strategy>` | the strategy's `DailyLossLimit` refuses entries today | warning |
+  | `backfill_failed` | a seed or backfill request failed in the last hour | warning |
+  | `stale_symbols:<interval>` | more than 20% of an interval's traded symbols are stale | warning |
+  | `backup_failed` | the last automatic backup failed | error |
+  | `disk_low` | less than 1 GB free where the state file lives | warning |
+
+  Thresholds are settings in the run config's `[health]` table. An alert is *active* while its
+  rule fires. Acknowledging an alert (`POST /alerts/{key}/ack`, stored in the state file) hides it
+  from the dashboard's badge until it resolves and fires again; it does not silence the rule.
+- **Watchdog.** The daemon exits with code 3 (so Docker's restart policy starts it again, and
+  restart recovery takes over) when the engine is stuck: no tick processed for `watchdog_after`
+  (default 10 x the shortest interval, at least 15 minutes) while the feed reports messages, or
+  the event loop blocked for more than 60 s (a thread watches a timestamp a loop task refreshes;
+  on a blocked loop it logs and calls `os._exit(3)`, as a blocked loop cannot shut down cleanly).
+  Before exiting it writes a `watchdog` error event when the loop still runs.
+- **Single instance.** The daemon holds an exclusive lock (`fcntl.flock`) on `<state>.lock` for its
+  lifetime, so two daemons (or a daemon and a restore) can never write one state file. A second
+  start fails at once with a clear message.
+- **Backups** (`live/backup.py`). SQLite's online backup API copies the state file while the daemon
+  runs (WAL mode makes this safe) into `backups/` next to it as `<stem>-<UTC timestamp>.sqlite`,
+  then runs `PRAGMA integrity_check` on the copy. The daemon backs up at start and every
+  `backup_every` (default 24 h) and keeps the newest `backup_keep` (default 14). `moonshot live
+  backup --config FILE [--out DIR]` makes one on demand (daemon running or not); `moonshot live
+  restore BACKUP --config FILE` replaces the state file with a backup after checking it, and
+  refuses while the daemon holds the lock.
+- **Logging.** Plain text to stderr by default; `--log-format json` writes one JSON object per line
+  to stdout for Docker (`time`, `level`, `logger`, `message`, extra fields). Log lines never carry
+  the API token or exchange keys.
+- **More API for the dashboard.** All under `/api/v1`, with the token:
+
+  | Endpoint | Purpose |
+  | --- | --- |
+  | `GET /trades?strategy=&limit=` | closed positions, newest first (the trade list's columns) |
+  | `GET /equity?strategy=` | realised equity per strategy over time (a point per closed position) plus the current mark-to-market value of open positions at the feed's last closes |
+  | `GET /signals?strategy=&limit=` | recent signals with their outcome and reason |
+  | `GET /providers` | per strategy: batches on time, late and missed over the last 24 h, median and worst lateness, last batch |
+  | `GET /alerts` | active alerts (with acknowledged flag) and the recent alert history |
+  | `POST /alerts/{key}/ack` | acknowledge an active alert |
+
+- **Dashboard** (`live/web/`, static files shipped in the package). Served by the daemon at `/`
+  with no build step and nothing fetched from the internet (it works on an offline LAN): plain
+  HTML, CSS and JavaScript modules. The static files carry no data and need no token; every piece
+  of data comes from the API with the token, which the login page keeps in `sessionStorage` (gone
+  when the tab closes) and sends as the `Authorization` header. A strict Content-Security-Policy
+  (`default-src 'self'`) is set on the pages. It polls `/status`, `/alerts` and `/events` every few
+  seconds. Pages: overview (mode, running, feed health, last ticks, active alerts, controls, a row
+  per strategy), strategy detail (equity chart, positions, trades, signals), positions and open
+  orders, trades, signals and providers (lateness), events and alerts (acknowledge). Pause and
+  resume ask for confirmation; flatten needs the word `flatten` typed.
+- **Docker.** A `Dockerfile` (Python 3.13 slim, `uv sync --locked --no-dev`, a non-root user,
+  `HEALTHCHECK` on `/api/v1/health`, entrypoint `moonshot`) and `compose.yaml`: one service with
+  `restart: unless-stopped`, `init: true`, a stop grace period longer than a tick, the token from
+  an env file that is not committed, volumes for the config, the state folder (read-write), the
+  data folder and a strategies folder (both read-only), port 8765 on the LAN, JSON logs with
+  rotation. A CI job builds the image and checks that a container answers `/health`.
+
 ## Run modes
 
 | Mode                           | Candles             | Order fills                           |
@@ -872,9 +947,11 @@ src/crypto_moonshot/
 ├── live/               # config.py (TOML run config), contract.py (signal batches), plugin.py (Strategy,
 │                       # loader, RuleStrategy), feed.py (ticks, windows), state.py (SQLite), engine.py,
 │                       # replay.py (replay feed and runs), api.py (HTTP + WebSocket), daemon.py (wires them together)
+│                       # health.py (health rules, watchdog), backup.py (state backups), web/ (dashboard, P2)
 └── provider.py         # SDK for external signal providers
 
 examples/               # paper.toml (a run config) and strategies/ma_cross.py (an example plugin)
+Dockerfile, compose.yaml # the daemon's image and a compose file for the Proxmox host (P2)
 ```
 
 Commands:
