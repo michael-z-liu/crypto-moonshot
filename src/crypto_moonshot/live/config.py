@@ -184,7 +184,8 @@ class StrategyConfig(_Model):
     """One strategy instance.
 
     `source` is `package.module:attr`, `path/to/file.py:attr` or `"external"` (an external
-    provider posts its batches; then `interval` and `warmup` are required). `symbols` is a
+    provider posts its batches; then `interval` and `warmup` are required, and
+    `context_symbols` names the extra symbols the provider reads). `symbols` is a
     universe name (`pool`, `all`) or a list. `exit` overrides fields of the plugin's exit plan.
     For an in-process plugin, `interval` must match the plugin's if given and `warmup`
     replaces the plugin's window length.
@@ -200,6 +201,9 @@ class StrategyConfig(_Model):
     exit: ExitPlanIn | None = None
     interval: Interval | None = None
     warmup: int | None = Field(default=None, ge=1)
+    context_symbols: list[str] = Field(default_factory=list)
+    """External strategies only: extra symbols whose windows the provider reads (e.g. BTCUSDT);
+    the daemon subscribes them. An in-process plugin declares its own."""
 
     @property
     def external(self) -> bool:
@@ -217,6 +221,16 @@ class StrategyConfig(_Model):
         if not symbols:
             msg = "the symbol list is empty"
             raise ValueError(msg)
+        bad = [s for s in symbols if not s.endswith("USDT") or s == "USDT"]
+        if bad:
+            msg = f"only USDT-quoted symbols are supported, got {bad[0]}"
+            raise ValueError(msg)
+        return symbols
+
+    @field_validator("context_symbols")
+    @classmethod
+    def _context(cls, value: list[str]) -> list[str]:
+        symbols = list(dict.fromkeys(s.strip().upper() for s in value if s.strip()))
         bad = [s for s in symbols if not s.endswith("USDT") or s == "USDT"]
         if bad:
             msg = f"only USDT-quoted symbols are supported, got {bad[0]}"
@@ -241,6 +255,9 @@ class StrategyConfig(_Model):
             if self.params:
                 msg = "params are for in-process plugins; an external strategy takes none"
                 raise ValueError(msg)
+        elif self.context_symbols:
+            msg = "context_symbols are for external strategies; a plugin declares its own"
+            raise ValueError(msg)
         return self
 
     def exit_plan(self, base: ExitPlan | None) -> ExitPlan | None:

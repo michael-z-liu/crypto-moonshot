@@ -569,6 +569,34 @@ class StateStore:
             raise
         return store
 
+    @classmethod
+    def open_readonly(
+        cls, path: Path | str, *, migrations: Sequence[Migration] = MIGRATIONS
+    ) -> StateStore:
+        """Open an existing state file for reading only (`live status` with the daemon down):
+        nothing is created, migrated or written. Raises `StateError` for a file that is not a
+        state file of this build's schema (older or newer)."""
+        path = Path(path)
+        if not path.is_file():
+            msg = f"no state file at {path}"
+            raise StateError(msg)
+        db = sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True, autocommit=True)
+        try:
+            db.row_factory = sqlite3.Row
+            store = cls(db, path)
+            version = store.schema_version
+            if version != len(migrations):
+                msg = f"{path} has schema version {version}; this build reads {len(migrations)}"
+                raise SchemaVersionError(msg)
+        except sqlite3.DatabaseError as exc:
+            db.close()
+            msg = f"{path} is not a readable state file: {exc}"
+            raise StateError(msg) from None
+        except BaseException:
+            db.close()
+            raise
+        return store
+
     def close(self) -> None:
         self._db.close()
 

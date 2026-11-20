@@ -206,7 +206,7 @@ def build_specs(
             assert sc.interval is not None
             assert sc.warmup is not None
             plugin: Strategy | None = None
-            context: tuple[str, ...] = ()
+            context: tuple[str, ...] = tuple(sc.context_symbols)
             interval, warmup, base = sc.interval, sc.warmup, None
         else:
             given = (plugins or {}).get(sc.name)
@@ -441,6 +441,16 @@ class Engine:
     def broker(self) -> PaperBroker:
         return self._broker
 
+    @property
+    def running(self) -> bool:
+        """Whether `run` is processing ticks."""
+        return self._running
+
+    def collecting(self, interval: Interval) -> datetime | None:
+        """The candle whose batches the engine is collecting now (its tick was published to the
+        listeners and is not decided yet), or `None`."""
+        return self._collecting.get(interval)
+
     def add_tick_listener(self, listener: TickListener) -> None:
         """Called with every tick after the broker step, before the engine waits for batches
         (M6 broadcasts it to external providers). May be async; errors become events."""
@@ -535,6 +545,16 @@ class Engine:
         pause."""
         self.store.set_control(Control.FLATTEN_REQUESTED, True)
         self._event(EventLevel.WARNING, "flatten_requested", "flatten requested")
+
+    def record_event(
+        self,
+        level: EventLevel,
+        kind: str,
+        message: str,
+        data: dict[str, Any] | None = None,
+    ) -> None:
+        """Write an event to the state file's event feed (the API reports dropped clients)."""
+        self._event(level, kind, message, data)
 
     def on_feed_event(self, event: FeedEvent) -> None:
         """The feed's event sink: writes the event to the state file's event feed."""
