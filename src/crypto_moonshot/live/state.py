@@ -159,7 +159,22 @@ _V1: Migration = (
     )""",
 )
 
-MIGRATIONS: tuple[Migration, ...] = (_V1,)
+_V2: Migration = (
+    """CREATE TABLE alerts (
+        key TEXT PRIMARY KEY,
+        rule TEXT NOT NULL,
+        level TEXT NOT NULL CHECK (level IN ('info', 'warning', 'error')),
+        detail TEXT NOT NULL,
+        fired_at TEXT NOT NULL,
+        acknowledged_at TEXT
+    )""",
+    "CREATE INDEX events_kind ON events (kind, id)",
+    "CREATE INDEX batches_time ON batches (candle_time)",
+)
+"""Alerts (the active ones; a row lives from firing to resolution, so an acknowledgement dies
+with it) and indexes for the dashboard's queries."""
+
+MIGRATIONS: tuple[Migration, ...] = (_V1, _V2)
 """Migration `k` (0-based) takes a file from schema version `k` to `k + 1`."""
 SCHEMA_VERSION = len(MIGRATIONS)
 
@@ -377,6 +392,48 @@ class EventRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class AlertRecord:
+    """An active alert: `key` (`rule` or `rule:subject`), when it fired and whether (and when)
+    it was acknowledged."""
+
+    key: str
+    rule: str
+    level: EventLevel
+    detail: str
+    fired_at: datetime
+    acknowledged_at: datetime | None = None
+
+    @property
+    def acknowledged(self) -> bool:
+        return self.acknowledged_at is not None
+
+
+@dataclass(frozen=True, slots=True)
+class BatchStats:
+    """One strategy's batches over a window: counts per status and lateness (seconds)."""
+
+    strategy: str
+    on_time: int
+    late: int
+    missed: int
+    median_lateness: float | None
+    worst_lateness: float | None
+    last_batch_time: datetime | None
+    """Candle time of the latest batch that was received (not missed), in or before the window."""
+
+
+@dataclass(frozen=True, slots=True)
+class SignalListing:
+    """A signal with its batch's strategy, interval, candle and status (for the API)."""
+
+    signal: SignalRecord
+    strategy: str
+    interval: Interval
+    candle_time: datetime
+    batch_status: BatchStatus
+
+
+@dataclass(frozen=True, slots=True)
 class ProviderRecord:
     name: str
     last_seen: datetime
@@ -524,6 +581,17 @@ def _position(row: sqlite3.Row) -> PositionRecord:
         exit_reason=row["exit_reason"],
         proceeds=row["proceeds"],
         pnl=row["pnl"],
+    )
+
+
+def _alert(row: sqlite3.Row) -> AlertRecord:
+    return AlertRecord(
+        key=row["key"],
+        rule=row["rule"],
+        level=EventLevel(row["level"]),
+        detail=row["detail"],
+        fired_at=parse_time(row["fired_at"]),
+        acknowledged_at=_opt_time(row["acknowledged_at"]),
     )
 
 
@@ -817,6 +885,58 @@ class StateStore:
         ).fetchall()
         return [_event(r) for r in rows]
 
+    def recent_events_of_kind(self, kind: str, limit: int) -> list[EventRecord]:
+        """The latest `limit` events of `kind`, newest first."""
+        rows = self._exec(
+            "SELECT * FROM events WHERE kind = ? ORDER BY id DESC LIMIT ?", (kind, limit)
+        ).fetchall()
+        return [_event(r) for r in rows]
+
+    def count_events(self, kinds: Sequence[str], since: datetime) -> int:
+        """How many events of these kinds happened at or after `since`."""
+        marks = ", ".join("?" for _ in kinds)
+        row = self._exec(
+            f"SELECT count(*) AS n FROM events WHERE kind IN ({marks}) AND time >= ?",
+            (*kinds, time_text(since)),
+        ).fetchone()
+        return int(row["n"])
+
+    # -- alerts ---------------------------------------------------------------------------
+
+    def alerts(self) -> list[AlertRecord]:
+        """The active alerts, oldest first."""
+        rows = self._exec("SELECT * FROM alerts ORDER BY fired_at, key").fetchall()
+        return [_alert(r) for r in rows]
+
+    def alert(self, key: str) -> AlertRecord | None:
+        row = self._exec("SELECT * FROM alerts WHERE key = ?", (key,)).fetchone()
+        return None if row is None else _alert(row)
+
+    def fire_alert(
+        self, key: str, rule: str, level: EventLevel, detail: str, fired_at: datetime
+    ) -> None:
+        """Make `key` active (unacknowledged). A key that is already active is left as it is."""
+        with self._atomic():
+            self._exec(
+                "INSERT OR IGNORE INTO alerts (key, rule, level, detail, fired_at)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (key, rule, level.value, detail, time_text(fired_at)),
+            )
+
+    def resolve_alert(self, key: str) -> bool:
+        """Make `key` inactive (its acknowledgement goes with it); whether it was active."""
+        with self._atomic():
+            return self._exec("DELETE FROM alerts WHERE key = ?", (key,)).rowcount == 1
+
+    def acknowledge_alert(self, key: str, at: datetime) -> bool:
+        """Acknowledge an active alert (the first time counts); false if `key` is not active."""
+        with self._atomic():
+            cursor = self._exec(
+                "UPDATE alerts SET acknowledged_at = coalesce(acknowledged_at, ?) WHERE key = ?",
+                (time_text(at), key),
+            )
+        return cursor.rowcount == 1
+
     # -- batches and signals --------------------------------------------------------------
 
     def record_batch(
@@ -917,6 +1037,83 @@ class StateStore:
             assert batch is not None
             out.append(batch)
         return out
+
+    def recent_batch_statuses(self, strategy: str, limit: int) -> list[BatchStatus]:
+        """The statuses of `strategy`'s latest `limit` batches, newest candle first."""
+        rows = self._exec(
+            "SELECT status FROM batches WHERE strategy = ? ORDER BY candle_time DESC LIMIT ?",
+            (strategy, limit),
+        ).fetchall()
+        return [BatchStatus(r["status"]) for r in rows]
+
+    def batch_stats(self, since: datetime) -> list[BatchStats]:
+        """Per strategy, the batches whose candle is at or after `since`: counts per status,
+        the median and worst lateness (late and on-time batches), and the latest received
+        batch's candle time (looked up beyond the window too)."""
+        rows = self._exec(
+            "SELECT strategy, status, lateness_us FROM batches WHERE candle_time >= ?"
+            " ORDER BY strategy",
+            (time_text(since),),
+        ).fetchall()
+        counts: dict[str, dict[str, int]] = {}
+        lateness: dict[str, list[float]] = {}
+        for row in rows:
+            per = counts.setdefault(row["strategy"], {"on_time": 0, "late": 0, "missed": 0})
+            per[row["status"]] += 1
+            if row["lateness_us"] is not None:
+                lateness.setdefault(row["strategy"], []).append(row["lateness_us"] / 1e6)
+        out = []
+        for record in self.strategies():
+            per = counts.get(record.name, {"on_time": 0, "late": 0, "missed": 0})
+            values = sorted(lateness.get(record.name, []))
+            mid = len(values) // 2
+            median = (
+                None
+                if not values
+                else values[mid]
+                if len(values) % 2
+                else (values[mid - 1] + values[mid]) / 2
+            )
+            last = self._exec(
+                "SELECT max(candle_time) AS t FROM batches WHERE strategy = ?"
+                " AND status != 'missed'",
+                (record.name,),
+            ).fetchone()["t"]
+            out.append(
+                BatchStats(
+                    strategy=record.name,
+                    on_time=per["on_time"],
+                    late=per["late"],
+                    missed=per["missed"],
+                    median_lateness=median,
+                    worst_lateness=values[-1] if values else None,
+                    last_batch_time=_opt_time(last),
+                )
+            )
+        return out
+
+    def recent_signals(self, limit: int, strategy: str | None = None) -> list[SignalListing]:
+        """The latest `limit` signals (newest first), optionally of one strategy."""
+        sql = (
+            "SELECT s.*, b.strategy AS b_strategy, b.interval AS b_interval,"
+            " b.candle_time AS b_candle_time, b.status AS b_status"
+            " FROM signals s JOIN batches b ON b.id = s.batch_id"
+        )
+        params: list[object] = []
+        if strategy is not None:
+            sql += " WHERE b.strategy = ?"
+            params.append(strategy)
+        rows = self._exec(sql + " ORDER BY s.id DESC LIMIT ?", [*params, limit]).fetchall()
+        return [
+            SignalListing(
+                signal=_signal(r),
+                strategy=r["b_strategy"],
+                interval=Interval(r["b_interval"]),
+                candle_time=parse_time(r["b_candle_time"]),
+                batch_status=BatchStatus(r["b_status"]),
+            )
+            for r in rows
+        ]
 
     def signal(self, signal_id: int) -> SignalRecord | None:
         row = self._exec("SELECT * FROM signals WHERE id = ?", (signal_id,)).fetchone()
@@ -1196,6 +1393,40 @@ class StateStore:
     def closed_positions(self, strategy: str | None = None) -> list[PositionRecord]:
         """Closed positions (the trade list), in exit order."""
         return self._positions(("closed",), strategy, "exit_time, id")
+
+    def recent_closed_positions(
+        self, limit: int, strategy: str | None = None
+    ) -> list[PositionRecord]:
+        """The latest `limit` closed positions, newest exit first."""
+        sql = "SELECT * FROM positions WHERE status = 'closed'"
+        params: list[object] = []
+        if strategy is not None:
+            sql += " AND strategy = ?"
+            params.append(strategy)
+        rows = self._exec(sql + " ORDER BY exit_time DESC, id DESC LIMIT ?", [*params, limit])
+        return [_position(r) for r in rows.fetchall()]
+
+    def equity_points(
+        self, strategy: str, capital: float, limit: int
+    ) -> list[tuple[datetime, float]]:
+        """`strategy`'s realised equity after each of its latest `limit` closed positions
+        (`capital` plus the cumulative P&L in exit order), oldest first."""
+        rows = self._exec(
+            "SELECT exit_time, equity FROM (SELECT exit_time, id,"
+            " ? + sum(pnl) OVER (ORDER BY exit_time, id) AS equity FROM positions"
+            " WHERE strategy = ? AND status = 'closed') ORDER BY exit_time DESC, id DESC LIMIT ?",
+            (capital, strategy, limit),
+        ).fetchall()
+        return [(parse_time(r["exit_time"]), float(r["equity"])) for r in reversed(rows)]
+
+    def realised_pnl(self, strategy: str) -> float:
+        """The sum of `strategy`'s closed positions' P&L."""
+        row = self._exec(
+            "SELECT coalesce(sum(pnl), 0.0) AS pnl FROM positions"
+            " WHERE strategy = ? AND status = 'closed'",
+            (strategy,),
+        ).fetchone()
+        return float(row["pnl"])
 
     def _positions(
         self, statuses: tuple[str, ...], strategy: str | None, order_by: str

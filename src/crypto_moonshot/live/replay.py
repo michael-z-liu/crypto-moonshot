@@ -49,6 +49,7 @@ from crypto_moonshot.live.engine import (
     feed_warmups,
 )
 from crypto_moonshot.live.feed import HISTORY_SLACK, EventSink, FeedHealth, Tick
+from crypto_moonshot.live.lock import StateLock
 from crypto_moonshot.live.plugin import BacktestSignalsProvider, Strategy, empty_signal_frame
 from crypto_moonshot.live.state import PositionRecord, StateStore
 from crypto_moonshot.models import KLINE_SCHEMA, Interval, as_utc, month_start, next_month
@@ -296,7 +297,9 @@ class ReplayRun:
         start: datetime,
         end: datetime,
         out_dir: Path | None,
+        lock: StateLock | None = None,
     ) -> None:
+        self._lock = lock
         self.config = config
         self.specs = list(specs)
         self.store = store
@@ -319,7 +322,10 @@ class ReplayRun:
         return result
 
     def close(self) -> None:
+        """Close the state file and release its lock."""
         self.store.close()
+        if self._lock is not None:
+            self._lock.release()
 
 
 def _precompute(
@@ -370,7 +376,13 @@ def prepare_replay(
     specs = build_specs(config, data_root, plugins=plugins)
     specs = _precompute(specs, data_root, start, end, signals, precomputed)
     config.state.parent.mkdir(parents=True, exist_ok=True)
-    store = StateStore.open(config.state)
+    lock = StateLock(config.state)
+    lock.acquire()  # a replay writes the state file: never beside a daemon or another replay
+    try:
+        store = StateStore.open(config.state)
+    except BaseException:
+        lock.release()
+        raise
     try:
         last = store.last_ticks()
         intervals = {s.interval for s in specs}
@@ -397,8 +409,9 @@ def prepare_replay(
         feed.on_event = engine.on_feed_event
     except BaseException:
         store.close()
+        lock.release()
         raise
-    return ReplayRun(config, specs, store, feed, engine, data_root, start, end, out_dir)
+    return ReplayRun(config, specs, store, feed, engine, data_root, start, end, out_dir, lock)
 
 
 def run_replay(

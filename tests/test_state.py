@@ -103,7 +103,7 @@ def test_a_new_file_gets_the_schema_and_safe_settings(store: StateStore) -> None
     assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
     assert db.execute("PRAGMA synchronous").fetchone()[0] == 2  # FULL
     assert db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
-    assert store.schema_version == SCHEMA_VERSION == 1
+    assert store.schema_version == SCHEMA_VERSION == 2
     tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     assert tables >= {
         "meta",
@@ -117,10 +117,11 @@ def test_a_new_file_gets_the_schema_and_safe_settings(store: StateStore) -> None
         "controls",
         "events",
         "providers",
+        "alerts",
     }
 
 
-V2: Migration = (
+V3: Migration = (
     "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL)",
     "ALTER TABLE strategies ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1",
 )
@@ -130,15 +131,15 @@ def test_opening_an_older_file_runs_the_missing_migrations(tmp_path: Path) -> No
     path = tmp_path / "state.sqlite"
     with StateStore.open(path) as old:
         old.upsert_strategy("alpha", {"x": 1}, 10.0)
-        assert old.schema_version == 1
-    with StateStore.open(path, migrations=(*MIGRATIONS, V2)) as new:
-        assert new.schema_version == 2
+        assert old.schema_version == 2
+    with StateStore.open(path, migrations=(*MIGRATIONS, V3)) as new:
+        assert new.schema_version == 3
         assert new.strategies() == [StrategyRecord("alpha", {"x": 1}, 10.0)]
         row = new._db.execute("SELECT enabled FROM strategies").fetchone()
         assert row[0] == 1
         new._db.execute("INSERT INTO notes (text) VALUES ('ok')")
-    with StateStore.open(path, migrations=(*MIGRATIONS, V2)) as again:
-        assert again.schema_version == 2  # nothing left to run
+    with StateStore.open(path, migrations=(*MIGRATIONS, V3)) as again:
+        assert again.schema_version == 3  # nothing left to run
 
 
 def test_a_failed_migration_changes_nothing(tmp_path: Path) -> None:
@@ -148,19 +149,19 @@ def test_a_failed_migration_changes_nothing(tmp_path: Path) -> None:
     with pytest.raises(sqlite3.OperationalError):
         StateStore.open(path, migrations=(*MIGRATIONS, broken))
     with StateStore.open(path) as store:
-        assert store.schema_version == 1
+        assert store.schema_version == 2
         tables = {r[0] for r in store._db.execute("SELECT name FROM sqlite_master")}
         assert "notes" not in tables
 
 
 def test_a_newer_file_is_refused(tmp_path: Path) -> None:
     path = tmp_path / "state.sqlite"
-    with StateStore.open(path, migrations=(*MIGRATIONS, V2)):
+    with StateStore.open(path, migrations=(*MIGRATIONS, V3)):
         pass
-    with pytest.raises(SchemaVersionError, match="schema version 2, newer than this build's 1"):
+    with pytest.raises(SchemaVersionError, match="schema version 3, newer than this build's 2"):
         StateStore.open(path)
-    with StateStore.open(path, migrations=(*MIGRATIONS, V2)) as store:
-        assert store.schema_version == 2  # untouched
+    with StateStore.open(path, migrations=(*MIGRATIONS, V3)) as store:
+        assert store.schema_version == 3  # untouched
 
 
 # Round trips -----------------------------------------------------------------------------

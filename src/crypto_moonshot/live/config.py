@@ -137,6 +137,47 @@ class EngineConfig(_Model):
     replay_timeout: Duration = timedelta(hours=1)
 
 
+class HealthConfig(_Model):
+    """Thresholds of the health rules, the watchdog and the backups (`live/health.py`).
+
+    - `health_every`: how often the rules are evaluated.
+    - `feed_grace`: a feed connection down longer than this raises `feed_disconnected`.
+    - `no_ticks_intervals`: `no_ticks` fires after this many intervals plus `tick_timeout`
+      without a processed tick.
+    - `provider_misses`: `provider_missing` / `plugin_failing` fire after this many batches in a
+      row that were missed (or, for an external provider, late).
+    - `backfill_window`: `backfill_failed` fires while a seed or backfill request failed within it.
+    - `stale_fraction`: `stale_symbols` fires when more than this share of an interval's traded
+      symbols is stale (after `startup_grace` from the start, while the feed seeds).
+    - `min_free_gb`: `disk_low` fires below this much free disk where the state file lives.
+    - `watchdog_after`: exit with code 3 when no tick was processed for this long while the feed
+      reports messages (default: 10 x the shortest interval, at least 15 minutes).
+    - `loop_blocked_after`: exit with code 3 (no clean shutdown) when the event loop did not run
+      for this long.
+    - `backup_every`, `backup_keep`: the automatic state backups (at start, then every
+      `backup_every`; the newest `backup_keep` are kept).
+    """
+
+    health_every: Duration = timedelta(seconds=15)
+    feed_grace: Duration = timedelta(seconds=60)
+    no_ticks_intervals: int = Field(default=2, ge=1)
+    provider_misses: int = Field(default=3, ge=1)
+    backfill_window: Duration = timedelta(hours=1)
+    stale_fraction: float = Field(default=0.2, ge=0, le=1)
+    startup_grace: Duration = timedelta(minutes=2)
+    min_free_gb: float = Field(default=1.0, ge=0)
+    watchdog_after: Duration | None = None
+    loop_blocked_after: Duration = timedelta(seconds=60)
+    backup_every: Duration = timedelta(hours=24)
+    backup_keep: int = Field(default=14, ge=1)
+
+    def watchdog_threshold(self, shortest: timedelta) -> timedelta:
+        """`watchdog_after`, or 10 x the shortest interval (at least 15 minutes)."""
+        if self.watchdog_after is not None:
+            return self.watchdog_after
+        return max(timedelta(minutes=15), 10 * shortest)
+
+
 class SizingConfig(_Model):
     """Exactly one of `stake` (fixed USDT), `slots` (equal slots, compounding) or
     `weighted_slots` (equal slots scaled by each signal's weight, capped at the cash)."""
@@ -293,6 +334,7 @@ class RunConfig(_Model):
     state: Path
     account: AccountConfig
     engine: EngineConfig = EngineConfig()
+    health: HealthConfig = HealthConfig()
     strategies: list[StrategyConfig] = Field(min_length=1)
 
     @model_validator(mode="after")
