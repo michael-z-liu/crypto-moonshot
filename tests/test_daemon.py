@@ -97,7 +97,12 @@ class Daemon:
     """`run_daemon` as a task with a fake REST, a controllable clock and a stop event."""
 
     def __init__(
-        self, config: RunConfig, settings: Settings, *, install_signals: bool = False
+        self,
+        config: RunConfig,
+        settings: Settings,
+        *,
+        install_signals: bool = False,
+        **extra: Any,
     ) -> None:
         self.rest = FakeBinance({s: [at(k) for k in range(-3, 1)] for s in SYMBOLS})
         self.clock = Clock(at(1) + timedelta(seconds=1))
@@ -120,6 +125,7 @@ class Daemon:
                 stop=self.stop,
                 install_signals=install_signals,
                 on_ready=self.port.set_result,
+                **extra,
             )
         )
 

@@ -116,6 +116,21 @@ uv run moonshot live flatten                     # sell everything at the next c
 uv run moonshot live status --config examples/paper.toml   # daemon down: reads the state file
 ```
 
+Running it unattended: the daemon raises **alerts** (feed down, no ticks, a provider that keeps
+missing batches, a failing plugin, the daily loss limit, failed backfills, stale symbols, a failed
+backup, low disk; thresholds in the config's `[health]` table) that show up in `GET /api/v1/alerts`
+and can be acknowledged with `POST /api/v1/alerts/{key}/ack`. It exits with code 3 when its
+watchdog finds it stuck, so a restart policy (Docker's) brings it back from the state file, and only
+one process can use a state file at a time. The state file is backed up automatically (at start and
+daily, the newest 14 kept in `backups/` next to it); by hand:
+
+```bash
+uv run moonshot live backup --config examples/paper.toml              # safe while the daemon runs
+uv run moonshot live restore state/backups/paper-20241101T000000Z.sqlite --config examples/paper.toml
+                                                    # daemon stopped; the old file is kept beside it
+uv run moonshot live run --config examples/paper.toml --log-format json   # JSON lines on stdout
+```
+
 A strategy that needs heavy libraries (a torch model, say) runs as an **external provider**:
 list it in the config with `source = "external"` (`examples/paper.toml` has a commented
 `cross_ext` entry) and run the same plugin file in its own environment, on this or another
@@ -128,7 +143,20 @@ uv run moonshot provider run examples/strategies/ma_cross.py:MaCross --name cros
 
 To rehearse an external strategy, add `--serve` to `live replay`: the replay waits for the
 provider, then they trade together over the same API. Exit codes of the `live` and `provider`
-commands: 0 ok, 1 runtime failure, 2 usage or configuration error, 130 interrupted.
+commands: 0 ok, 1 runtime failure, 2 usage or configuration error, 3 the daemon's watchdog stopped
+it, 130 interrupted.
+
+## Dashboard
+
+The daemon (and `live replay --serve`) serves a web dashboard on the same port as the API. Open
+`http://<host>:8765/` in a browser on the LAN and paste the API token (`MOONSHOT_API_TOKEN`) at the
+login. The token stays in the tab's `sessionStorage` only, so closing the tab logs you out. The
+pages show the overview and health, a chart per strategy, positions and orders, trades, signals
+and providers, and the alerts (the only place they appear: acknowledge them here), and have
+pause, resume and flatten buttons. There is no TLS, so keep it on a trusted network.
+
+![The overview](docs/images/dashboard-overview.png)
+![A strategy](docs/images/dashboard-strategy.png)
 
 ## Development
 
@@ -137,6 +165,8 @@ uv run ruff format .     # format
 uv run ruff check .      # lint
 uv run mypy src tests    # type check
 uv run pytest            # test
+uv run playwright install chromium   # once, for the dashboard's browser tests
+uv run pytest -m browser --tracing off
 ```
 
 Add dependencies with `uv add <pkg>` (or `uv add --dev <pkg>` for tooling) so `uv.lock` stays in sync.
@@ -147,3 +177,12 @@ Commits follow Conventional Commits. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 This repository is public. API keys go in `.env`, which is gitignored; the daemon's `MOONSHOT_API_TOKEN` is read from the
 environment only and is never logged. Use the Binance spot testnet until a strategy has been proven.
+
+## Running in Docker
+
+The paper trading daemon and its dashboard run in a container (non-root, read-only filesystem,
+restart policy, healthcheck). In short: copy `moonshot.env.example` to `moonshot.env` and set a
+token, put a config (start from `deploy/config/paper.toml`) in `./config` and your plugins in
+`./strategies`, `chown 10001:10001 state`, then `docker compose up -d --build` and open
+`http://<host>:8765/`. The full operator's guide (Proxmox, alerts, backups, upgrades, security) is
+[docs/runbook.md](docs/runbook.md).

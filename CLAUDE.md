@@ -6,6 +6,7 @@ Personal Binance research, backtesting and live-trading toolkit. Python 3.13, ma
 
 - Install: `uv sync`
 - Run CLI: `uv run moonshot`
+- Browser tests (dashboard, Chromium; run once `uv run playwright install chromium`): `uv run pytest -m browser --tracing off`
 - Check everything (same as CI): `uv run ruff format --check . && uv run ruff check . && uv run mypy src tests && uv run pytest`
 
 ## Conventions

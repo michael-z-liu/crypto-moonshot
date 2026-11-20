@@ -8,6 +8,7 @@ compared with `hmac.compare_digest` and never logged or echoed.
 
 | Endpoint | Purpose |
 | --- | --- |
+| `GET /`, `GET /assets/*` | the dashboard's static files (no auth, no data; `live.webui`) |
 | `GET /health` | alive, mode, feed connection and lag, last tick per interval (no auth) |
 | `GET /status` | `Engine.status().to_json()` |
 | `GET /strategies/{name}` | what a provider needs: interval, symbols, warm-up, context, exit |
@@ -15,6 +16,8 @@ compared with `hmac.compare_digest` and never logged or echoed.
 | `WS /ticks?interval=` | one message per tick of that interval, with its closed candles |
 | `POST /signals` | a `SignalBatch`: 202 on time or late, 409 duplicate, 422 invalid or refused |
 | `POST /control/{pause,resume,flatten}`, `GET /events?since=&limit=` | controls, event feed |
+| `GET /trades`, `GET /equity`, `GET /signals`, `GET /providers` | the dashboard's data (below) |
+| `GET /alerts`, `POST /alerts/{key}/ack` | active alerts and their history; acknowledge one |
 
 Ticks are fanned out from the engine's tick listener into one bounded queue per WebSocket
 client. The listener only does `put_nowait`, so a slow or stuck client can never stall the
@@ -34,6 +37,7 @@ import json
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import timedelta
 from typing import Annotated, Any, Literal
 
 import polars as pl
@@ -45,7 +49,9 @@ from pydantic import SecretStr
 from crypto_moonshot.live.contract import API_PREFIX, CONTRACT_VERSION, ExitPlanIn, SignalBatch
 from crypto_moonshot.live.engine import Engine, to_json
 from crypto_moonshot.live.feed import Feed, Tick
-from crypto_moonshot.live.state import EventLevel
+from crypto_moonshot.live.health import ALERT_KIND
+from crypto_moonshot.live.state import AlertRecord, EventLevel, EventRecord, PositionRecord
+from crypto_moonshot.live.webui import add_dashboard
 from crypto_moonshot.models import KLINE_SCHEMA, Interval
 
 logger = logging.getLogger(__name__)
@@ -182,6 +188,62 @@ def _frames_arrow(frames: Mapping[str, pl.DataFrame]) -> bytes:
         )
     )
     return table.write_ipc_stream(None).getvalue()
+
+
+PROVIDER_WINDOW = timedelta(hours=24)
+MAX_LIST = 1000
+MAX_POINTS = 10_000
+
+
+def trade_json(p: PositionRecord) -> dict[str, Any]:
+    """A closed position as the trade list reports it (`GET /trades`)."""
+    assert p.entry_time is not None
+    assert p.exit_time is not None
+    return {
+        "id": p.id,
+        "strategy": p.strategy,
+        "symbol": p.symbol,
+        "interval": p.interval.value,
+        "entry_time": p.entry_time.isoformat(),
+        "entry_price": p.entry_price,
+        "exit_time": p.exit_time.isoformat(),
+        "exit_price": p.exit_price,
+        "exit_reason": p.exit_reason,
+        "quantity": p.quantity,
+        "cost": p.cost,
+        "proceeds": p.proceeds,
+        "pnl": p.pnl,
+        "return_fraction": None if not p.cost or p.pnl is None else p.pnl / p.cost,
+        "hold_seconds": (p.exit_time - p.entry_time).total_seconds(),
+        "signal_info": p.signal_info,
+    }
+
+
+def alert_json(alert: AlertRecord) -> dict[str, Any]:
+    return {
+        "key": alert.key,
+        "rule": alert.rule,
+        "level": alert.level.value,
+        "detail": alert.detail,
+        "fired_at": alert.fired_at.isoformat(),
+        "acknowledged": alert.acknowledged,
+        "acknowledged_at": None
+        if alert.acknowledged_at is None
+        else alert.acknowledged_at.isoformat(),
+    }
+
+
+def alert_event_json(event: EventRecord) -> dict[str, Any]:
+    data = event.data or {}
+    return {
+        "id": event.id,
+        "time": event.time.isoformat(),
+        "level": event.level.value,
+        "key": data.get("key"),
+        "rule": data.get("rule"),
+        "state": data.get("state"),
+        "detail": data.get("detail"),
+    }
 
 
 def _problem(code: int, reason: str, **extra: Any) -> JSONResponse:
@@ -361,6 +423,153 @@ def create_app(
             "last_id": records[-1].id if records else (since or 0),
         }
 
+    # -- the dashboard's data -----------------------------------------------------------------
+
+    def known_strategy(name: str | None) -> None:
+        if name is not None and name not in engine.specs:
+            raise HTTPException(status_code=404, detail=f"unknown strategy {name!r}")
+
+    @router.get("/trades")
+    async def trades(
+        strategy: str | None = None,
+        limit: Annotated[int, Query(ge=1, le=MAX_LIST)] = 100,
+    ) -> dict[str, Any]:
+        """Closed positions, newest exit first."""
+        known_strategy(strategy)
+        rows = [trade_json(p) for p in engine.store.recent_closed_positions(limit, strategy)]
+        return {"strategy": strategy, "limit": limit, "count": len(rows), "trades": rows}
+
+    @router.get("/equity")
+    async def equity(
+        strategy: str | None = None,
+        limit: Annotated[int, Query(ge=1, le=MAX_POINTS)] = 2000,
+    ) -> dict[str, Any]:
+        """Realised equity per strategy (a point per closed position, the latest `limit`) and
+        the current mark-to-market: open positions valued at the feed's last close (their
+        entry price when it has none), before the exit fee."""
+        known_strategy(strategy)
+        store = engine.store
+        out: dict[str, Any] = {}
+        for name, spec in engine.specs.items():
+            if strategy is not None and name != strategy:
+                continue
+            realised = store.realised_pnl(name)
+            unrealised = 0.0
+            open_count = unpriced = 0
+            for position in store.live_positions(name):
+                if position.status.value != "open":
+                    continue
+                assert position.quantity is not None
+                assert position.entry_price is not None
+                candle = feed.last_candle(position.interval, position.symbol)
+                if candle is None:
+                    unpriced += 1
+                price = position.entry_price if candle is None else candle.close
+                unrealised += position.quantity * price - position.cost
+                open_count += 1
+            points = store.equity_points(name, spec.capital, limit)
+            out[name] = {
+                "capital": spec.capital,
+                "realised_pnl": realised,
+                "realised_equity": spec.capital + realised,
+                "unrealised_pnl": unrealised,
+                "equity": spec.capital + realised + unrealised,
+                "open_positions": open_count,
+                "unpriced_positions": unpriced,
+                "points": [{"time": t.isoformat(), "equity": v} for t, v in points],
+            }
+        return {"time": engine.clock().isoformat(), "limit": limit, "strategies": out}
+
+    @router.get("/signals")
+    async def signals_list(
+        strategy: str | None = None,
+        limit: Annotated[int, Query(ge=1, le=MAX_LIST)] = 100,
+    ) -> dict[str, Any]:
+        """Recent signals, newest first, with their outcome and reason."""
+        known_strategy(strategy)
+        rows = [
+            {
+                "id": item.signal.id,
+                "strategy": item.strategy,
+                "interval": item.interval.value,
+                "candle_time": item.candle_time.isoformat(),
+                "batch_status": item.batch_status.value,
+                "symbol": item.signal.symbol,
+                "action": item.signal.action,
+                "priority": item.signal.priority,
+                "weight": item.signal.weight,
+                "outcome": None if item.signal.outcome is None else item.signal.outcome.value,
+                "reason": item.signal.reason,
+                "info": item.signal.info,
+            }
+            for item in engine.store.recent_signals(limit, strategy)
+        ]
+        return {"strategy": strategy, "limit": limit, "count": len(rows), "signals": rows}
+
+    @router.get("/providers")
+    async def providers() -> dict[str, Any]:
+        """Per strategy, over the last 24 hours (by candle time): batches on time, late and
+        missed, the median and worst lateness and the last batch received."""
+        store = engine.store
+        since = engine.clock() - PROVIDER_WINDOW
+        seen = {p.name: p for p in store.providers()}
+        stats = {s.strategy: s for s in store.batch_stats(since)}
+        rows = []
+        for name in sorted(engine.specs):
+            spec = engine.specs[name]
+            stat = stats[name]
+            heartbeat = seen.get(name)
+            rows.append(
+                {
+                    "strategy": name,
+                    "external": spec.external,
+                    "interval": spec.interval.value,
+                    "on_time": stat.on_time,
+                    "late": stat.late,
+                    "missed": stat.missed,
+                    "median_lateness_seconds": stat.median_lateness,
+                    "worst_lateness_seconds": stat.worst_lateness,
+                    "last_batch_time": None
+                    if stat.last_batch_time is None
+                    else stat.last_batch_time.isoformat(),
+                    "last_seen": None if heartbeat is None else heartbeat.last_seen.isoformat(),
+                }
+            )
+        return {
+            "window_hours": PROVIDER_WINDOW.total_seconds() / 3600,
+            "since": since.isoformat(),
+            "providers": rows,
+        }
+
+    @router.get("/alerts")
+    async def alerts(
+        history: Annotated[int, Query(ge=0, le=500)] = 50,
+    ) -> dict[str, Any]:
+        """Active alerts (oldest first, with their acknowledged flag) and the latest alert
+        events (newest first)."""
+        store = engine.store
+        active = store.alerts()
+        events = store.recent_events_of_kind(ALERT_KIND, history) if history else []
+        return {
+            "active": [alert_json(a) for a in active],
+            "unacknowledged": sum(1 for a in active if not a.acknowledged),
+            "history": [alert_event_json(e) for e in events],
+        }
+
+    @router.post("/alerts/{key}/ack")
+    async def acknowledge(key: str) -> dict[str, Any]:
+        """Acknowledge an active alert: it stays active but stops counting as unacknowledged,
+        until it resolves and fires again."""
+        store = engine.store
+        if not store.acknowledge_alert(key, engine.clock()):
+            raise HTTPException(status_code=404, detail=f"no active alert {key!r}")
+        engine.record_event(
+            EventLevel.INFO, "alert_acknowledged", f"{key} acknowledged", {"key": key}
+        )
+        alert = store.alert(key)
+        assert alert is not None
+        return {"status": "acknowledged", "alert": alert_json(alert)}
+
     # -- the tick stream ----------------------------------------------------------------------
 
     @app.websocket(f"{API_PREFIX}/ticks")
@@ -401,6 +610,7 @@ def create_app(
 
     app.include_router(open_router)
     app.include_router(router)
+    add_dashboard(app)
 
     @app.exception_handler(RequestValidationError)
     async def invalid(request: Request, exc: RequestValidationError) -> JSONResponse:

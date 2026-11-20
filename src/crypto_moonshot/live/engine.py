@@ -428,6 +428,7 @@ class Engine:
         self._running = False
         self._stopping = False
         self._last_tick_at: datetime | None = None
+        self._tick_done_at: dict[Interval, datetime] = {}
         self._error: str | None = None
 
     # -- public API ---------------------------------------------------------------------------
@@ -445,6 +446,17 @@ class Engine:
     def running(self) -> bool:
         """Whether `run` is processing ticks."""
         return self._running
+
+    @property
+    def last_tick_at(self) -> datetime | None:
+        """The clock time at which the latest tick (of any interval) was decided, since this
+        engine started; `None` before the first."""
+        return self._last_tick_at
+
+    def tick_times(self) -> dict[Interval, datetime]:
+        """Per interval, the clock time at which its latest tick was decided since this engine
+        started (an interval without a tick yet is absent)."""
+        return dict(self._tick_done_at)
 
     def collecting(self, interval: Interval) -> datetime | None:
         """The candle whose batches the engine is collecting now (its tick was published to the
@@ -666,7 +678,7 @@ class Engine:
             return  # abandoned: decided again after a restart (its batches are kept)
         self._step(Step.AFTER_SIGNALS, tick)
         self._decide(tick, specs)
-        self._last_tick_at = self.clock()
+        self._last_tick_at = self._tick_done_at[interval] = self.clock()
         self._step(Step.TICK_DONE, tick)
 
     async def _catch_up(self, tick: Tick) -> None:

@@ -54,10 +54,10 @@ async def test_every_endpoint_but_health_needs_the_token(tmp_path: Path) -> None
             for path, item in rig.app.openapi()["paths"].items()
             for method in item
         ]
-        assert len(routes) == 8
+        assert len(routes) == 14
         bare = httpx.AsyncClient(base_url=rig.url)
         for method, path in routes:
-            path = path.replace("{name}", "ext").replace("{action}", "pause")
+            path = path.replace("{name}", "ext").replace("{action}", "pause").replace("{key}", "x")
             for headers in (
                 {},
                 {"Authorization": "Bearer wrong"},

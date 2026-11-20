@@ -32,6 +32,7 @@ dev = [
     "pre-commit>=4.7.0",
     "pytest>=9.2.0",
     "pytest-cov>=7.1.0",
+    "pytest-playwright>=0.10.0",
     "ruff>=0.17.3",
 ]
 research = [
@@ -71,8 +72,9 @@ mypy_path = "src"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not golden"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "-m", "not golden and not browser"]
 markers = [
+    "browser: drives the dashboard in Chromium with Playwright (opt in: pytest -m browser)",
     "golden: reproduces research results on the real data folder (opt in: pytest -m golden)",
 ]
 

@@ -1,0 +1,35 @@
+# The paper trading daemon on a Docker host. See docs/runbook.md.
+#   cp moonshot.env.example moonshot.env   # and set MOONSHOT_API_TOKEN
+#   mkdir -p state && sudo chown 10001:10001 state   # the container runs as uid 10001
+#   docker compose up -d --build
+services:
+  moonshot:
+    build: .
+    image: crypto-moonshot:local
+    restart: unless-stopped
+    init: true                       # tini as PID 1: forwards SIGTERM, reaps children
+    stop_grace_period: 60s           # longer than a tick's candle collection
+    env_file: moonshot.env           # MOONSHOT_API_TOKEN (not committed)
+    # The image's default command runs `moonshot live run --config /config/paper.toml`.
+    volumes:
+      - ./config:/config:ro          # paper.toml (start from deploy/config/paper.toml)
+      - ./state:/state               # state file, lock and backups (read-write)
+      - ./data:/data:ro              # candle store (optional)
+      - ./strategies:/strategies:ro  # plugin files named in the config
+    ports:
+      # Plain HTTP, no TLS: keep this on your LAN. To publish on one LAN address only, use
+      # e.g. "192.168.1.50:8765:8765". Never forward it from your router.
+      - "8765:8765"
+    read_only: true                  # the daemon writes only to /state (and /tmp)
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # The healthcheck (GET /api/v1/health) comes from the image.

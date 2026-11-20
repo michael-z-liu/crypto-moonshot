@@ -24,6 +24,12 @@ htmlcov/
 .env.*
 !.env.example
 
+# Docker deployment: token file, mounted config, strategies, state and candle folders
+moonshot.env
+/config/
+/strategies/
+/deploy/state/
+
 # Local market data, backtest output, logs, live state files
 /data/
 /logs/

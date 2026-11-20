@@ -1,0 +1,21 @@
+# Everything is excluded except what the image build needs (an allowlist), so secrets, market
+# data, results, state files, caches, the .git folder and local venvs never reach the daemon.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+**/__pycache__
+**/*.py[cod]
+# Explicitly, in case the allowlist above is edited:
+.git
+.env*
+moonshot.env
+data/
+results/
+research/
+state/
+.venv
+.*_cache
+*.sqlite*
+docs/
