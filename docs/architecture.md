@@ -448,20 +448,36 @@ when everyone has reported:
 `data/stream.py` (Binance WebSocket client) and `live/feed.py` (ticks and windows).
 
 - WebSocket connections to Binance's market-data stream host (`data-stream.binance.vision`, no
-  key) carry the kline streams of every (symbol, interval) any strategy needs, context symbols
-  included. Subscriptions are sent in chunks within Binance's message-rate limit, and another
-  connection is opened when one would exceed the stream limit per connection (1024). Updates of a
-  candle still forming are ignored.
+  key; `MOONSHOT_STREAM_URL` overrides the base) carry the kline streams of every (symbol,
+  interval) any strategy needs, context symbols included. `KlineStream` subscribes with
+  `SUBSCRIBE` messages of 200 streams, at most 4 a second (Binance allows 5), and opens another
+  connection when one would exceed 1024 streams. Only closed candles (`k.x`) are yielded; forming
+  updates and acks are dropped, subscription errors are reported. Any disconnect or error
+  reconnects with exponential backoff and jitter and re-subscribes; an optional silence timeout
+  treats a quiet connection as dead (off by default, as an hourly stream is quiet for an hour;
+  ping/pong already detects dead sockets).
+- **`Feed` interface** (`live/feed.py`), what the engine uses: `ticks()` (async iterator of
+  `Tick(interval, open_time, candles, missing, emitted_at)`), `windows(interval, symbols, time,
+  warmup)`, `last_candle`, `stale_symbols(interval, now, stale_after)`, `health()` and
+  `aclose()`. `LiveFeed` implements it over the WebSocket; the replay feed (M5) implements it
+  over stored candles with simulated time. Candles in ticks are `Candle` named tuples (the
+  `KLINE_SCHEMA` columns); windows are frames.
 - **Ticks.** Closed candles are grouped by (interval, open time). A tick is emitted when every
   subscribed symbol has closed that candle, or `tick_timeout` after the close; symbols missing
-  then are listed in the tick and filled in later by backfill (a late candle never re-opens a
-  tick).
+  then are listed in the tick and filled in later (a late candle joins its window and never
+  re-opens a tick). Ticks of an interval come in open-time order and only after running
+  backfills of that interval. A candle is held back until its tick is emitted, so a window seen
+  during tick T ends at T for every symbol that has it.
 - **Reconnects.** Binance drops connections every 24 hours and at other times. The client
   reconnects with backoff; after any reconnect, or a gap noticed in a symbol's open times, the
-  missed candles are fetched over REST (`data/binance.py`) before the next tick is emitted.
-- **Windows.** The feed keeps each symbol's last `max(warmup)` closed candles in memory. At
-  start-up they are seeded from the Parquet store where it has them, and the rest (or all of it,
-  in a bare container) from REST. The daemon never writes the store.
+  missed candles are fetched over REST (`data/binance.py`) before the next tick of that interval
+  is emitted. A range REST cannot fill (an exchange outage) stays a hole and is not retried.
+- **Windows.** The feed keeps each symbol's last `max(warmup) + 32` closed candles in memory (a
+  frame, with new candles appended in O(1) and concatenated when read). At start-up they are
+  seeded from the Parquet store where it has them (only the month files the window touches),
+  and the rest (or all of it, in a bare container) from REST. The daemon never writes the store.
+- **Events.** The feed reports connects, disconnects, seeding, backfills, subscription errors
+  and changes of the stale set to an optional sink callback, and never prints.
 - **Staleness.** A symbol whose latest candle is more than `stale_after` intervals old is stale:
   no entries in it, and the status says so.
 
