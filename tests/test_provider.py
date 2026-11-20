@@ -70,8 +70,8 @@ async def test_one_batch_per_tick_even_an_empty_one(tmp_path: Path) -> None:
             await rig.tick(0)
             await rig.tick(1)
             await rig.tick(2, [CONTEXT])  # no traded symbol closed: empty batch, no call
+            await until(lambda: provider.stats.posted == 3)  # the response follows the decision
             assert provider.stats.ticks == 3
-            assert provider.stats.posted == 3
             records = [rig.store.batch_for("ext", H1, at(k)) for k in range(3)]
             assert [r.status for r in records if r is not None] == [BatchStatus.ON_TIME] * 3
             assert [t for t, _, _ in plugin.seen] == [at(0), at(1)]
@@ -223,7 +223,7 @@ async def test_keep_going_logs_the_failure_and_the_daemon_records_a_missed_batch
             missed = rig.store.batch_for("ext", H1, at(1))
             assert missed is not None
             assert missed.status is BatchStatus.MISSED
-            assert provider.stats.posted == 2
+            await until(lambda: provider.stats.posted == 2)
     assert "no batch sent for this candle" in caplog.text
 
 
@@ -240,7 +240,7 @@ async def test_a_refused_batch_is_reported_loudly(
         async with running(rig, Recorder()) as provider:
             await connected(rig)
             await rig.tick(0)
-            assert len(provider.stats.refused) == 1
+            await until(lambda: len(provider.stats.refused) == 1)
             assert "the strategy is on fire" in provider.stats.refused[0]
     assert "REFUSED" in caplog.text
     assert "the strategy is on fire" in caplog.text
@@ -257,6 +257,6 @@ async def test_a_duplicate_is_noted_not_fatal(tmp_path: Path) -> None:
         )  # fmt: skip
         assert first.status_code == 202
         await rig.tick(0)
-        assert provider.stats.duplicates == 1
+        await until(lambda: provider.stats.duplicates == 1)
         assert rig.store.events_since() != [] or True
         assert all(e.level is not EventLevel.ERROR for e in rig.store.events_since())

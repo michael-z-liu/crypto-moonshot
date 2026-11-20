@@ -20,10 +20,12 @@ def _plain_typer_errors(monkeypatch: pytest.MonkeyPatch) -> None:
 
     Typer forces terminal output (colours, panel borders wrapped through the message) when
     GITHUB_ACTIONS, FORCE_COLOR or PY_COLORS is set, and rich treats FORCE_COLOR as a terminal,
-    which breaks assertions on output text in CI.
+    which breaks assertions on output text in CI. A wide `COLUMNS` keeps error panels from
+    wrapping a message through long temporary paths, which differ between machines.
     """
     monkeypatch.setattr(typer.rich_utils, "FORCE_TERMINAL", False)
     monkeypatch.delenv("FORCE_COLOR", raising=False)
+    monkeypatch.setenv("COLUMNS", "200")
 
 
 @pytest.fixture(scope="session")
