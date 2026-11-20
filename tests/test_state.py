@@ -935,3 +935,31 @@ def test_a_missed_batch_can_turn_up_late_once(store: StateStore) -> None:
     with pytest.raises(KeyError):
         store.fill_missed_batch(999, received_at=T0, lateness=M5)
     assert store.signal_outcomes() == {"expired:late": 1}
+
+
+def test_a_read_only_open_reads_without_writing_or_migrating(
+    store: StateStore, tmp_path: Path
+) -> None:
+    for n in range(5):
+        store.add_event(T0, EventLevel.INFO, "k", f"event {n}")
+    store.set_control(Control.PAUSED, True)
+    with StateStore.open_readonly(store.path) as reader:
+        assert [s.name for s in reader.strategies()] == ["alpha", "beta"]
+        assert reader.controls().paused
+        assert [e.message for e in reader.recent_events(2)] == ["event 3", "event 4"]
+        assert len(reader.recent_events(50)) == 5
+        with pytest.raises(sqlite3.OperationalError, match="readonly"):
+            reader.set_control(Control.PAUSED, False)
+    store.close()
+    missing = tmp_path / "nope.sqlite"
+    with pytest.raises(StateError, match="no state file"):
+        StateStore.open_readonly(missing)
+    assert not missing.exists()
+    garbage = tmp_path / "garbage.sqlite"
+    garbage.write_text("this is not a database")
+    with pytest.raises(StateError, match="not a readable state file"):
+        StateStore.open_readonly(garbage)
+    empty = tmp_path / "empty.sqlite"
+    sqlite3.connect(empty).close()
+    with pytest.raises(SchemaVersionError, match="schema version 0"):
+        StateStore.open_readonly(empty)

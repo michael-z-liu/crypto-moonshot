@@ -755,3 +755,18 @@ def test_feed_subscriptions_cover_traded_context_and_held_symbols(tmp_path: Path
     assert feed_subscriptions(specs) == {H1: ["AAAUSDT", "BBBUSDT"], Interval.M5: ["BBBUSDT"]}
     assert feed_subscriptions(specs, held)[H1] == ["AAAUSDT", "BBBUSDT", "ZZZUSDT"]
     assert feed_warmups(specs) == {H1: 50, Interval.M5: 7}
+
+
+async def test_an_external_strategys_context_symbols_are_subscribed(tmp_path: Path) -> None:
+    config = config_from_dict(
+        {
+            "state": str(tmp_path / "s.sqlite"),
+            "account": {"initial_cash": 1000.0},
+            "strategies": [
+                external(symbols=["AAAUSDT"], warmup=5, context_symbols=["BTCUSDT"], capital=1000.0)
+            ],
+        }
+    )
+    (spec,) = build_specs(config, None)
+    assert spec.context_symbols == ("BTCUSDT",)
+    assert feed_subscriptions([spec]) == {H1: ["AAAUSDT", "BTCUSDT"]}

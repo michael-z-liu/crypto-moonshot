@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 from pathlib import Path
 
@@ -188,3 +189,44 @@ def test_universes_resolve_against_the_data_root(tmp_path: Path) -> None:
     for symbol in ("AAAUSDT", "OLDUSDT", "USDCUSDT"):
         write_series(tmp_path, symbol, Interval.M5, kline_frame([T0], [1.0]))
     assert r2.resolve_symbols(tmp_path, Interval.M5) == ["AAAUSDT", "OLDUSDT"]
+
+
+EXTERNAL = """
+state = "s.sqlite"
+[account]
+initial_cash = 1000
+[[strategies]]
+name = "cnn"
+source = "external"
+interval = "5m"
+warmup = 100
+symbols = ["AAAUSDT"]
+capital = 500
+sizing = {{ slots = 2 }}
+{extra}
+"""
+
+
+def test_external_strategies_name_their_context_symbols() -> None:
+    config = parse_config(
+        EXTERNAL.format(extra='context_symbols = ["btcusdt", "ETHUSDT", "BTCUSDT"]')
+    )
+    assert config.strategy("cnn").context_symbols == ["BTCUSDT", "ETHUSDT"]
+    assert parse_config(EXTERNAL.format(extra="")).strategy("cnn").context_symbols == []
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        ('context_symbols = ["BTCUSD"]', "strategies[0] (cnn).context_symbols: only USDT-quoted"),
+    ],
+)
+def test_bad_context_symbols_name_their_field(extra: str, message: str) -> None:
+    with pytest.raises(ConfigError, match=re.escape(message)):
+        parse_config(EXTERNAL.format(extra=extra))
+
+
+def test_an_in_process_plugin_declares_its_own_context_symbols() -> None:
+    text = GOOD.replace("params = {}", 'params = {}\ncontext_symbols = ["BTCUSDT"]')
+    with pytest.raises(ConfigError, match="context_symbols are for external strategies"):
+        parse_config(text)
