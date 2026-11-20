@@ -32,7 +32,7 @@ from crypto_moonshot.models import Interval
 
 
 class MaCross:
-    def __init__(self, fast: int = 12, slow: int = 48) -> None:   # params from the config
+    def __init__(self, fast: int = 12, slow: int = 48) -> None:  # params from the config
         self.name = "ma_cross"
         self.interval = Interval.H1
         self.fast, self.slow = fast, slow
@@ -45,8 +45,7 @@ class MaCross:
         windows: Mapping[str, pl.DataFrame],
         time: datetime,
         context: Mapping[str, pl.DataFrame],
-    ) -> pl.DataFrame:
-        ...  # see examples/strategies/ma_cross.py for the whole file
+    ) -> pl.DataFrame: ...  # see examples/strategies/ma_cross.py for the whole file
 ```
 
 [`examples/strategies/ma_cross.py`](../examples/strategies/ma_cross.py) is a complete, readable
