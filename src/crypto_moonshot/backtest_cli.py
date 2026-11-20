@@ -34,7 +34,7 @@ from crypto_moonshot.cli_output import print_backtest_summary, stdout_is_tty
 from crypto_moonshot.data.store import KlineStore
 from crypto_moonshot.data.universe import Universe, universe_symbols
 from crypto_moonshot.data_cli import parse_when, resolve_settings
-from crypto_moonshot.models import parse_duration
+from crypto_moonshot.models import Interval, parse_duration
 from crypto_moonshot.portfolio import EqualSlots, FixedStake, Sizing
 from crypto_moonshot.strategy.base import Signals
 from crypto_moonshot.strategy.capitulation import F2, R2, R2_LAST_ENTRY, CapitulationRule
@@ -283,18 +283,14 @@ class Options:
     workers: int | None
 
 
-def run_command(strategy: str, options: Options) -> None:
-    """Everything behind `moonshot backtest <strategy>` once the options are collected."""
-    preset = PRESETS[strategy]
-    if strategy == "scores":
-        if options.scores is None:
-            raise typer.BadParameter("--scores FILE is required", param_hint="--scores")
-        if options.universe is not None:
-            raise typer.BadParameter("scores need no universe", param_hint="--universe")
-    else:
-        if options.scores is not None or options.threshold is not None:
-            msg = f"{strategy} is a rule: --scores and --threshold are for `backtest scores`"
-            raise typer.BadParameter(msg, param_hint="--scores")
+def _prepare(
+    options: Options,
+    preset: Preset,
+    *,
+    interval: Interval = Interval.M5,
+    require_exit: bool = False,
+) -> tuple[BacktestConfig, datetime | None]:
+    """The run's config from the options and the strategy's defaults, and the data end."""
     start = parse_when(options.start, option="--start") if options.start else None
     end = parse_when(options.end, option="--end") if options.end else preset.end
     until = parse_when(options.until, option="--until") if options.until else None
@@ -306,6 +302,9 @@ def run_command(strategy: str, options: Options) -> None:
         trailing=options.trailing,
         tp_fill=options.tp_fill,
     )
+    if require_exit and exit_plan == replace(ExitPlan(), tp_fill=exit_plan.tp_fill):
+        msg = "no exit plan: give at least one of --hold, --take-profit, --stop or --trailing"
+        raise typer.BadParameter(msg, param_hint="--hold")
     sizing = build_sizing(preset, options.slots, options.stake)
     max_positions = options.max_positions
     if max_positions is None:
@@ -319,42 +318,40 @@ def run_command(strategy: str, options: Options) -> None:
             costs=Costs(options.fee, options.slippage, options.latency),
             start=start,
             end=end,
+            interval=interval,
             use_fine=options.fine,
             entry_delay=options.entry_delay,
         )
     )
+    return config, until
+
+
+def _data_root(options: Options) -> Path:
     root = resolve_settings(options.data_dir).data_dir
     if not KlineStore(root).list_series():
         raise _fail(f"no candles stored in {root}; download some with `moonshot data sync`")
-    universe = options.universe or preset.universe
-    signals = _signals(
-        strategy,
-        universe,
-        root,
-        until,
-        options.scores,
-        options.threshold,
-        exit_plan,
-        options.cache_dir,
-        options.workers,
-    )
+    return root
+
+
+def _execute(
+    label: str,
+    options: Options,
+    config: BacktestConfig,
+    signals: Signals,
+    root: Path,
+    until: datetime | None,
+    head: dict[str, Any],
+) -> None:
+    """Run the backtest, write the results and print the summary (or `--json`). `head` leads
+    the metrics document."""
     source = ParquetCandleSource(root, until=until)
     _note(f"backtest: {len(signals)} signals")
     result = run_backtest(signals.frame, source, config)
 
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    out = options.out or Path("results") / f"{strategy}-{stamp}"
+    out = options.out or Path("results") / f"{label}-{stamp}"
     document: dict[str, Any] = {
-        "strategy": strategy,
-        "universe": None if universe is None else universe.value,
-        "scores": None if options.scores is None else str(options.scores),
-        "threshold": (
-            None
-            if strategy != "scores"
-            else BASE_CNN.threshold
-            if options.threshold is None
-            else options.threshold
-        ),
+        **head,
         "signals": len(signals),
         "created": datetime.now(UTC),
         "metrics": result.metrics,
@@ -370,12 +367,103 @@ def run_command(strategy: str, options: Options) -> None:
         print_backtest_summary(result.metrics, result.skipped, result.yearly, tty=stdout_is_tty())
 
 
+def run_command(strategy: str, options: Options) -> None:
+    """Everything behind `moonshot backtest <strategy>` once the options are collected."""
+    preset = PRESETS[strategy]
+    if strategy == "scores":
+        if options.scores is None:
+            raise typer.BadParameter("--scores FILE is required", param_hint="--scores")
+        if options.universe is not None:
+            raise typer.BadParameter("scores need no universe", param_hint="--universe")
+    else:
+        if options.scores is not None or options.threshold is not None:
+            msg = f"{strategy} is a rule: --scores and --threshold are for `backtest scores`"
+            raise typer.BadParameter(msg, param_hint="--scores")
+    config, until = _prepare(options, preset)
+    root = _data_root(options)
+    universe = options.universe or preset.universe
+    signals = _signals(
+        strategy,
+        universe,
+        root,
+        until,
+        options.scores,
+        options.threshold,
+        config.exit,
+        options.cache_dir,
+        options.workers,
+    )
+    head = {
+        "strategy": strategy,
+        "universe": None if universe is None else universe.value,
+        "scores": None if options.scores is None else str(options.scores),
+        "threshold": (
+            None
+            if strategy != "scores"
+            else BASE_CNN.threshold
+            if options.threshold is None
+            else options.threshold
+        ),
+    }
+    _execute(strategy, options, config, signals, root, until, head)
+
+
+# Option declarations shared by every run command.
+DataDirOpt = Annotated[
+    Path | None, typer.Option(help="Data folder (default: $MOONSHOT_DATA_DIR, else ./data).")
+]
+UntilOpt = Annotated[
+    str | None,
+    typer.Option(help="Data end, exclusive (YYYY-MM-DD or ISO datetime): ignore later."),
+]
+StartOpt = Annotated[str | None, typer.Option(help="Take signals from this open time (inclusive).")]
+EndOpt = Annotated[str | None, typer.Option(help="Take signals before this open time (exclusive).")]
+SlotsOpt = Annotated[
+    int | None, typer.Option(min=1, help="Equal-slot compounding: stake = equity / SLOTS.")
+]
+StakeOpt = Annotated[float | None, typer.Option(min=0.0, help="Fixed stake per entry in USDT.")]
+CapitalOpt = Annotated[float, typer.Option(min=0.0, help="Starting capital in USDT.")]
+MaxPositionsOpt = Annotated[
+    int | None,
+    typer.Option(min=1, help="Most positions open at once (default: the slots, or 200)."),
+]
+HoldOpt = Annotated[
+    str | None, typer.Option(help="Time exit, e.g. 1h, 90m, 3d, 2w; 'none' for no limit.")
+]
+TakeProfitOpt = Annotated[
+    float | None, typer.Option(min=0.0, help="Take-profit as a fraction (0.2 = +20%).")
+]
+StopOpt = Annotated[
+    float | None, typer.Option(min=0.0, max=0.999, help="Stop as a fraction (0 = off).")
+]
+TrailingOpt = Annotated[
+    float | None, typer.Option(min=0.0, max=0.999, help="Trailing stop as a fraction (0 = off).")
+]
+TpFillOpt = Annotated[
+    TpFill | None,
+    typer.Option(help="Take profit fills when a candle touches the target, or closes."),
+]
+FeeOpt = Annotated[float, typer.Option(min=0.0, max=0.5, help="Fee per side.")]
+SlippageOpt = Annotated[float, typer.Option(min=0.0, max=0.5, help="Slippage per side.")]
+LatencyOpt = Annotated[float, typer.Option(min=0.0, max=0.5, help="Latency cost on market orders.")]
+FineOpt = Annotated[
+    bool, typer.Option("--fine/--no-fine", help="Fill exits on 1m candles when stored.")
+]
+EntryDelayOpt = Annotated[int, typer.Option(min=0, help="Extra candles between signal and entry.")]
+OutOpt = Annotated[
+    Path | None,
+    typer.Option(help="Output folder (default: results/<strategy>-<UTC timestamp>/)."),
+]
+JsonOpt = Annotated[
+    bool, typer.Option("--json", help="Print the results as one JSON object on stdout.")
+]
+CacheDirOpt = Annotated[Path, typer.Option(help="Where signal caches go (never the data folder).")]
+WorkersOpt = Annotated[int | None, typer.Option(min=1, help="Processes for signal computation.")]
+
+
 def _register(strategy: str, summary: str) -> None:
     def command(
-        data_dir: Annotated[
-            Path | None,
-            typer.Option(help="Data folder (default: $MOONSHOT_DATA_DIR, else ./data)."),
-        ] = None,
+        data_dir: DataDirOpt = None,
         universe: Annotated[
             Universe | None,
             typer.Option(
@@ -383,60 +471,23 @@ def _register(strategy: str, summary: str) -> None:
                 "all (plus delisted and outside the pool). Default: the strategy's own."
             ),
         ] = None,
-        until: Annotated[
-            str | None,
-            typer.Option(help="Data end, exclusive (YYYY-MM-DD or ISO datetime): ignore later."),
-        ] = None,
-        start: Annotated[
-            str | None, typer.Option(help="Take signals from this open time (inclusive).")
-        ] = None,
-        end: Annotated[
-            str | None, typer.Option(help="Take signals before this open time (exclusive).")
-        ] = None,
-        slots: Annotated[
-            int | None,
-            typer.Option(min=1, help="Equal-slot compounding: stake = equity / SLOTS."),
-        ] = None,
-        stake: Annotated[
-            float | None, typer.Option(min=0.0, help="Fixed stake per entry in USDT.")
-        ] = None,
-        capital: Annotated[
-            float, typer.Option(min=0.0, help="Starting capital in USDT.")
-        ] = DEFAULT_CAPITAL,
-        max_positions: Annotated[
-            int | None,
-            typer.Option(min=1, help="Most positions open at once (default: the slots, or 200)."),
-        ] = None,
-        hold: Annotated[
-            str | None, typer.Option(help="Time exit, e.g. 1h, 90m, 3d, 2w; 'none' for no limit.")
-        ] = None,
-        take_profit: Annotated[
-            float | None, typer.Option(min=0.0, help="Take-profit as a fraction (0.2 = +20%).")
-        ] = None,
-        stop: Annotated[
-            float | None, typer.Option(min=0.0, max=0.999, help="Stop as a fraction (0 = off).")
-        ] = None,
-        trailing: Annotated[
-            float | None,
-            typer.Option(min=0.0, max=0.999, help="Trailing stop as a fraction (0 = off)."),
-        ] = None,
-        tp_fill: Annotated[
-            TpFill | None,
-            typer.Option(help="Take profit fills when a candle touches the target, or closes."),
-        ] = None,
-        fee: Annotated[float, typer.Option(min=0.0, max=0.5, help="Fee per side.")] = 0.001,
-        slippage: Annotated[
-            float, typer.Option(min=0.0, max=0.5, help="Slippage per side.")
-        ] = 0.0005,
-        latency: Annotated[
-            float, typer.Option(min=0.0, max=0.5, help="Latency cost on market orders.")
-        ] = 0.0,
-        fine: Annotated[
-            bool, typer.Option("--fine/--no-fine", help="Fill exits on 1m candles when stored.")
-        ] = False,
-        entry_delay: Annotated[
-            int, typer.Option(min=0, help="Extra candles between signal and entry.")
-        ] = 0,
+        until: UntilOpt = None,
+        start: StartOpt = None,
+        end: EndOpt = None,
+        slots: SlotsOpt = None,
+        stake: StakeOpt = None,
+        capital: CapitalOpt = DEFAULT_CAPITAL,
+        max_positions: MaxPositionsOpt = None,
+        hold: HoldOpt = None,
+        take_profit: TakeProfitOpt = None,
+        stop: StopOpt = None,
+        trailing: TrailingOpt = None,
+        tp_fill: TpFillOpt = None,
+        fee: FeeOpt = 0.001,
+        slippage: SlippageOpt = 0.0005,
+        latency: LatencyOpt = 0.0,
+        fine: FineOpt = False,
+        entry_delay: EntryDelayOpt = 0,
         scores: Annotated[
             Path | None, typer.Option(help="Score file (Parquet); required for `scores`.")
         ] = None,
@@ -444,19 +495,10 @@ def _register(strategy: str, summary: str) -> None:
             float | None,
             typer.Option(help=f"Enter where score >= this (default {BASE_CNN.threshold})."),
         ] = None,
-        out: Annotated[
-            Path | None,
-            typer.Option(help="Output folder (default: results/<strategy>-<UTC timestamp>/)."),
-        ] = None,
-        json_output: Annotated[
-            bool, typer.Option("--json", help="Print the results as one JSON object on stdout.")
-        ] = False,
-        cache_dir: Annotated[
-            Path, typer.Option(help="Where signal caches go (never the data folder).")
-        ] = DEFAULT_CACHE_DIR,
-        workers: Annotated[
-            int | None, typer.Option(min=1, help="Processes for signal computation.")
-        ] = None,
+        out: OutOpt = None,
+        json_output: JsonOpt = False,
+        cache_dir: CacheDirOpt = DEFAULT_CACHE_DIR,
+        workers: WorkersOpt = None,
     ) -> None:
         run_command(
             strategy,
