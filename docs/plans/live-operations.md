@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `feat/live-operations` (stacked on PR #18, `worktree-bridge-cse_015bssAUbtXue4wkarka78Pb`)
 - **PR:**
-- **Updated:** 2026-11-20T22:15Z
+- **Updated:** 2026-11-20T22:35Z
 
 ## Goal
 
@@ -20,15 +20,15 @@ controls, a Docker image and a runbook.
 
 ## Milestones
 
-### M1: Operations design (todo)
+### M1: Operations design (done)
 
 - **Delivers:** `docs/architecture.md` sections for health and alert rules, the watchdog, backups,
   the dashboard, Docker and logging.
 - **Done when:** the doc is the spec for M2-M4; check command passes.
 - **Worker:** master
-- **Commits:**
+- **Commits:** 7d667fb
 
-### M2: Health, alerts and backups (todo)
+### M2: Health, alerts and backups (in progress)
 
 - **Delivers:** API endpoints for trades, equity, signals, provider lateness and alerts (with
   acknowledge); health rules raising alert events (feed down, no ticks, provider missing batches,
@@ -65,6 +65,9 @@ controls, a Docker image and a runbook.
   `main` is merged into the next branch (no rebase, no force push).
 - 2026-11-20: Docker is not installed on the dev machine; the image is built and smoke-tested in a
   GitHub Actions job.
+- 2026-11-20 (M1): added to the design beyond the plan: a single-instance lock on the state file,
+  `moonshot live restore`, a `disk_low` rule, an event-loop-blocked watchdog (os._exit(3)), alert
+  acknowledgement that hides but never silences a rule.
 
 ## Blocked on
 
