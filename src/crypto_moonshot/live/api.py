@@ -8,6 +8,7 @@ compared with `hmac.compare_digest` and never logged or echoed.
 
 | Endpoint | Purpose |
 | --- | --- |
+| `GET /`, `GET /assets/*` | the dashboard's static files (no auth, no data; `live.webui`) |
 | `GET /health` | alive, mode, feed connection and lag, last tick per interval (no auth) |
 | `GET /status` | `Engine.status().to_json()` |
 | `GET /strategies/{name}` | what a provider needs: interval, symbols, warm-up, context, exit |
@@ -50,6 +51,7 @@ from crypto_moonshot.live.engine import Engine, to_json
 from crypto_moonshot.live.feed import Feed, Tick
 from crypto_moonshot.live.health import ALERT_KIND
 from crypto_moonshot.live.state import AlertRecord, EventLevel, EventRecord, PositionRecord
+from crypto_moonshot.live.webui import add_dashboard
 from crypto_moonshot.models import KLINE_SCHEMA, Interval
 
 logger = logging.getLogger(__name__)
@@ -608,6 +610,7 @@ def create_app(
 
     app.include_router(open_router)
     app.include_router(router)
+    add_dashboard(app)
 
     @app.exception_handler(RequestValidationError)
     async def invalid(request: Request, exc: RequestValidationError) -> JSONResponse:

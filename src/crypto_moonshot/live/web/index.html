@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>moonshot</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/icon.svg">
+  <link rel="stylesheet" href="/assets/app.css">
+  <script type="module" src="/assets/app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header id="bar" hidden>
+    <span class="brand">moonshot</span>
+    <nav aria-label="Pages">
+      <a href="#/overview" data-route="overview">Overview</a>
+      <a href="#/positions" data-route="positions">Positions</a>
+      <a href="#/trades" data-route="trades">Trades</a>
+      <a href="#/signals" data-route="signals">Signals</a>
+      <a href="#/alerts" data-route="alerts">Alerts</a>
+    </nav>
+    <div class="tools">
+      <span id="conn" role="status" class="conn"></span>
+      <label for="every" class="sr">Refresh every</label>
+      <select id="every">
+        <option value="3">3 s</option>
+        <option value="5" selected>5 s</option>
+        <option value="10">10 s</option>
+        <option value="30">30 s</option>
+      </select>
+      <button type="button" id="logout" class="btn">Log out</button>
+    </div>
+  </header>
+
+  <div id="banner" hidden></div>
+
+  <main id="main" tabindex="-1">
+    <section id="login" hidden aria-labelledby="login-title">
+      <h1 id="login-title">moonshot</h1>
+      <form id="login-form">
+        <label for="token">API token</label>
+        <input id="token" name="token" type="password" autocomplete="off" required>
+        <button type="submit" class="btn primary">Log in</button>
+        <p id="login-msg" class="msg" role="alert"></p>
+      </form>
+    </section>
+    <div id="page"></div>
+    <section id="controls" hidden aria-labelledby="controls-title" class="card">
+      <h2 id="controls-title">Controls</h2>
+      <p id="controls-state" role="status"></p>
+      <div class="buttons">
+        <button type="button" class="btn" id="pause">Pause</button>
+        <button type="button" class="btn" id="resume">Resume</button>
+        <button type="button" class="btn danger" id="flatten">Flatten</button>
+      </div>
+      <p id="controls-msg" class="msg" role="alert"></p>
+    </section>
+  </main>
+
+  <dialog id="dialog" aria-labelledby="dialog-title">
+    <form method="dialog" id="dialog-form">
+      <h2 id="dialog-title"></h2>
+      <p id="dialog-body"></p>
+      <div id="dialog-typed" hidden>
+        <label for="dialog-input">Type <strong id="dialog-word"></strong> to confirm</label>
+        <input id="dialog-input" autocomplete="off">
+      </div>
+      <div class="buttons">
+        <button type="submit" value="cancel" class="btn" id="dialog-cancel">Cancel</button>
+        <button type="submit" value="ok" class="btn primary" id="dialog-ok"></button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
