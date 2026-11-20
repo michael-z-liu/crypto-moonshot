@@ -300,8 +300,9 @@ separate processes, anywhere on the network, that run strategies the daemon shou
 injected clock: wall-clock UTC live, simulated time in replay.
 
 Status: P1 (`docs/plans/live-paper-engine.md`) built paper mode, replay, the API, the provider SDK
-and the CLI; the web UI, controls UI and Docker image are P2; the Binance broker is P3 (see
-Build order). Strategy authors: see [strategy-plugins.md](strategy-plugins.md).
+and the CLI; P2 (`docs/plans/live-operations.md`) adds health rules and alerts, watchdogs, backups
+and the dashboard's endpoints (built), then the web UI and the Docker image; the Binance broker is
+P3 (see Build order). Strategy authors: see [strategy-plugins.md](strategy-plugins.md).
 
 #### Run config
 
@@ -325,6 +326,21 @@ tick_timeout = "10s"               # wait this long after a close for every symb
 signal_deadline = "30s"            # after a candle closes, wait this long for signal batches
 entry_grace = "5m"                 # cancel a pending buy whose candle is this overdue
 replay_timeout = "1h"              # replay: longest real wait for a candle's batches
+
+[health]                           # all optional; see Operations
+health_every = "15s"               # how often the health rules are evaluated
+feed_grace = "60s"                 # a feed connection down this long raises feed_disconnected
+no_ticks_intervals = 2             # no_ticks: this many intervals (+ tick_timeout) without a tick
+provider_misses = 3                # provider_missing / plugin_failing: this many batches in a row
+backfill_window = "1h"             # backfill_failed: a seed or backfill request failed within this
+stale_fraction = 0.2               # stale_symbols: more than this share of an interval's symbols
+startup_grace = "2m"               # ... checked only this long after start (the feed is seeding)
+min_free_gb = 1.0                  # disk_low: less free disk than this where the state file lives
+# watchdog_after = "15m"           # exit 3 after this long without a tick (default 10 x the
+                                   # shortest interval, at least 15 minutes)
+loop_blocked_after = "60s"         # exit 3 at once when the event loop did not run for this long
+backup_every = "24h"               # automatic state backups: at start, then this often
+backup_keep = 14                   # ... keeping the newest this many
 
 [[strategies]]
 name = "r2"                        # instance name: unique, used in the state and the API
@@ -353,6 +369,8 @@ exit = { max_hold = "2h" }
   no `params` and may list `context_symbols` (an in-process plugin declares its own, so the
   field is refused there); the strategies' capital may not exceed `initial_cash`; durations are strings
   (`models.parse_duration`).
+- **Health.** `[health]` (`HealthConfig`) holds every threshold of the health rules, the
+  watchdogs and the automatic backups; omitted keys keep the defaults above.
 - **Mode.** `testnet` and `live` parse, but `RunConfig.require_runnable` (and the engine)
   refuse them with a clear message: P1 places no exchange orders.
 - **Costs** are account-wide: the paper broker is one simulated exchange with one fee schedule.
@@ -671,12 +689,18 @@ amounts, exit plan, time, status `pending`/`filled`/`cancelled`/`rejected`, reas
 `fills`; `positions` (strategy, symbol, interval, status `pending`/`open`/`closed`/`cancelled`,
 placed time, entry order, entry and exit details, bracket ID, proceeds, P&L, signal info);
 `controls` (paused, flatten requested); `events` (time, level, kind, message, data: the alert
-feed the UI shows; ids only grow) and `providers` (last batch, last seen). A unique index allows
+feed the UI shows; ids only grow); `providers` (last batch, last seen) and, from schema version 2,
+`alerts` (the *active* alerts: key, rule, level, detail, fired time, acknowledged time; a row
+lives from firing to resolution, so an acknowledgement ends with it). Version 2 also indexes
+`events (kind, id)` and `batches (candle_time)` for the dashboard's queries. A unique index allows
 one pending or open position per symbol across strategies.
 
 - **Read-only open.** `StateStore.open_readonly` (`moonshot live status --config` with the daemon
   down) opens an existing file without creating, migrating or writing anything, and refuses one
-  of another schema version.
+  of another schema version (so a version-1 file must be opened by the daemon, which migrates it,
+  first).
+- **One writer.** The daemon, a replay and `live restore` hold an exclusive lock on
+  `<state>.lock` (see Operations); backups and read-only opens do not need it.
 - **Typed API.** Records are dataclasses (`OrderRecord`, `PositionRecord`, `BatchRecord`, ...);
   `transaction()` makes one tick step atomic and nests as savepoints; every write outside one
   runs in its own. Statuses only move forward (an order leaves `pending` once; a position goes
@@ -733,6 +757,8 @@ over stored candles (`run_replay`, or `prepare_replay` to wire the API before ru
   engine writes is deterministic.
 - **Deadline.** Replay waits for every strategy's batch (external providers included) instead
   of wall-clock time, up to `replay_timeout`.
+- **Lock.** `prepare_replay` takes the state file's lock before anything else and `ReplayRun.close`
+  releases it, so a replay can never run beside a daemon (or another replay) on one state file.
 - **Resume.** A state file with processed ticks resumes after them; candles older than the
   feed's windows come from the store (`StoreHistory`).
 - **Fast path.** With `signals="backtest"` a plugin that has `backtest_signals` is run once over
@@ -772,7 +798,47 @@ the schema.
 | `POST /signals` | a signal batch (the contract above) |
 | `POST /control/{pause,resume,flatten}` | controls; the reply holds the resulting controls |
 | `GET /events?since=&limit=` | events with an id above `since`, oldest first (without `since`, the latest `limit`); `last_id` is the cursor |
+| `GET /trades?strategy=&limit=` | closed positions, newest exit first (below) |
+| `GET /equity?strategy=&limit=` | realised equity points and the mark-to-market per strategy (below) |
+| `GET /signals?strategy=&limit=` | recent signals with outcome and reason, newest first (below) |
+| `GET /providers` | per strategy, the last 24 h of batches (below) |
+| `GET /alerts?history=` | active alerts and the alert history (below) |
+| `POST /alerts/{key}/ack` | acknowledge an active alert (below) |
 
+- **Dashboard endpoints** (all JSON, token required; field names are stable: the dashboard
+  reads them). An unknown `strategy` is a 404 `{"detail": ...}`, a `limit` outside its range a
+  422. Times are ISO-8601 UTC.
+  - `GET /trades` (`limit` 1-1000, default 100): `{"strategy", "limit", "count", "trades": [{"id",
+    "strategy", "symbol", "interval", "entry_time", "entry_price", "exit_time", "exit_price",
+    "exit_reason", "quantity", "cost", "proceeds", "pnl", "return_fraction", "hold_seconds",
+    "signal_info"}]}`. `cost` includes the entry fee, `proceeds` is after the exit fee, so `pnl =
+    proceeds - cost` and `return_fraction = pnl / cost`.
+  - `GET /equity` (`limit` 1-10000, default 2000 points per strategy): `{"time", "limit",
+    "strategies": {name: {"capital", "realised_pnl", "realised_equity", "unrealised_pnl",
+    "equity", "open_positions", "unpriced_positions", "points": [{"time", "equity"}]}}}`.
+    `points` is the realised equity (capital plus the cumulative P&L in exit order) after each
+    of the latest `limit` closed positions, oldest first. `unrealised_pnl` values the strategy's
+    *open* positions at the feed's last close (quantity x close - cost, before the exit fee;
+    pending entries are not counted; a position whose symbol has no candle is valued at its
+    entry price and counted in `unpriced_positions`); `equity = realised_equity +
+    unrealised_pnl`.
+  - `GET /signals` (`limit` 1-1000, default 100): `{"strategy", "limit", "count", "signals":
+    [{"id", "strategy", "interval", "candle_time", "batch_status", "symbol", "action",
+    "priority", "weight", "outcome", "reason", "info"}]}`; `outcome` is `placed`, `rejected`,
+    `expired`, `ignored` or `null` while undecided, `reason` says why (`slots_full`, `late`, ...).
+  - `GET /providers`: `{"window_hours": 24, "since", "providers": [{"strategy", "external",
+    "interval", "on_time", "late", "missed", "median_lateness_seconds",
+    "worst_lateness_seconds", "last_batch_time", "last_seen"}]}`, one row per strategy
+    (in-process ones count their `missed` batches too, i.e. plugin failures); the counts are of
+    batches whose candle is within the window; `last_batch_time` is the candle of the latest
+    received batch, `last_seen` the provider's last heartbeat (`null` for in-process ones).
+  - `GET /alerts` (`history` 0-500, default 50): `{"active": [{"key", "rule", "level",
+    "detail", "fired_at", "acknowledged", "acknowledged_at"}], "unacknowledged": n, "history":
+    [{"id", "time", "level", "key", "rule", "state": "firing" | "resolved", "detail"}]}`;
+    `active` oldest first, `history` (the `alert` events) newest first.
+  - `POST /alerts/{key}/ack`: 200 `{"status": "acknowledged", "alert": {...}}` (acknowledging
+    twice keeps the first time), 404 for a key that is not active (unknown, or resolved). It
+    writes an `alert_acknowledged` info event.
 - **`POST /signals`** calls `Engine.submit_batch`: 202 `{"status": "on_time" | "late",
   "batch_id", "lateness_seconds"}`, 409 `duplicate` (retrying is safe), 422 `refused` (with the
   reason: unknown or in-process strategy, another interval, a candle that has not closed) or
@@ -833,12 +899,15 @@ is replaced by the daemon's).
   backfill keeps waiting out each `Retry-After` instead. An HTTP 418 (IP ban) still makes the
   client refuse requests: backfills then fail and are reported as events until a restart.
 - **Shutdown.** SIGINT and SIGTERM (or the `stop` event) stop the engine after the tick in
-  progress (a tick still collecting batches is abandoned and decided again after the restart),
-  close the feed, shut the API down (open sockets are closed), then close the state file. An
+  progress (a tick still collecting batches is abandoned and decided again after the restart; an
+  engine that has not stopped after 30 s is cancelled), close the feed, shut the API down (open sockets are closed), then close the state file. An
   engine failure does the same and exits with an error. `daemon_started` and `daemon_stopped`
-  events bracket a run.
+  events bracket a run. While it runs the daemon also holds the state file's lock, runs the
+  health monitor, the stall watchdog and the backup scheduler as tasks, and the blocked-loop
+  watchdog (see Operations).
 - **Replay serving.** `serve_replay(prepare_replay(...), settings, ...)` is `moonshot live replay
-  --serve`: the same API over a replay's engine and feed. It waits for a tick client for every
+  --serve`: the same API over a replay's engine and feed, with the health monitor running (the
+  rules about wall-clock time are off in simulated time). It waits for a tick client for every
   external strategy (`--provider-timeout`), runs the replay, tells the providers it is over and
   stops the server. An interrupt leaves the state file resumable.
 
@@ -848,57 +917,78 @@ How the daemon is run unattended (P2, `docs/plans/live-operations.md`): on the u
 host in Docker, watched from a browser on the LAN. Alerts appear in the dashboard only (no push
 channel). The runbook (`docs/runbook.md`) is the operator's guide; this section is the design.
 
-- **Health rules** (`live/health.py`). A monitor task in the daemon evaluates a fixed set of rules
-  every `health_every` (default 15 s, by the injected clock, so tests drive it). Each rule has a
-  key (e.g. `feed_disconnected`, or `provider_missing:cnn`) and is either ok or firing; moving to
-  firing writes an `alert` event (level `warning` or `error`, data `{rule, key, state: "firing",
-  detail}`) and moving back writes one with `state: "resolved"`, so a condition that lasts writes
-  two events, not one per check. Rules:
+- **Health rules** (`live/health.py`). `HealthMonitor.check()` evaluates a fixed set of rules
+  against the engine, the feed and the state file at the engine's clock time; a task in the daemon
+  (and in a served replay) calls it every `health_every` (default 15 s), and tests call it
+  directly with a fake clock. Each rule yields findings with a key (e.g. `feed_disconnected`, or
+  `provider_missing:cnn`). A key that fires and is not active becomes an active alert (a row in
+  the state file's `alerts` table) and writes one `alert` event (level `warning` or `error`, data
+  `{rule, key, state: "firing", detail}`); an active key that stops firing is deleted and writes
+  one with `state: "resolved"` (level `info`). A condition that lasts therefore writes two
+  events, not one per check, and active alerts live in the state file, so a restart keeps them
+  (and their acknowledgement) and resolves the ones that ended while it was down. A rule that
+  raises is logged and leaves its alerts as they are. Rules:
 
   | Rule | Fires when | Level |
   | --- | --- | --- |
-  | `feed_disconnected` | a feed connection has been down longer than `feed_grace` (60 s) | error |
-  | `no_ticks` | no tick of an interval for 2 intervals plus `tick_timeout` (and the daemon has run that long) | error |
-  | `provider_missing:<strategy>` | an external strategy missed its last 3 batches (or sent them late) | warning |
-  | `plugin_failing:<strategy>` | an in-process plugin raised, timed out or broke the contract on its last 3 candles | warning |
-  | `daily_loss_limit:<strategy>` | the strategy's `DailyLossLimit` refuses entries today | warning |
-  | `backfill_failed` | a seed or backfill request failed in the last hour | warning |
-  | `stale_symbols:<interval>` | more than 20% of an interval's traded symbols are stale | warning |
+  | `feed_disconnected` | a feed connection has been down longer than `feed_grace` (60 s), as seen by the monitor | error |
+  | `no_ticks` | no tick of an interval was processed for 2 intervals plus `tick_timeout` (counted from the start when none was yet) | error |
+  | `provider_missing:<strategy>` | an external strategy's last 3 batches were all missed or late | warning |
+  | `plugin_failing:<strategy>` | an in-process plugin gave no signals (raised, timed out or broke the contract) for its last 3 candles | warning |
+  | `daily_loss_limit:<strategy>` | the strategy's `DailyLossLimit` refuses entries today (book derived at the clock's day) | warning |
+  | `backfill_failed` | a `seed_failed` or `backfill_failed` event is within the last hour | warning |
+  | `stale_symbols:<interval>` | more than 20% of an interval's traded symbols are stale (not before `startup_grace`, 2 min, while the feed seeds) | warning |
   | `backup_failed` | the last automatic backup failed | error |
   | `disk_low` | less than 1 GB free where the state file lives | warning |
 
-  Thresholds are settings in the run config's `[health]` table. An alert is *active* while its
-  rule fires. Acknowledging an alert (`POST /alerts/{key}/ack`, stored in the state file) hides it
-  from the dashboard's badge until it resolves and fires again; it does not silence the rule.
-- **Watchdog.** The daemon exits with code 3 (so Docker's restart policy starts it again, and
-  restart recovery takes over) when the engine is stuck: no tick processed for `watchdog_after`
-  (default 10 x the shortest interval, at least 15 minutes) while the feed reports messages, or
-  the event loop blocked for more than 60 s (a thread watches a timestamp a loop task refreshes;
-  on a blocked loop it logs and calls `os._exit(3)`, as a blocked loop cannot shut down cleanly).
-  Before exiting it writes a `watchdog` error event when the loop still runs.
-- **Single instance.** The daemon holds an exclusive lock (`fcntl.flock`) on `<state>.lock` for its
-  lifetime, so two daemons (or a daemon and a restore) can never write one state file. A second
-  start fails at once with a clear message.
-- **Backups** (`live/backup.py`). SQLite's online backup API copies the state file while the daemon
-  runs (WAL mode makes this safe) into `backups/` next to it as `<stem>-<UTC timestamp>.sqlite`,
-  then runs `PRAGMA integrity_check` on the copy. The daemon backs up at start and every
-  `backup_every` (default 24 h) and keeps the newest `backup_keep` (default 14). `moonshot live
-  backup --config FILE [--out DIR]` makes one on demand (daemon running or not); `moonshot live
-  restore BACKUP --config FILE` replaces the state file with a backup after checking it, and
-  refuses while the daemon holds the lock.
-- **Logging.** Plain text to stderr by default; `--log-format json` writes one JSON object per line
-  to stdout for Docker (`time`, `level`, `logger`, `message`, extra fields). Log lines never carry
-  the API token or exchange keys.
-- **More API for the dashboard.** All under `/api/v1`, with the token:
-
-  | Endpoint | Purpose |
-  | --- | --- |
-  | `GET /trades?strategy=&limit=` | closed positions, newest first (the trade list's columns) |
-  | `GET /equity?strategy=` | realised equity per strategy over time (a point per closed position) plus the current mark-to-market value of open positions at the feed's last closes |
-  | `GET /signals?strategy=&limit=` | recent signals with their outcome and reason |
-  | `GET /providers` | per strategy: batches on time, late and missed over the last 24 h, median and worst lateness, last batch |
-  | `GET /alerts` | active alerts (with acknowledged flag) and the recent alert history |
-  | `POST /alerts/{key}/ack` | acknowledge an active alert |
+  Thresholds are the `[health]` settings of the run config. Rule inputs are public accessors:
+  `Engine.tick_times()` / `last_tick_at`, `Feed.health()` / `stale_symbols()`, the store's
+  `recent_batch_statuses`, `derive_book`, `count_events` and `alerts`, and injected callables for
+  the disk (`disk_free`) and the backup scheduler's last error. **In a served replay** the clock
+  is simulated, so `feed_disconnected`, `no_ticks` and the start-up grace of `stale_symbols` are
+  off; the other rules run. An alert is *active* while its rule fires. Acknowledging it
+  (`POST /alerts/{key}/ack`, stored in the state file) keeps it listed but out of the
+  `unacknowledged` count (the dashboard's badge) until it resolves and fires again, which clears
+  the acknowledgement; it never silences the rule.
+- **Watchdog** (`live/watchdog.py`). The daemon exits with code 3 (so Docker's restart policy
+  starts it again, and restart recovery takes over) in two cases.
+  *Stalled engine* (`StallWatchdog`, checked with the health rules): no tick was processed for
+  `watchdog_after` (default 10 x the shortest interval, at least 15 minutes) while the feed
+  reports messages (one within `feed_grace`). The daemon writes a `watchdog` error event, stops
+  gracefully (an engine that is stuck is cancelled after 30 s) and raises `DaemonError` with
+  `code = 3`. A feed that is down or silent never triggers it: that is `feed_disconnected`'s job.
+  *Blocked loop* (`LoopWatchdog`): a loop task refreshes a timestamp every second; a thread
+  notices when it is more than `loop_blocked_after` (60 s) old, logs a critical line and calls
+  `os._exit(3)`, since a blocked loop cannot shut down cleanly (the state file is crash safe).
+  Thresholds, clocks and the exit function are arguments, so tests inject them. Not in replay:
+  a replay legitimately waits for providers.
+- **Single instance** (`live/lock.py`). The daemon, a replay (also a served one) and `live
+  restore` hold an exclusive, non-blocking `fcntl.flock` on `<state>.lock` for as long as they use
+  the state file, so two of them can never write one file. The lock goes away with the process;
+  the lock file stays. A second start fails at once (exit 1) naming the holder's pid. Backups and
+  read-only opens need no lock.
+- **Backups** (`live/backup.py`). SQLite's online backup API copies the state file (read-only
+  connection, a worker thread) while the daemon runs: WAL mode means the copy is one committed
+  snapshot (a transaction in progress is not in it) and the daemon's writes are not blocked. The
+  copy is switched to the rollback journal (one self-contained file), made under a `.partial`
+  name and renamed to `backups/<stem>-<UTC timestamp>.sqlite` next to the state file only after
+  `PRAGMA integrity_check` passes on it, so a name in `backups/` is always a verified backup. The
+  daemon backs up at start and every `backup_every` (default 24 h) and keeps the newest
+  `backup_keep` (default 14); a failure writes a `backup_failed` event and raises the
+  `backup_failed` alert until a backup works again. `moonshot live backup --config FILE [--out DIR]`
+  makes one on demand (daemon running or not; it never deletes). `moonshot live restore BACKUP
+  --config FILE` checks the backup (integrity; a schema version not newer than the build's, an
+  older one is migrated at the next open), takes the lock (so it refuses while a daemon or replay
+  runs), moves the current file and its `-wal` to `<state>.before-restore-<UTC timestamp>` and
+  puts the backup in place.
+- **Logging** (`logs.py`). `--log-format text|json` and `--log-level` on `live run` and `live
+  replay`. Text (default) is `time level logger: message` on stderr; `json` is one object per line
+  on stdout with `time` (ISO-8601 UTC), `level`, `logger`, `message`, any `extra=` fields and
+  `exception`, for Docker. The API token never reaches a log line (the code does not log it, uvicorn's
+  access log is off); as a second line of defence the formatter replaces the token with `***`.
+- **More API for the dashboard.** The endpoints are in the API table above (`/trades`,
+  `/equity`, `/signals`, `/providers`, `/alerts`, `/alerts/{key}/ack`); the queries behind them are
+  bounded (limits are capped, and the indexes added in schema version 2 cover the lookups).
 
 - **Dashboard** (`live/web/`, static files shipped in the package). Served by the daemon at `/`
   with no build step and nothing fetched from the internet (it works on an offline LAN): plain
@@ -947,7 +1037,9 @@ src/crypto_moonshot/
 ├── live/               # config.py (TOML run config), contract.py (signal batches), plugin.py (Strategy,
 │                       # loader, RuleStrategy), feed.py (ticks, windows), state.py (SQLite), engine.py,
 │                       # replay.py (replay feed and runs), api.py (HTTP + WebSocket), daemon.py (wires them together)
-│                       # health.py (health rules, watchdog), backup.py (state backups), web/ (dashboard, P2)
+│                       # health.py (health rules, alerts), watchdog.py (stall and blocked-loop exits), lock.py (state
+│                       # file lock), backup.py (backups, restore), web/ (dashboard, P2)
+├── logs.py             # text / JSON logging for the long-running commands
 └── provider.py         # SDK for external signal providers
 
 examples/               # paper.toml (a run config) and strategies/ma_cross.py (an example plugin)
@@ -963,20 +1055,24 @@ Commands:
 - `moonshot backtest plugin SOURCE`: backtest any strategy plugin
 - `moonshot backtest signals FILE`: backtest a signal file produced anywhere
 - `moonshot backtest convert-scores NPZ META OUT`: make a score file from a research CNN output
-- `moonshot live run --config FILE [--host --port --data-dir]`: run the daemon (`mode` from the
-  config; P1 accepts `paper`; needs `MOONSHOT_API_TOKEN`)
+- `moonshot live run --config FILE [--host --port --data-dir --log-format text|json --log-level]`:
+  run the daemon (`mode` from the config; P1 accepts `paper`; needs `MOONSHOT_API_TOKEN`)
 - `moonshot live replay --config FILE --start --end [--out --state --signals rolling|backtest
-  --serve --host --port --json]`: run the engine over stored candles and print the metrics like
+  --serve --host --port --json --log-format --log-level]`: run the engine over stored candles and print the metrics like
   `moonshot backtest` (`--serve` keeps the API up for external providers)
 - `moonshot live status [--url] [--config] [--json]`, `live pause|resume|flatten [--url]`
   (`flatten` asks to confirm unless `--yes`): talk to a running daemon; `status --config` reads
   the state file (read-only) when no daemon answers
+- `moonshot live backup --config FILE [--out DIR] [--json]`: an online, verified backup of the state
+  file (daemon running or not); `moonshot live restore BACKUP --config FILE`: replace the state file
+  with a backup (daemon stopped; the old file is kept as `<state>.before-restore-<time>`)
 - `moonshot provider run SOURCE --name NAME --url URL [--param k=v] [--keep-going]`: run a plugin as
   an external provider (token from `MOONSHOT_API_TOKEN`)
 
 Exit codes of the `live` and `provider` commands: 0 ok, 1 runtime failure (the daemon stopped, a
-refused token, an unreachable daemon), 2 usage or configuration error (no token, a bad config, a
-plugin that does not load, `testnet`/`live` mode), 130 interrupted. Errors go to stderr.
+refused token, an unreachable daemon, a state file in use by another process, a failed backup or
+restore), 2 usage or configuration error (no token, a bad config, a plugin that does not load,
+`testnet`/`live` mode), 3 the daemon's watchdog stopped it, 130 interrupted. Errors go to stderr.
 
 Dependencies so far: polars, numpy (the broker and engine work on arrays), httpx, pydantic-settings,
 rich, typer; the trading platform adds websockets, fastapi and uvicorn. Expected later: duckdb.

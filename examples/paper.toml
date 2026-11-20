@@ -17,6 +17,14 @@ tick_timeout = "10s"                # wait this long after a close for every sym
 signal_deadline = "30s"             # wait this long for each strategy's batch
 entry_grace = "5m"
 
+# Health rules, watchdog and backups: every setting is optional (these are the defaults).
+# [health]
+# health_every = "15s"
+# feed_grace = "60s"
+# min_free_gb = 1.0
+# backup_every = "24h"
+# backup_keep = 14
+
 # An in-process strategy: the plugin runs inside the daemon.
 [[strategies]]
 name = "cross"
