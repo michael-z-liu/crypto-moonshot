@@ -116,7 +116,7 @@ def test_rolling_signals_uses_windows_of_warmup_candles(root: Path) -> None:
         ) -> pl.DataFrame:
             for symbol, w in windows.items():
                 assert w.height <= 5
-                assert w["open_time"][-1] <= time  # type: ignore[operator]
+                assert w["open_time"][-1] <= time
                 seen.append((w.height, symbol))
             assert set(context) == {"BTCUSDT"}
             return pl.DataFrame({"symbol": ["AAAUSDT"], "priority": [1.0], "x": ["y"]})

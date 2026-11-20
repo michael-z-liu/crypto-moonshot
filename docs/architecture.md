@@ -354,26 +354,53 @@ class Strategy(Protocol):
     context_symbols: tuple[str, ...]  # extra symbols whose windows it reads (e.g. BTCUSDT)
     exit: ExitPlan | None  # default bracket for its entries
 
-    def on_candles(self, windows: Mapping[str, pl.DataFrame], time: datetime) -> pl.DataFrame:
-        """Signals for the candle that opened at `time` (just closed), from each symbol's
-        window: closed candles in `KLINE_SCHEMA`, oldest first, ending at `time` (a symbol
-        whose candle at `time` is missing ends earlier); holes are possible. Returns a frame
-        with `symbol` and `priority`, optional `action` ("enter", the default, or "exit"),
-        `weight`, exit plan columns overriding the default, and any extra columns."""
+    def on_candles(
+        self,
+        windows: Mapping[str, pl.DataFrame],
+        time: datetime,
+        context: Mapping[str, pl.DataFrame],
+    ) -> pl.DataFrame:
+        """Signals for the candle that opened at `time` (just closed). `windows` holds the
+        traded symbols' windows, `context` the windows of `context_symbols` (a symbol may be in
+        both). A window is closed candles in `KLINE_SCHEMA`, oldest first, ending at `time` (a
+        symbol whose candle at `time` is missing ends earlier); holes are possible. Returns a
+        frame with `symbol` and `priority`, optional `action` ("enter", the default, or
+        "exit"), `weight`, exit plan columns overriding the default, and any extra columns.
+        Only signals for the candle `time` are allowed, so there is no `open_time` column."""
 ```
 
 - **Loading.** A source is `package.module:attr` or `path/to/file.py:attr`, imported at start-up,
   so a strategy can live in its own repository or a folder mounted into the container and needs
   no change to the platform. If `attr` is callable (a class or factory) it is called with the
   config's `params`. A `SignalRule` is wrapped in `RuleStrategy` automatically. The result is
-  checked against the protocol before the daemon starts.
+  checked against the protocol before the daemon starts; a source that cannot be loaded or does
+  not satisfy it is a `PluginError` naming the source.
+- **Output frames.** `normalize_signal_frame` checks every `on_candles` result (required columns
+  and types, actions, weights > 0, exit overrides valid, one signal per symbol and action) and
+  gives it canonical columns; backtests and the engine both use it. A null in an exit-override
+  column keeps the strategy's value for that field.
+- **Rule strategies.** `RuleStrategy` adapts a `SignalRule`: `on_candles` runs `candidates` on
+  each traded window, joins `context` on `open_time` and applies `select`, keeping the signals of
+  candle `time`; `backtest_signals` is `compute_signals`. Its default warm-up is `MIN_HISTORY`
+  (8 days, 2304 candles of 5m): enough for the 7-day features and for the length check of
+  `features.spikes`, so a window's signals equal the full-history ones (a parity test checks
+  this on a store with holes). One edge case differs: a symbol's first `MIN_HISTORY` stored
+  candles. The full-series computation applies the length check to the whole series, so it
+  signals from the symbol's 7th day once the series ever reaches 8 days, while a window (or a
+  live run) cannot know the future length and gives nothing until it holds 8 days. Backtests
+  through `backtest_signals` may therefore show signals in a new listing's 8th day that live
+  would not take; the parity test excludes exactly those.
 - **Dependencies.** In-process plugins may only use what the daemon has installed (polars,
   numpy). A plugin that needs more runs as an external provider, which has its own environment.
 - **Backtesting.** A plugin may also offer `backtest_signals(root, symbols, until) -> Signals`,
   a fast batch computation over history (`RuleStrategy` uses `compute_signals`); otherwise
   `moonshot backtest plugin` runs `on_candles` over rolling windows, which is slower but gives
-  exactly the live signals. `moonshot backtest signals FILE` backtests a signal file produced
-  anywhere (the columns of `Signals.frame`).
+  exactly the live signals (`rolling_signals`: windows of `warmup` candles sliced from the stored
+  series, a symbol left out of a tick when its latest candle is over `stale_after` intervals
+  old, ticks where no symbol has a candle skipped; only "enter" signals are kept).
+  `moonshot backtest signals FILE --interval 5m` backtests a signal file produced anywhere (the
+  columns of `Signals.frame`, exit plan from the command's options). Both commands take the
+  other `backtest` options; `plugin` uses the plugin's `exit` unless the options override it.
 - **Runtime.** The engine calls in-process plugins in a worker thread with the tick's deadline, so
   a slow plugin misses its batch like a late provider instead of stalling the loop.
 
@@ -409,6 +436,11 @@ when everyone has reported:
   later is *late*: its entries are rejected as expired (an entry well after the open of *t+1* no
   longer matches the backtest), its exits are still carried out. How late every batch was is
   recorded, so provider latency is visible.
+- **Exit overrides and info.** `exit` is a partial plan: a field left out keeps the strategy's
+  value; durations are strings (`90m`, `2h`, `3d`, `1w`). `info` takes scalars only; the frame
+  helpers (`frame_to_batch`, `batch_to_frame`) turn extra columns into `info` and back.
+  `candle_time` must be a timezone-aware UTC time aligned to the interval, and a batch may hold
+  one `enter` and one `exit` per symbol at most.
 - Changing the contract means bumping `contract`; the daemon refuses versions it does not know.
 
 #### Market data feed
