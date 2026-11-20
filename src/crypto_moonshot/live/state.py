@@ -30,7 +30,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Iterator, Sequence
+from collections.abc import Collection, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -1540,7 +1540,14 @@ class StateStore:
 
     # -- derived state --------------------------------------------------------------------
 
-    def derive_book(self, strategy: str, capital: float, now: datetime) -> Book:
+    def derive_book(
+        self,
+        strategy: str,
+        capital: float,
+        now: datetime,
+        *,
+        exclude: Collection[int] = (),
+    ) -> Book:
         """`strategy`'s book rebuilt from its positions, as of the UTC day of `now`.
 
         - `cash = capital + sum(pnl of closed) - sum(cost of open and pending)`; `costs` the
@@ -1554,14 +1561,20 @@ class StateStore:
 
         This equals a `Book` fed every non-cancelled entry (at `placed_at`) and every close (at
         `exit_time`) in time order, then `roll_day(now)`.
+
+        `exclude`: ids of pending or open positions to leave out, as if not placed yet (the
+        engine reapplies a resumed tick's entries one by one, exactly as it first did).
         """
         day = utc_day(now)
+        skip = ""
+        if exclude:
+            skip = " AND id NOT IN (" + ", ".join(str(int(i)) for i in exclude) + ")"
         midnight = as_utc(now).replace(hour=0, minute=0, second=0, microsecond=0)
         start, end = time_text(midnight), time_text(midnight + _DAY)
         db = self._db
         live = db.execute(
             "SELECT symbol, cost FROM positions WHERE strategy = ?"
-            " AND status IN ('pending', 'open') ORDER BY placed_at, id",
+            f" AND status IN ('pending', 'open'){skip} ORDER BY placed_at, id",
             (strategy,),
         ).fetchall()
         before = db.execute(
@@ -1576,7 +1589,7 @@ class StateStore:
         ).fetchall()
         entries = db.execute(
             "SELECT count(*) AS n FROM positions WHERE strategy = ? AND status != 'cancelled'"
-            " AND placed_at >= ? AND placed_at < ?",
+            f" AND placed_at >= ? AND placed_at < ?{skip}",
             (strategy, start, end),
         ).fetchone()["n"]
         costs = {r["symbol"]: float(r["cost"]) for r in live}
