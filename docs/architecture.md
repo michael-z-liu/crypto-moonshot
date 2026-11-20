@@ -990,16 +990,34 @@ channel). The runbook (`docs/runbook.md`) is the operator's guide; this section 
   `/equity`, `/signals`, `/providers`, `/alerts`, `/alerts/{key}/ack`); the queries behind them are
   bounded (limits are capped, and the indexes added in schema version 2 cover the lookups).
 
-- **Dashboard** (`live/web/`, static files shipped in the package). Served by the daemon at `/`
-  with no build step and nothing fetched from the internet (it works on an offline LAN): plain
-  HTML, CSS and JavaScript modules. The static files carry no data and need no token; every piece
-  of data comes from the API with the token, which the login page keeps in `sessionStorage` (gone
-  when the tab closes) and sends as the `Authorization` header. A strict Content-Security-Policy
-  (`default-src 'self'`) is set on the pages. It polls `/status`, `/alerts` and `/events` every few
-  seconds. Pages: overview (mode, running, feed health, last ticks, active alerts, controls, a row
-  per strategy), strategy detail (equity chart, positions, trades, signals), positions and open
-  orders, trades, signals and providers (lateness), events and alerts (acknowledge). Pause and
-  resume ask for confirmation; flatten needs the word `flatten` typed.
+- **Dashboard** (`live/web/`, shipped in the package; served by `live/webui.py`). `GET /` is the
+  page and `GET /assets/<file>` its files; they are listed when the app is created, so a request
+  path is only a lookup key, and every other path under `/` is a plain 404 (never the API). No
+  build step, no npm, nothing fetched from the internet: plain HTML, CSS and ES modules
+  (`app.js` shell, `pages.js`, `chart.js`, `api.js`, `dom.js`, `format.js`), hand-written SVG. The
+  static files carry no data and need no token; they come with `Content-Security-Policy:
+  default-src 'self'; script-src 'self'; style-src 'self'; ...` (no inline script or style: the
+  code sets styles through the CSSOM only), `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+  no-referrer` and `Cache-Control: no-cache` with an ETag (a cheap 304; an upgrade is never
+  half-loaded). All data comes from the API with `Authorization: Bearer`; the token is kept in
+  `sessionStorage` only (never a URL or `localStorage`), a 401 goes back to the login with a
+  message and Log out clears it. Strings from the API are inserted with `textContent` only.
+  Pages (hash routes): overview (mode, running, feed and lag, last tick, controls state, the
+  alert banner, one row per strategy from `/status`, `/equity` and `/providers`), strategy detail
+  (equity chart, open positions, recent trades and signals), positions and open orders (marks from
+  `/candles?limit=1`, best effort), trades (strategy filter), signals and providers (lateness
+  table), alerts and events (acknowledge; level filter). `/status` and `/alerts` are polled with
+  the current page's data every 5 s (3, 5, 10 or 30 s in the header), not while the tab is hidden;
+  a failed poll shows "Connection lost. Last updated ...". The alert banner shows on every page and
+  is red for an unacknowledged error, amber for a warning. Pause and resume ask in a native
+  `<dialog>`; flatten needs the word `flatten` typed; buttons are disabled while a request runs.
+  Times are in the browser's zone with the UTC time in a tooltip. P&L is never colour-only: a sign
+  (a real minus), an arrow and a hidden "gain"/"loss" word. The equity chart is one blue line
+  (realised equity per closed trade), a hollow ring for the current mark-to-market equity, a
+  capital baseline, a crosshair with tooltip (pointer and arrow keys) and a table view; light and
+  dark follow `prefers-color-scheme`. Browser tests (`tests/test_dashboard_browser.py`, marker
+  `browser`, off by default; CI runs them in their own job) drive Chromium through Playwright
+  against a served API with seeded data.
 - **Docker.** A `Dockerfile` (Python 3.13 slim, `uv sync --locked --no-dev`, a non-root user,
   `HEALTHCHECK` on `/api/v1/health`, entrypoint `moonshot`) and `compose.yaml`: one service with
   `restart: unless-stopped`, `init: true`, a stop grace period longer than a tick, the token from

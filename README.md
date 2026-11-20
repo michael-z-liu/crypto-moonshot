@@ -146,6 +146,18 @@ provider, then they trade together over the same API. Exit codes of the `live` a
 commands: 0 ok, 1 runtime failure, 2 usage or configuration error, 3 the daemon's watchdog stopped
 it, 130 interrupted.
 
+## Dashboard
+
+The daemon (and `live replay --serve`) serves a web dashboard on the same port as the API. Open
+`http://<host>:8765/` in a browser on the LAN and paste the API token (`MOONSHOT_API_TOKEN`) at the
+login. The token stays in the tab's `sessionStorage` only, so closing the tab logs you out. The
+pages show the overview and health, a chart per strategy, positions and orders, trades, signals
+and providers, and the alerts (the only place they appear: acknowledge them here), and have
+pause, resume and flatten buttons. There is no TLS, so keep it on a trusted network.
+
+![The overview](docs/images/dashboard-overview.png)
+![A strategy](docs/images/dashboard-strategy.png)
+
 ## Development
 
 ```bash
@@ -153,6 +165,8 @@ uv run ruff format .     # format
 uv run ruff check .      # lint
 uv run mypy src tests    # type check
 uv run pytest            # test
+uv run playwright install chromium   # once, for the dashboard's browser tests
+uv run pytest -m browser --tracing off
 ```
 
 Add dependencies with `uv add <pkg>` (or `uv add --dev <pkg>` for tooling) so `uv.lock` stays in sync.
