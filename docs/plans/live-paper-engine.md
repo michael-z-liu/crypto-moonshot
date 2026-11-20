@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `worktree-bridge-cse_015bssAUbtXue4wkarka78Pb`
 - **PR:**
-- **Updated:** 2026-11-20T15:05Z
+- **Updated:** 2026-11-20T15:40Z
 
 ## Goal
 
@@ -53,7 +53,7 @@ separate provider process, not in the trader.
 - **Worker:** sonnet
 - **Commits:** 15644ec, b492336, a0d4652, bff02cc
 
-### M4: Paper broker and state store (in progress)
+### M4: Paper broker and state store (done)
 
 - **Delivers:** an incremental paper broker that triggers brackets candle by candle with exactly
   the backtest's rules; a SQLite state file (signals, orders, fills, positions, events; schema
@@ -61,9 +61,9 @@ separate provider process, not in the trader.
 - **Done when:** parity test: candles fed one at a time give fills identical to
   `SimulatedBroker`; state round-trip and interrupted-write recovery tests.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** ff4940e, 6ebfbc7, 809fe5a, 9d71637, ba6b81f, 90b9dda
 
-### M5: Live engine and replay (todo)
+### M5: Live engine and replay (in progress)
 
 - **Delivers:** tick loop, per-tick signal batches with deadline and expiry, per-strategy books,
   account checks (total exposure, max order size, stale data, pause), pause/flatten, time exits,
@@ -116,6 +116,17 @@ separate provider process, not in the trader.
   failed backfill leaves a hole and is reported, not retried. `silence_timeout` off by default.
 - 2026-11-20 (M3, for M5): the REST client aborts for good after 3 rate-limit hits (a sync-run
   rule); the daemon must configure or recreate it so backfill keeps working.
+- 2026-11-20 (M4): `resolve_exit` returns a TIME exit on any window not marked ended, so the
+  paper broker applies a TIME exit only once advanced past the candle-aligned deadline; stop and
+  take-profit exits as soon as their candle closes. `resolve_exit` unchanged. Parity proven over
+  random paths and delivery orders.
+- 2026-11-20 (M4): a pending buy with no candle at all stays pending (the engine cancels it after
+  a grace period); a hole at the entry candle cancels it (`no_entry_candle`). Cancelled entries
+  never count in books. One pending/open position per symbol across strategies (unique index).
+- 2026-11-20 (M4): known backtest optimism, not changed (golden tests pin it): the backtest frees
+  cash, slot and symbol from an exit at exactly the next entry time, e.g. a stop gapped through at
+  the open of t+1; live learns of it only when t+1 closes. Time exits at that instant are known
+  in time. Replay parity must document and test this divergence.
 
 ## Blocked on
 
