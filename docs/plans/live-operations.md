@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `feat/live-operations` (stacked on PR #18, `worktree-bridge-cse_015bssAUbtXue4wkarka78Pb`)
 - **PR:**
-- **Updated:** 2026-11-21T00:05Z
+- **Updated:** 2026-11-21T00:40Z
 
 ## Goal
 
@@ -38,7 +38,7 @@ controls, a Docker image and a runbook.
 - **Worker:** sonnet
 - **Commits:** 8ebbe52, 9a09a15, 5c44e11, a5f9ee4
 
-### M3: Web dashboard (in progress)
+### M3: Web dashboard (done)
 
 - **Delivers:** a dashboard served by the daemon at `/` (no build step): token login, overview and
   health, strategies with equity charts, positions and orders, trades, signals and providers,
@@ -46,9 +46,9 @@ controls, a Docker image and a runbook.
 - **Done when:** API tests plus browser tests (Playwright against a served replay) cover login,
   each page and the controls.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** b68716c, bb5fb28, 7696354, 294ef3f, 1e94050, d9af340 (master)
 
-### M4: Docker and runbook (todo)
+### M4: Docker and runbook (in progress)
 
 - **Delivers:** Dockerfile (non-root, healthcheck), compose file (state, data and strategies
   volumes; token from an env file; restart policy), optional JSON logs, `docs/runbook.md` for
@@ -73,6 +73,11 @@ controls, a Docker image and a runbook.
   Served replays run the health monitor with time-based rules off; watchdogs are daemon-only.
   The state lock covers every replay too. Exit codes: 1 locked state, 3 watchdog. `live status
   --config` cannot read a v1 file until a daemon opens (migrates) it once.
+- 2026-11-21 (M3): dashboard is static files served by the daemon (hash routes, CSP `default-src
+  'self'`, no inline code, `Cache-Control: no-cache` + ETag); token in `sessionStorage` only.
+  Browser tests are opt-in locally (`-m browser`, `--tracing off`; pytest's own `--trace` is pdb)
+  and run in a separate CI job. Review fixes: only the applicable pause/resume button is enabled;
+  overview open positions come from `/equity` like the strategy page.
 
 ## Blocked on
 
