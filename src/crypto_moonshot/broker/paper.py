@@ -89,12 +89,18 @@ BRACKET_ROLE = "bracket"
 
 
 class CancelReason(StrEnum):
-    """Why the broker cancelled an order by itself."""
+    """Why an order was cancelled without the engine asking (an `OrderCancelled` event)."""
 
     NO_ENTRY_CANDLE = "no_entry_candle"
     """A buy's candle is missing: the first candle at or after its time opens later."""
     POSITION_CLOSED = "position_closed"
     """A sell's position was closed by its bracket first."""
+    CANCELLED = "cancelled"
+    """Exchange brokers: the exchange reports the order cancelled (by a request from
+    elsewhere, or a cancel whose answer was lost)."""
+    EXPIRED = "expired"
+    """Exchange brokers: the exchange expired the order (e.g. a market order without
+    liquidity)."""
 
 
 @dataclass(frozen=True, slots=True)
