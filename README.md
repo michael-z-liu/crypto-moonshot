@@ -177,3 +177,12 @@ Commits follow Conventional Commits. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 This repository is public. API keys go in `.env`, which is gitignored; the daemon's `MOONSHOT_API_TOKEN` is read from the
 environment only and is never logged. Use the Binance spot testnet until a strategy has been proven.
+
+## Running in Docker
+
+The paper trading daemon and its dashboard run in a container (non-root, read-only filesystem,
+restart policy, healthcheck). In short: copy `moonshot.env.example` to `moonshot.env` and set a
+token, put a config (start from `deploy/config/paper.toml`) in `./config` and your plugins in
+`./strategies`, `chown 10001:10001 state`, then `docker compose up -d --build` and open
+`http://<host>:8765/`. The full operator's guide (Proxmox, alerts, backups, upgrades, security) is
+[docs/runbook.md](docs/runbook.md).

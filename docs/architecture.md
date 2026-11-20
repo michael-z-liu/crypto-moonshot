@@ -1018,12 +1018,30 @@ channel). The runbook (`docs/runbook.md`) is the operator's guide; this section 
   dark follow `prefers-color-scheme`. Browser tests (`tests/test_dashboard_browser.py`, marker
   `browser`, off by default; CI runs them in their own job) drive Chromium through Playwright
   against a served API with seeded data.
-- **Docker.** A `Dockerfile` (Python 3.13 slim, `uv sync --locked --no-dev`, a non-root user,
-  `HEALTHCHECK` on `/api/v1/health`, entrypoint `moonshot`) and `compose.yaml`: one service with
-  `restart: unless-stopped`, `init: true`, a stop grace period longer than a tick, the token from
-  an env file that is not committed, volumes for the config, the state folder (read-write), the
-  data folder and a strategies folder (both read-only), port 8765 on the LAN, JSON logs with
-  rotation. A CI job builds the image and checks that a container answers `/health`.
+- **Docker** (`Dockerfile`, `.dockerignore`, `compose.yaml`, `deploy/config/paper.toml`,
+  `moonshot.env.example`). The image is multi-stage: the build stage copies the pinned `uv`
+  binary, runs `uv sync --locked --no-dev` (no dev or research group) and installs the package
+  non-editable into `/app/.venv` with bytecode compiled; the runtime stage is `python:3.13-slim`
+  pinned by digest, with only the venv copied in, a fixed non-root user (uid/gid 10001, no home
+  folder), `PYTHONDONTWRITEBYTECODE=1`, `MOONSHOT_DATA_DIR=/data`, `EXPOSE 8765`, a `HEALTHCHECK`
+  that fetches `/api/v1/health` with the standard library, `STOPSIGNAL SIGTERM`, entrypoint
+  `moonshot` and the default command `live run --config /config/paper.toml --host 0.0.0.0
+  --log-format json`. Volumes: `/config` (ro), `/state` (rw: the state file, its lock and
+  `backups/`; the only place the daemon writes), `/data` (ro, optional candle store) and
+  `/strategies` (ro, plugin files). Run configs use absolute container paths (`state =
+  "/state/paper.sqlite"`, `source = "/strategies/x.py:X"`), because a relative plugin source is
+  relative to the working directory (`/app`) and a relative `state` to the config's folder
+  (`/config`, read-only). The daemon needs no home folder and no writable working directory
+  (`tests/test_deploy.py` runs the CLI that way), so `compose.yaml` runs the root filesystem
+  read-only with a tmpfs `/tmp`, `cap_drop: [ALL]` and `no-new-privileges`. The one service has
+  `restart: unless-stopped` (every exit that is not a `docker stop` restarts: 3 from the
+  watchdog, 1, and 2 for a bad config, which shows as a restart loop), `init: true` (tini
+  forwards SIGTERM; the daemon's handler stops gracefully and exits 0), a 60 s stop grace period,
+  the token from `moonshot.env` (not committed), port 8765, and `json-file` logs with rotation.
+  The `docker` CI job validates the compose file, builds the image, runs a container against an
+  unreachable Binance (no external network), and checks `/api/v1/health`, 401 without and 200 with
+  the token, the dashboard, the non-root uid, and a graceful `docker stop` (exit 0). The
+  operator's guide is `docs/runbook.md`.
 
 ## Run modes
 
