@@ -222,6 +222,9 @@ order size, maximum total exposure, no entries on a symbol whose latest candle i
   thousands of positions.
 - `PaperBroker` (`broker/paper.py`) fills orders against candles as they arrive, calling the
   same `resolve_exit` on the candles seen so far (see Trading platform, Paper broker).
+- The live engine trades through the async `ExecutionBroker` (`broker/execution.py`), which the
+  paper broker satisfies behind `PaperExecution` and exchange brokers implement directly (see
+  Trading platform, Exchange broker).
 - `BinanceBroker` (`broker/binance.py`, P3) trades on the exchange: market entries, brackets as
   OCO order lists, fills from the user data stream; the engine runs its time exits. See Trading
   platform, Exchange broker.
@@ -532,20 +535,25 @@ when everyone has reported:
 #### Engine
 
 `live/engine.py` (the module docstring is the exact rule set). One asyncio component with an
-injected clock, driven by any `Feed`; it owns the paper broker and the books and writes
-everything to the state file, from the event-loop thread only and never across an `await`. For
-each tick (interval *I*, candle *T*, entry time *E = T + I*):
+injected clock, driven by any `Feed`; it owns the broker (an `ExecutionBroker`, see Exchange
+broker: the paper broker behind `PaperExecution` unless another is given) and the books, and
+writes everything to the state file, from the event-loop thread only and never inside a
+transaction across an `await`. For each tick (interval *I*, candle *T*, entry time *E = T + I*):
 
-1. **Broker first** (one transaction). Every series the broker needs on *I* (an open position
-   from its entry candle, a pending order from its time) gets its candles: the tick's candle
-   when the previous one was handed over, else the feed's window over the last `HISTORY_SLACK`
-   candles, which picks up late candles that filled a hole. Then `advance(E, interval=I)`:
-   entries placed for the open of *T* fill and every bracket checks candle *T*. Every event is
-   recorded (fills, positions, bracket order rows, cancellations), so exits at or before *E*
-   free cash and slots before new entries, as in the backtest. Pending buys whose entry candle
-   has not closed `entry_grace` after it should have are cancelled (`no_candle`). Each interval
-   advances only its own series, so a 1h bracket is never decided at a 5m tick before the 1h
-   candle has been handed over.
+1. **Broker first.** Orders left `unknown` (a submit that got no answer) are resolved with
+   `query`. A broker that `needs_candles` (paper) gets them for every series it needs on *I* (an
+   open position from its entry candle, a pending order from its time): the tick's candle when
+   the previous one was handed over, else the feed's window over the last `HISTORY_SLACK`
+   candles, which picks up late candles that filled a hole. Then `events(E, interval=I)`: for
+   the paper broker, entries placed for the open of *T* fill and every bracket checks candle
+   *T*; an exchange broker returns what it has heard since the last call. Every event is
+   recorded in one transaction (fills, positions, bracket order rows, cancellations,
+   rejections), so exits at or before *E* free cash and slots before new entries, as in the
+   backtest. For a `needs_candles` broker, pending buys whose entry candle has not closed
+   `entry_grace` after it should have are cancelled (`no_candle`). Each interval advances only
+   its own series, so a 1h bracket is never decided at a 5m tick before the 1h candle has been
+   handed over. For a broker that does not manage time exits, the engine runs them here (step
+   4).
 2. **Signals.** Tick listeners run first (the API broadcasts the tick to external providers there).
    In-process plugins for *I* run on the windows (see Strategy plugins, Runtime); external
    batches arrive through `Engine.submit_batch`. Every batch is recorded when it arrives. The
@@ -566,11 +574,35 @@ each tick (interval *I*, candle *T*, entry time *E = T + I*):
    strategy's book (realised equity; `weighted_slots` reads the signal's `weight`); the book's
    risk checks (`risk.first_rejection`, unchanged); `cash` in the book; `max_order_usdt`;
    `max_total_exposure`. An accepted entry is a market buy for *E* with a deterministic client
-   order ID, carrying the strategy's exit plan with the signal's partial override; its order
-   row and pending position (stake reserved, `placed_at = E`) are written before the broker is
-   called. Refusals are summed into one event per tick.
-4. **Time exits** are part of the bracket for the paper broker; for an exchange broker (P3) the
-   engine places them, because Binance has no order that expires after a holding time.
+   order ID, carrying the strategy's exit plan with the signal's partial override. Entries are
+   placed one at a time in that order, so one the broker rejects frees its slot and cash for
+   the next. Refusals (read back from the state file, so a resumed step counts them all) are
+   summed into one event per tick, written with the tick marker in the step's last
+   transaction.
+4. **Time exits** are part of the bracket for the paper broker (`manages_time_exits`). For a
+   broker without them (an exchange: Binance has no order that expires after a holding time)
+   the engine sells, in the broker step of the first tick of the position's interval at or
+   after `entry time + max_hold`: it cancels the bracket, and only once the cancel is confirmed
+   (a fill that raced the cancel wins, and nothing is sold) places a market sell with reason
+   `time` (client ID `time_exit_id(entry ID, E)`, so a failed attempt is retried at the next
+   tick).
+
+- **Intent, then action, then outcome.** Every order (entry, exit signal, flatten, time exit)
+  is written first: its row as `new` (with its deterministic client order ID) and, for an
+  entry, its pending position (stake reserved, `placed_at = E`) and its signal's outcome, in one
+  transaction; then `broker.submit` is awaited; then the result is recorded in a second
+  transaction: accepted (`pending`, plus any fill that came with it), rejected (the order
+  `rejected`; an entry's position cancelled with `broker_<reason>`, its stake released, its
+  signal `rejected` with `broker_<reason>`) or unknown (the order `unknown`, resolved with
+  `query` at the next broker step; meanwhile the symbol stays held). A whole-position sell
+  cancels the position's bracket first when the broker's own sell does not
+  (`sell_cancels_bracket`; the paper broker's does), and sells only once the cancel is
+  confirmed. So the decision step is several transactions (`Step.BEFORE_BROKER_CALL` lies
+  between an intent and `submit`, `Step.AFTER_BROKER_CALL` between `submit` and its outcome);
+  a decision step resumed after a crash skips signals that already have an outcome and gives
+  each book exactly the numbers the interrupted step had (derived without the tick's placed
+  entries, which are then reopened one by one in decision order), so a resumed paper run is
+  bit-identical to an uninterrupted one.
 
 - **Books.** Each strategy instance has its own `portfolio.Book` with its allocated capital, so
   strategies cannot starve each other and each can be judged alone. Account checks read the
@@ -590,7 +622,8 @@ each tick (interval *I*, candle *T*, entry time *E = T + I*):
   restart. `Engine.stop` abandons a tick still collecting batches; it is decided after the
   restart (its recorded batches are kept).
 - **For the API.** `submit_batch(batch, received_at) -> BatchOutcome` (`on_time`, `late`,
-  `duplicate`, or `refused` with a reason), `add_tick_listener`, `status()` (mode, controls,
+  `duplicate`, or `refused` with a reason), `add_tick_listener`, `reconciliation` (the latest
+  report) and `unprotected_positions()` (for the health rules), `status()` (mode, controls,
   books, positions, open orders, stale symbols, last ticks, providers, health; `to_json()`),
   `pause`/`resume`/`flatten`, `on_feed_event`, `record_event`, `collecting(interval)` (the candle
   being collected), `running`, `run(feed)` and `stop()`. `build_specs`,
@@ -622,7 +655,9 @@ because the backtest knows some things earlier than a live run can. Each is test
 #### Paper broker
 
 `broker/paper.py`. Fills against closed candles as they arrive, with exactly the backtest's
-rules (the module docstring is the full rule set). The engine hands it candles
+rules (the module docstring is the full rule set). The engine reaches it through
+`PaperExecution` (`broker/execution.py`: `submit` is `place_order`, `events` is `advance`,
+`cancel` is `cancel_order`). The engine hands it candles
 (`add_candles(symbol, candles)`, any order, duplicates ignored) and moves it forward
 (`advance(until)`); it never reads a clock, and a decision uses only candles that have *closed*
 by `until`, so candles handed over early never leak into it.
@@ -684,15 +719,20 @@ Tables: `meta`; `strategies` (name, config JSON, capital); `ticks` (last process
 interval); `batches` (strategy, interval, candle time, received time, lateness, status
 `on_time`/`late`/`missed`); `signals` (each signal, its outcome `placed`/`rejected`/`expired`/
 `ignored` and reason); `orders` (client order ID, strategy, symbol, interval, side, type,
-amounts, exit plan, time, status `pending`/`filled`/`cancelled`/`rejected`, reason, signal);
+amounts, exit plan, time, status `new`/`pending`/`unknown`/`filled`/`cancelled`/`rejected`,
+reason, signal);
 `fills`; `positions` (strategy, symbol, interval, status `pending`/`open`/`closed`/`cancelled`,
 placed time, entry order, entry and exit details, bracket ID, proceeds, P&L, signal info);
 `controls` (paused, flatten requested); `events` (time, level, kind, message, data: the alert
 feed the UI shows; ids only grow); `providers` (last batch, last seen) and, from schema version 2,
 `alerts` (the *active* alerts: key, rule, level, detail, fired time, acknowledged time; a row
 lives from firing to resolution, so an acknowledgement ends with it). Version 2 also indexes
-`events (kind, id)` and `batches (candle_time)` for the dashboard's queries. A unique index allows
-one pending or open position per symbol across strategies.
+`events (kind, id)` and `batches (candle_time)` for the dashboard's queries. Version 3 adds the
+order states `new` (the intent is committed, the broker has not answered) and `unknown` (the
+broker could not tell whether it placed the order); SQLite cannot change a CHECK constraint, so
+it rebuilds the `orders` table (rowids kept). Migrations run with foreign keys off and check them
+before they commit. A unique index allows one pending or open position per symbol across
+strategies.
 
 - **Read-only open.** `StateStore.open_readonly` (`moonshot live status --config` with the daemon
   down) opens an existing file without creating, migrating or writing anything, and refuses one
@@ -702,13 +742,16 @@ one pending or open position per symbol across strategies.
   `<state>.lock` (see Operations); backups and read-only opens do not need it.
 - **Typed API.** Records are dataclasses (`OrderRecord`, `PositionRecord`, `BatchRecord`, ...);
   `transaction()` makes one tick step atomic and nests as savepoints; every write outside one
-  runs in its own. Statuses only move forward (an order leaves `pending` once; a position goes
-  pending -> open -> closed, or pending -> cancelled); a write that would move one back raises.
-- **Intent before action.** An order row is written with status `pending` before the broker is
-  called and updated after, in one transaction per tick step. Client order IDs are deterministic
-  (strategy, symbol, candle time, side; hashed to Binance's 36 characters) and are the primary
-  key, so a retry or a restart can never place an order twice. A bracket is an order row too
-  (type `bracket`), so its exit fill has an order.
+  runs in its own. Statuses only move forward (an order goes `new` -> `pending` or `unknown` ->
+  `filled`/`cancelled`/`rejected`, each final; a position goes pending -> open -> closed, or
+  pending -> cancelled); a write that would move one back raises. "Open orders"
+  (`pending_orders`) are the working ones: new, pending or unknown.
+- **Intent before action.** An order row is written as `new` and committed before the broker is
+  called, and its outcome is recorded in a second transaction (see Engine). Client order IDs are
+  deterministic (strategy, symbol, candle time, side; hashed to Binance's 36 characters) and are
+  the primary key, so a retry or a restart can never place an order twice. A bracket is an order
+  row too (type `bracket`, written `pending` when the broker reports it), so its exit fill has an
+  order.
 - **Books are derived, not stored.** `derive_book(strategy, capital, now)` rebuilds a
   `portfolio.Book` from positions alone: cash = capital + closed P&L - cost of open and pending
   positions (a pending entry's stake is reserved); the day's starting equity, P&L, worst running
@@ -725,8 +768,15 @@ one pending or open position per symbol across strategies.
   fetcher (a `KlineFetcher`: the REST client live, the Parquet store in replay). That tick's
   `advance` then applies exits that happened while it was down at their real times, as the
   exchange would have done. Ticks missed while down are recorded as one `ticks_missed` event;
-  their signals are not replayed (they would be stale). An exchange broker (P3) reconciles open
-  orders and balances with Binance instead.
+  their signals are not replayed (they would be stale). Then, before the first tick, every order
+  a crash left `new` (or a lost answer `unknown`) is resolved with `broker.query`: one the broker
+  holds is accepted (the paper broker holds every one: its snapshot includes `new` orders, and
+  it is deterministic, so restoring an order is placing it); one it never placed is rejected
+  `not_placed` (an entry's position is cancelled, so only a later tick can enter the symbol
+  again), except a sell, which finishes the exit it was meant for (bracket cancelled first, same
+  client ID: it never reached the broker). Nothing is re-submitted blind. Then `reconcile`
+  compares the broker with the state file (the paper broker trivially agrees; see Exchange
+  broker).
 - **Crash safety.** An exception inside a transaction rolls it back; a process killed mid-
   transaction (tested with `os._exit` and `kill -9`) leaves the last committed state on reopen.
   Each tick is three steps: the broker step (one transaction), the batches (each recorded in
@@ -734,13 +784,15 @@ one pending or open position per symbol across strategies.
   tick marker). A tick whose marker was not committed is processed again after a restart: its
   broker step finds nothing new (the restored broker already holds its effects), recorded
   batches are reused instead of recomputed, and the decisions are made again from the same
-  state. The paper broker is rebuilt from the file, so placing its order inside the decision
-  transaction is safe; an exchange broker (P3) must commit the intent before calling the
-  exchange and reconcile by client order ID. `tests/test_recovery.py` interrupts a replay at
-  every step boundary (after the broker step, after the signals, between an order's intent and
-  the broker call, before the tick marker, after it), several times in a row and with a real
-  `os._exit` in a subprocess: every table, the book, the trades and the equity curve equal an
-  uninterrupted run.
+  state; the decision step is several transactions (see Engine), and a resumed one reuses the
+  signal outcomes already written and rebuilds the books exactly. `tests/test_recovery.py`
+  interrupts a replay at every step boundary (after the broker step, after the signals, between
+  an order's intent and the broker call, between the call and its outcome, before the tick
+  marker, after it), several times in a row and with a real `os._exit` in a subprocess: every
+  table, the book, the trades and the equity curve equal an uninterrupted run.
+  `tests/test_engine_exchange.py` does the same on an exchange-style broker (a crash after an
+  intent, after a submit, during a time exit): the order is queried, never placed twice, and the
+  final state has the same rows as an uninterrupted run.
 
 #### Replay
 
@@ -939,9 +991,13 @@ channel). The runbook (`docs/runbook.md`) is the operator's guide; this section 
   | `stale_symbols:<interval>` | more than 20% of an interval's traded symbols are stale (not before `startup_grace`, 2 min, while the feed seeds) | warning |
   | `backup_failed` | the last automatic backup failed | error |
   | `disk_low` | less than 1 GB free where the state file lives | warning |
+  | `orphan_order` | the latest reconciliation found open orders on the exchange that the state file does not know | warning |
+  | `balance_mismatch` | the latest reconciliation found balances that do not cover the open positions (the engine paused entries) | error |
+  | `unprotected_position:<symbol>` | an open position's exit plan needs a bracket the broker does not hold, and no sell is working | error |
 
   Thresholds are the `[health]` settings of the run config. Rule inputs are public accessors:
-  `Engine.tick_times()` / `last_tick_at`, `Feed.health()` / `stale_symbols()`, the store's
+  `Engine.tick_times()` / `last_tick_at`, `Engine.reconciliation` / `unprotected_positions()`,
+  `Feed.health()` / `stale_symbols()`, the store's
   `recent_batch_statuses`, `derive_book`, `count_events` and `alerts`, and injected callables for
   the disk (`disk_free`) and the backup scheduler's last error. **In a served replay** the clock
   is simulated, so `feed_disconnected`, `no_ticks` and the start-up grace of `stale_symbols` are
@@ -1048,20 +1104,46 @@ P3 (`docs/plans/testnet-broker.md`): trading on the Binance spot **testnet**, bu
 against a fake exchange; mainnet stays refused until P4. The API facts it relies on are in
 [binance-spot-api.md](binance-spot-api.md).
 
-- **One execution interface** (`broker/execution.py`). The engine talks to an async
-  `ExecutionBroker`: `submit(order)` returns accepted (with the exchange's ids and any immediate
-  fills), rejected (a reason) or unknown (a timeout: the outcome must be queried); `cancel(id)`;
-  `events(until)` returns the fills, cancellations and rejections that happened since the last
-  call; `reconcile()` compares the exchange with the state file at start-up and after every
-  reconnect. Two properties tell the engine what the broker needs: `needs_candles` (the paper
-  broker simulates fills from candles; the exchange does not) and `manages_time_exits` (the paper
-  broker's bracket includes the time exit; on Binance the engine runs it). `PaperBroker` sits
-  behind a thin adapter, so paper mode, replay and their parity tests do not change.
-- **Intent, then action, then outcome.** For an exchange broker the engine commits the order row
-  (`pending`, with its deterministic client order ID) before calling `submit`, and records the
-  outcome in a second transaction. A crash between the two leaves a `pending` row that the next
-  start resolves by querying the order by its client ID: filled, open, cancelled or never placed
-  (only then may it be placed again). Nothing is ever retried blind.
+- **One execution interface** (`broker/execution.py`, built in M3). The engine talks to an async
+  `ExecutionBroker` (the module docstring is the contract):
+  - `submit(order, *, interval) -> SubmitResult`: `accepted` (`exchange_id`, and in `events`
+    anything that already happened, e.g. a market order's fill), `rejected` (`reason`, a short
+    code) or `unknown` (no answer: the outcome must be queried);
+  - `cancel(order) -> CancelResult`: `cancelled`, `not_open` (the order is final or was never
+    placed; what happened to it is in the result's `events` or was reported before) or
+    `unknown`;
+  - `query(order) -> QueryResult`: `not_found` (never placed), `open`, `filled`, `cancelled`,
+    `rejected` or `unknown`, with the order's unreported events;
+  - `events(until, *, interval) -> list[BrokerEvent]`: in time order, everything not reported
+    yet: `EntryFilled`, `ExitFilled`, `OrderCancelled` (the paper broker's, shared; `CancelReason`
+    gains `cancelled` and `expired`), `OrderRejection` (accepted, then rejected), `BracketFailed`
+    and `BracketPlaced` (an unprotected position, then protected again), and `Reconciliation`
+    (a report from a reconciliation the broker ran itself, after a reconnect). Each change of a
+    known order is reported once; the engine ignores a duplicate. `until` bounds a simulated
+    broker; an exchange broker returns everything it has received;
+  - `reconcile(orders, positions, *, now) -> Reconciliation`: at start-up, after the engine
+    resolved its `new` and `unknown` orders, with the working orders and open positions of the
+    state file; it brings them up to date (the changes come from the next `events`) and reports
+    `orphans` and balance `mismatches` (computed after those updates). It places and cancels
+    nothing.
+  - Three properties tell the engine what the broker needs: `needs_candles` (the paper broker
+    simulates fills from candles: `candle_needs(interval)`, `add_candles`), `manages_time_exits`
+    (the paper broker's bracket includes the time exit; on Binance the engine runs it) and
+    `sell_cancels_bracket` (the paper broker's whole-position sell cancels the bracket; on
+    Binance the OCO holds the balance, so the engine cancels it first). `cancel` and `query`
+    take the engine's `Order`, because Binance needs the symbol and a bracket is an order list.
+  `PaperExecution` puts `PaperBroker` behind it (and is restored from the state file instead of
+  reconciling), so paper mode, replay and their parity and recovery tests did not change.
+  `tests/execution_fakes.py` has `FakeExchangeBroker`, an exchange-style fake the engine tests
+  use (asynchronous fills, rejections, unknown outcomes, bracket races, reconcile reports).
+- **Intent, then action, then outcome** (built, see Engine). The engine commits the order row
+  (`new`, with its deterministic client order ID) before calling `submit`, and records the
+  outcome in a second transaction. A crash between the two leaves a `new` row that the next
+  start resolves by querying the order by its client ID: filled, open or cancelled (accepted,
+  its events recorded), rejected, or never placed: an entry is then rejected `not_placed` (its
+  signal is stale; only a later tick may enter the symbol), a sell is placed (it finishes an
+  exit that was provably intended). An `unknown` submit result is resolved the same way at the
+  next broker step. Nothing is ever retried blind.
 - **Entries.** A market buy by `quoteOrderQty` (the stake in USDT, fee included, as in the book).
   The fill's average price becomes the position's reference price: exit levels are relative to
   where the testnet actually filled, because testnet prices drift from the mainnet candles that
@@ -1083,13 +1165,19 @@ against a fake exchange; mainnet stays refused until P4. The API facts it relies
 - **Levels already crossed.** If the price is already beyond the take profit when the bracket is
   placed (the `LIMIT_MAKER` would match at once) or below the stop, the broker sells at market at
   once with the corresponding reason, as the backtest fills a gap at the open.
-- **Time exits** (engine, for brokers that do not manage them): at the first tick at or after
-  `entry time + max_hold`, cancel the position's order list, then sell its quantity at market,
-  reason `time`. A fill that races the cancel wins; the engine checks before selling.
+- **Time exits** (engine, built in M3, for brokers that do not manage them): at the first tick
+  at or after `entry time + max_hold`, cancel the position's order list, then sell its quantity
+  at market, reason `time`. A fill that races the cancel wins; the engine checks before selling
+  (the sell's intent is then cancelled `position_closed`). Exit signals and flatten sell the same
+  way. A cancel that gets no answer leaves the position unsold (the sell is rejected
+  `bracket_open`); a time exit retries at the next tick.
 - **Unprotected positions.** If a bracket cannot be placed (a filter such as
-  `PERCENT_PRICE_BY_SIDE`, a balance or rate-limit error), the position is marked unprotected,
-  an `unprotected_position:<symbol>` error alert fires and the broker retries every tick; flatten
-  still works.
+  `PERCENT_PRICE_BY_SIDE`, a balance or rate-limit error), the broker reports `EntryFilled`
+  without a bracket ID and `BracketFailed`; the engine writes a `bracket_failed` event and the
+  `unprotected_position:<symbol>` error alert fires (any open position whose plan has a take
+  profit, stop or trailing stop and no working bracket or sell) until the broker, retrying every
+  tick, reports `BracketPlaced` (a new client ID for every bracket that reached the exchange).
+  Flatten still works.
 - **Fills.** The user data stream on a WebSocket API connection
   (`userDataStream.subscribe.signature`): `executionReport` events become fills and cancellations,
   matched to positions by client order ID (`c`, or `C` for cancels); `listStatus` closes an OCO.
@@ -1097,10 +1185,13 @@ against a fake exchange; mainnet stays refused until P4. The API facts it relies
   broker polls open orders over REST, so a missed event only delays a fill, never loses it.
 - **Reconciliation.** At start-up and after a reconnect: every local pending or open order is
   queried by client ID and brought up to date; open orders on the exchange with our ID prefixes
-  but unknown locally are reported (`orphan_order` alert) and left alone; each open position's base
-  balance (free plus locked) must cover its quantity, otherwise a `balance_mismatch` error alert
-  pauses entries. Reconciliation never places or cancels orders on its own except to finish an
-  exit it can prove was intended (a time exit past its deadline).
+  but unknown locally are reported (`orphan_order` event and alert) and left alone; each open
+  position's base balance (free plus locked) must cover its quantity, otherwise a
+  `balance_mismatch` error event and alert, and the engine pauses entries (resuming is the
+  operator's call). Reconciliation never places or cancels orders on its own; the engine
+  finishes an exit it can prove was intended (a never-placed sell, a time exit past its
+  deadline). The engine runs it at start-up (M3); the broker runs it after reconnects and
+  reports through `events` (M4).
 - **Account checks.** In exchange modes the account's free USDT at start must cover the sum of
   the strategies' capital (otherwise start-up refuses), books still come from the state file, and
   `initial_cash` is ignored. Symbols not trading on the exchange are dropped from strategies with
@@ -1149,7 +1240,7 @@ src/crypto_moonshot/
 ├── portfolio.py        # the book and position sizing
 ├── risk.py
 ├── exchange/           # client.py (SignedClient: signing, time offset, pacing), pacing.py, rules.py (exchangeInfo filters, Decimal rounding), errors.py (typed Binance errors), models.py (parsed responses) (P3)
-├── broker/             # base.py (orders, ExitPlan, Costs), candles.py, simulated.py, paper.py; execution.py, binance.py (P3)
+├── broker/             # base.py (orders, ExitPlan, Costs), candles.py, simulated.py, paper.py, execution.py (ExecutionBroker, PaperExecution); binance.py (P3)
 ├── backtest/           # engine.py, metrics.py, results.py (result files), source.py (candle windows)
 ├── live/               # config.py (TOML run config), contract.py (signal batches), plugin.py (Strategy,
 │                       # loader, RuleStrategy), feed.py (ticks, windows), state.py (SQLite), engine.py,

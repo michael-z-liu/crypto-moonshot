@@ -109,6 +109,9 @@ it resolves and fires again; it never silences the rule.
 | `stale_symbols:<interval>` (warning) | Over 20% of that interval's traded symbols have no recent candle. | Often a feed problem right after a start or reconnect; if it persists, check the logs for the symbols. |
 | `backup_failed` (error) | The last automatic backup failed. | Check free disk space and that `./state` is writable by uid 10001. Run `live backup` by hand (below). |
 | `disk_low` (warning) | Under 1 GB free where the state file lives. | Free space on the host (old backups, Docker images: `docker system prune`). |
+| `orphan_order` (warning, exchange modes) | At start-up the exchange had open orders with the daemon's ID prefixes that the state file does not know. | The daemon leaves them alone. Look at them on the exchange and cancel them by hand if they are not yours to keep. |
+| `balance_mismatch` (error, exchange modes) | At start-up the exchange held less of an asset than the open positions need; entries are paused. | Find out where the coins went (a manual trade, a restore of an old state file). Resume entries only once the account and the state file agree. |
+| `unprotected_position:<symbol>` (error, exchange modes) | An open position has no bracket (take profit / stop) at the exchange. | The broker retries every tick. If it lasts, flatten the position or place the exits by hand. |
 
 ## The watchdog and restarts
 
