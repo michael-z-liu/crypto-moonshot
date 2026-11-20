@@ -177,6 +177,9 @@ function renderControls() {
   const c = ctx.status.controls;
   $("controls-state").textContent =
     `Trading is ${c.paused ? "paused" : "running"}. Flatten ${c.flatten_requested ? "is requested" : "is not requested"}.`;
+  // Only the control that changes something is offered.
+  $("pause").disabled = c.paused;
+  $("resume").disabled = !c.paused;
 }
 
 function ask({ title, body, ok, word }) {
@@ -223,6 +226,7 @@ async function control(action) {
     $("controls-msg").textContent = `${action} failed: ${error.message}`;
   } finally {
     buttons.forEach((b) => { b.disabled = false; });
+    renderControls();
   }
   poll(true);
 }

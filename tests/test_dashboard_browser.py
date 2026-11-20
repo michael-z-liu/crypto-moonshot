@@ -296,6 +296,7 @@ def test_alerts_are_listed_and_can_be_acknowledged(dash: Page, served: Served) -
 
 def test_pause_and_resume_ask_for_confirmation(dash: Page) -> None:
     dialog = dash.get_by_role("dialog")
+    expect(dash.locator("#resume")).to_be_disabled()  # only the control that changes something
     dash.get_by_role("button", name="Pause").click()
     expect(dialog).to_be_visible()
     dialog.get_by_role("button", name="Cancel").click()
@@ -304,6 +305,7 @@ def test_pause_and_resume_ask_for_confirmation(dash: Page) -> None:
     dialog.get_by_role("button", name="Pause").click()
     expect(dash.locator("#controls-state")).to_contain_text("Trading is paused")
     expect(dash.get_by_label("Daemon state")).to_contain_text("paused")
+    expect(dash.locator("#pause")).to_be_disabled()
     dash.get_by_role("button", name="Resume").click()
     dialog.get_by_role("button", name="Resume").click()
     expect(dash.locator("#controls-state")).to_contain_text("Trading is running")

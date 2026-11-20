@@ -160,7 +160,7 @@ export function overview(root, ctx) {
           const e = equity.strategies[name];
           const p = stats[name];
           return cells([strategyLink(name), n(usdt(book.capital)), n(usdt(e?.equity ?? book.equity)),
-            n(pnlEl(e?.realised_pnl)), n(pnlEl(e?.unrealised_pnl)), n(book.open_positions),
+            n(pnlEl(e?.realised_pnl)), n(pnlEl(e?.unrealised_pnl)), n(e?.open_positions ?? book.open_positions),
             n(pnlEl(book.day_pnl)), n(book.day_entries),
             p ? h("span", null, p.last_batch_time ? timeEl(p.last_batch_time) : "none yet",
               ` (${p.on_time} on time, ${p.late} late, ${p.missed} missed)`) : dash]);
