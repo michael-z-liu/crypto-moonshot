@@ -858,6 +858,19 @@ class StateStore:
         row = self._exec("SELECT * FROM signals WHERE id = ?", (signal_id,)).fetchone()
         return None if row is None else _signal(row)
 
+    def signal_outcomes(self) -> dict[str, int]:
+        """How many signals ended how: `outcome` or `outcome:reason` (`pending` for none yet)."""
+        rows = self._exec(
+            "SELECT outcome, reason, count(*) AS n FROM signals GROUP BY outcome, reason"
+            " ORDER BY outcome, reason"
+        ).fetchall()
+        out: dict[str, int] = {}
+        for row in rows:
+            outcome = row["outcome"] or "pending"
+            key = outcome if row["reason"] is None else f"{outcome}:{row['reason']}"
+            out[key] = int(row["n"])
+        return out
+
     def set_signal_outcome(
         self, signal_id: int, outcome: SignalOutcome, reason: str | None = None
     ) -> None:
