@@ -2,8 +2,8 @@
 
 - **Status:** review
 - **Branch:** `feat/live-operations` (stacked on PR #18, `worktree-bridge-cse_015bssAUbtXue4wkarka78Pb`)
-- **PR:**
-- **Updated:** 2026-11-21T01:10Z
+- **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/19
+- **Updated:** 2026-11-21T01:25Z
 
 ## Goal
 
@@ -83,6 +83,8 @@ controls, a Docker image and a runbook.
   `/state` and `/strategies` paths in the container config; the host's `state/` folder must be
   owned by uid 10001. `restart: unless-stopped` also restarts on a bad config (exit 2), so a config
   mistake loops; documented. Built and smoke-tested only in the CI `docker` job.
+- 2026-11-21 (hand-off): PR #19 CI green on the first run, including the `docker` and `browser`
+  jobs.
 
 ## Blocked on
 
