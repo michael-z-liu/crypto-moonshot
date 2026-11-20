@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `feat/testnet-broker` (stacked on PR #19, `feat/live-operations`)
 - **PR:**
-- **Updated:** 2026-11-21T01:45Z
+- **Updated:** 2026-11-21T02:10Z
 
 ## Goal
 
@@ -22,7 +22,7 @@ explicit go-ahead.
 
 ## Milestones
 
-### M1: Exchange broker design (todo)
+### M1: Exchange broker design (done)
 
 - **Delivers:** `docs/architecture.md` "Exchange broker" design (execution layer shared by paper
   and exchange brokers, order lifecycle, brackets as OCO, time exits, fees and dust, user data
@@ -30,9 +30,9 @@ explicit go-ahead.
   workers build against, with sources.
 - **Done when:** the docs are the spec for M2-M5; check command passes.
 - **Worker:** master
-- **Commits:**
+- **Commits:** 0e66658
 
-### M2: Signed Binance client (todo)
+### M2: Signed Binance client (in progress)
 
 - **Delivers:** signed REST client for the spot testnet (HMAC-SHA256, timestamp and server-time
   offset, recvWindow, `X-MBX-APIKEY`), request weight and order-count pacing, exchange rules
@@ -89,6 +89,13 @@ explicit go-ahead.
   `{subscriptionId, event}`), documented for `wss://ws-api.testnet.binance.vision/ws-api/v3`.
 - 2026-11-21: Testnet keys env names `MOONSHOT_BINANCE_TESTNET_API_KEY` / `_SECRET`; mainnet keys
   keep `MOONSHOT_BINANCE_API_KEY` / `_SECRET` (P4), so the two can never be confused.
+- 2026-11-21 (M1): exit levels are relative to the testnet fill price (testnet prices drift from
+  the mainnet candles); stop and trailing cannot both be live on Binance, so a plan with both is
+  accepted only when `stop >= trailing` (trailing alone is then equivalent); `tp_fill = "close"`
+  refused in exchange modes; dust stays on the position; unprotected positions alert and retry;
+  REST polling backs up the user data stream; reconciliation never trades on its own except to
+  finish a provable time exit. New modules: `exchange/` (signed client, rules, errors),
+  `broker/execution.py`, `broker/binance.py`.
 - 2026-11-21: If the user provides testnet keys, add an M6: a small real testnet run (stop and ask
   for the go-ahead first).
 
