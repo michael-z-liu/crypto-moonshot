@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `worktree-bridge-cse_015bssAUbtXue4wkarka78Pb`
 - **PR:**
-- **Updated:** 2026-11-20T15:40Z
+- **Updated:** 2026-11-20T16:55Z
 
 ## Goal
 
@@ -63,7 +63,7 @@ separate provider process, not in the trader.
 - **Worker:** opus
 - **Commits:** ff4940e, 6ebfbc7, 809fe5a, 9d71637, ba6b81f, 90b9dda
 
-### M5: Live engine and replay (in progress)
+### M5: Live engine and replay (done)
 
 - **Delivers:** tick loop, per-tick signal batches with deadline and expiry, per-strategy books,
   account checks (total exposure, max order size, stale data, pause), pause/flatten, time exits,
@@ -71,9 +71,9 @@ separate provider process, not in the trader.
 - **Done when:** replaying the capitulation preset over a stored period gives the same trades as
   the backtest engine; killing a replay partway and restarting gives an identical result.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** f6b9c76, 2db1218, df56714, f179db3, fdc2523, 0e1922b, f8fa7b7, 0688c1c, 80b5002, 8c15316, 2b52010
 
-### M6: Daemon API, provider SDK and CLI (todo)
+### M6: Daemon API, provider SDK and CLI (in progress)
 
 - **Delivers:** HTTP + WebSocket API (signals in; candles, ticks, status, health out) with token
   auth; a provider SDK running the same plugin class out of process; an example external
@@ -127,6 +127,16 @@ separate provider process, not in the trader.
   cash, slot and symbol from an exit at exactly the next entry time, e.g. a stop gapped through at
   the open of t+1; live learns of it only when t+1 closes. Time exits at that instant are known
   in time. Replay parity must document and test this divergence.
+- 2026-11-20 (M5): replay equals the backtest exactly with fixed stakes and to 1e-9 with equal
+  slots (books are re-derived from SQL after every change so a resumed run is bit-identical);
+  each documented divergence has its own test; golden backtest tests still pass on real data.
+- 2026-11-20 (M5): costs are account-wide (one simulated exchange); refusal order is paused,
+  unknown_symbol, symbol_held, stale, sizing, risk checks, cash, max_order_usdt,
+  max_total_exposure; ties across strategies by priority, strategy name, symbol. New engine
+  settings `entry_grace` (5m) and `replay_timeout` (1h). A tick emitted after the signal deadline
+  (e.g. after a long backfill) is decided at once, so in-process plugins miss that candle.
+- 2026-11-20 (M5): the paper broker's `place_order` runs inside the decisions transaction (it is
+  rebuilt from the state file); P3's exchange broker must commit the intent first.
 
 ## Blocked on
 
