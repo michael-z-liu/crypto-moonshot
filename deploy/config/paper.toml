@@ -1,0 +1,37 @@
+# Example run config for the Docker image (see docs/runbook.md and compose.yaml).
+# Mounted at /config/paper.toml; paths below are the container's, so they are absolute.
+# No secrets here: the API token comes from MOONSHOT_API_TOKEN (moonshot.env).
+
+mode = "paper"                      # paper only: testnet and live are refused in this build
+state = "/state/paper.sqlite"       # the state file, its lock and backups/ live in /state
+
+[account]
+initial_cash = 10000
+max_order_usdt = 500
+max_total_exposure = 1.0
+stale_after = 2
+costs = { fee = 0.001, slippage = 0.0005 }
+
+[engine]
+tick_timeout = "10s"                # wait this long after a close for every symbol's candle
+signal_deadline = "30s"             # wait this long for each strategy's batch
+entry_grace = "5m"
+
+# Health rules, watchdog and backups: every setting is optional (these are the defaults).
+# [health]
+# health_every = "15s"
+# feed_grace = "60s"
+# min_free_gb = 1.0
+# backup_every = "24h"
+# backup_keep = 14
+
+# An in-process strategy. Put your own plugin files in ./strategies (mounted at /strategies).
+# This one is the example plugin; copy examples/strategies/ma_cross.py into ./strategies first.
+[[strategies]]
+name = "cross"
+source = "/strategies/ma_cross.py:MaCross"
+params = { fast = 12, slow = 48 }
+symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"]
+capital = 5000
+sizing = { slots = 5 }
+risk = { max_positions = 5 }

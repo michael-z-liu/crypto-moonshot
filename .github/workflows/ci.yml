@@ -32,3 +32,77 @@ jobs:
       - run: uv sync --locked
       - run: uv run playwright install --with-deps chromium
       - run: uv run pytest -m browser --tracing off
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IMAGE: crypto-moonshot:ci
+      TOKEN: ci-dummy-token-not-a-secret
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate the compose file
+        run: |
+          cp moonshot.env.example moonshot.env
+          docker compose config --quiet
+          rm moonshot.env
+
+      - name: Build the image
+        run: docker build --tag "$IMAGE" .
+
+      - name: Start a container (no network to Binance)
+        run: |
+          mkdir -p "$RUNNER_TEMP/ci/config" "$RUNNER_TEMP/ci/state" "$RUNNER_TEMP/ci/strategies"
+          cp deploy/config/paper.toml "$RUNNER_TEMP/ci/config/"
+          cp examples/strategies/ma_cross.py "$RUNNER_TEMP/ci/strategies/"
+          sudo chown 10001:10001 "$RUNNER_TEMP/ci/state"
+          docker run -d --name moonshot --init --read-only --tmpfs /tmp \
+            --cap-drop ALL --security-opt no-new-privileges:true \
+            -p 127.0.0.1:8765:8765 \
+            -e MOONSHOT_API_TOKEN="$TOKEN" \
+            -e MOONSHOT_STREAM_URL=ws://127.0.0.1:9 \
+            -e MOONSHOT_BINANCE_BASE_URL=http://127.0.0.1:9 \
+            -v "$RUNNER_TEMP/ci/config:/config:ro" \
+            -v "$RUNNER_TEMP/ci/state:/state" \
+            -v "$RUNNER_TEMP/ci/strategies:/strategies:ro" \
+            "$IMAGE"
+
+      - name: Wait for /api/v1/health
+        run: |
+          for attempt in $(seq 1 40); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8765/api/v1/health)" = 200 ]; then
+              echo "healthy after $attempt attempt(s)"
+              exit 0
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' moonshot)" != true ]; then
+              echo "the container stopped"
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "no healthy answer"
+          exit 1
+
+      - name: Check the API, the dashboard and the user
+        run: |
+          base=http://127.0.0.1:8765
+          test "$(curl -s -o /dev/null -w '%{http_code}' $base/api/v1/status)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer wrong" $base/api/v1/status)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" $base/api/v1/status)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' $base/)" = 200
+          test "$(docker exec moonshot id -u)" = 10001
+          test "$(docker inspect -f '{{.State.Health.Status}}' moonshot)" != unhealthy
+          test -f "$RUNNER_TEMP/ci/state/paper.sqlite"
+          test -f "$RUNNER_TEMP/ci/state/paper.sqlite.lock"
+
+      - name: Stop gracefully
+        run: |
+          docker stop --time 60 moonshot
+          code="$(docker inspect -f '{{.State.ExitCode}}' moonshot)"
+          echo "exit code $code"
+          test "$code" = 0
+
+      - name: Container logs
+        if: always()
+        run: docker logs moonshot || true
