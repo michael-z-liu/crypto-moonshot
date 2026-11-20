@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `worktree-bridge-cse_015bssAUbtXue4wkarka78Pb`
 - **PR:**
-- **Updated:** 2026-11-20T13:45Z
+- **Updated:** 2026-11-20T14:20Z
 
 ## Goal
 
@@ -23,16 +23,16 @@ separate provider process, not in the trader.
 
 ## Milestones
 
-### M1: Architecture revision (todo)
+### M1: Architecture revision (done)
 
 - **Delivers:** `docs/architecture.md` rewritten for the live side: daemon / provider split, the
   signal contract (v1), plugin loading, per-strategy books and account checks, the SQLite state
   file, recovery, replay, the HTTP/WebSocket API, the revised build order and package layout.
 - **Done when:** the doc is a complete spec for M2-M6; check command passes.
 - **Worker:** master
-- **Commits:**
+- **Commits:** 841ecfc
 
-### M2: Plugin contract (todo)
+### M2: Plugin contract (in progress)
 
 - **Delivers:** the live strategy protocol and loader (`module:attr` or `path/file.py:attr`, with
   params), the adapter for existing `SignalRule`s (capitulation), `moonshot backtest plugin
@@ -97,6 +97,12 @@ separate provider process, not in the trader.
 - 2026-11-20: Each strategy has its own book (capital, sizing, risk); account-wide checks sit on
   top; only one strategy holds a symbol at a time.
 - 2026-11-20: Strategies may emit exit signals as well as relying on bracket exits.
+- 2026-11-20: Architecture (M1): the daemon is the single market-data hub; the paper broker calls
+  `resolve_exit` on the candles seen so far (parity by construction); books are derived from the
+  state file, not stored; client order IDs are deterministic; API is FastAPI under `/api/v1`
+  with a bearer token from `MOONSHOT_API_TOKEN`; deps added later: websockets, fastapi, uvicorn.
+- 2026-11-20: `on_candles` takes traded symbols' windows and context windows separately (M2), so
+  `RuleStrategy` knows which symbols to compute candidates for.
 
 ## Blocked on
 
