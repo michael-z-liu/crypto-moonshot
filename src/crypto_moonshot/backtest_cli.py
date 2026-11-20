@@ -17,6 +17,7 @@ Exit codes: 0 ok, 1 the run could not start (no candles, no signals source), 2 u
 
 import json
 import math
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -34,6 +35,14 @@ from crypto_moonshot.cli_output import print_backtest_summary, stdout_is_tty
 from crypto_moonshot.data.store import KlineStore
 from crypto_moonshot.data.universe import Universe, universe_symbols
 from crypto_moonshot.data_cli import parse_when, resolve_settings
+from crypto_moonshot.live.plugin import (
+    BacktestSignalsProvider,
+    PluginError,
+    RuleStrategy,
+    Strategy,
+    load_strategy,
+    rolling_signals,
+)
 from crypto_moonshot.models import Interval, parse_duration
 from crypto_moonshot.portfolio import EqualSlots, FixedStake, Sizing
 from crypto_moonshot.strategy.base import Signals
@@ -531,6 +540,236 @@ _register(
     "The defaults are the walk-forward base CNN as one continuous book (the research traded one "
     "book per year). Make a score file with `convert-scores`.",
 )
+
+
+def parse_params(items: list[str]) -> dict[str, object]:
+    """`key=value` options as a dict; a value is JSON when it parses as JSON, else a string."""
+    params: dict[str, object] = {}
+    for item in items:
+        key, sep, raw = item.partition("=")
+        if not sep or not key.strip():
+            msg = f"invalid param {item!r}: use key=value"
+            raise typer.BadParameter(msg, param_hint="--param")
+        try:
+            params[key.strip()] = json.loads(raw)
+        except ValueError:
+            params[key.strip()] = raw
+    return params
+
+
+def _plugin_symbols(text: str, root: Path, interval: Interval) -> list[str]:
+    if text.lower() in (Universe.POOL.value, Universe.ALL.value):
+        try:
+            symbols = universe_symbols(Universe(text.lower()), root, interval=interval)
+        except FileNotFoundError as exc:
+            raise _fail(f"{exc.filename} not found: the {text} universe needs it") from None
+        if not symbols:
+            raise _fail(f"no {interval.value} candles stored in {root} for the {text} universe")
+        return symbols
+    symbols = list(dict.fromkeys(s.strip().upper() for s in text.split(",") if s.strip()))
+    if not symbols:
+        msg = "give pool, all or a comma-separated list of symbols"
+        raise typer.BadParameter(msg, param_hint="--symbols")
+    return symbols
+
+
+def _rolling(
+    strategy: Strategy,
+    symbols: list[str],
+    root: Path,
+    until: datetime | None,
+    start: datetime | None,
+    end: datetime | None,
+) -> Signals:
+    """Run `on_candles` over the stored candles (see `live.plugin.rolling_signals`)."""
+    store = KlineStore(root)
+    interval = strategy.interval
+    stored = set(store.list_series())
+    read = [s for s in symbols if (s, interval) in stored]
+    if not read:
+        raise _fail(f"none of the symbols has {interval.value} candles in {root}")
+    first_us = None if start is None else start - strategy.warmup * interval.length
+    series = {s: store.read_series(s, interval, end=until) for s in read}
+    context = {
+        s: store.read_series(s, interval, end=until)
+        for s in strategy.context_symbols
+        if (s, interval) in stored
+    }
+    if first_us is not None:
+        series = {s: f.filter(pl.col("open_time") >= first_us) for s, f in series.items()}
+        context = {s: f.filter(pl.col("open_time") >= first_us) for s, f in context.items()}
+    firsts: list[datetime] = [f["open_time"][0] for f in series.values() if f.height]
+    lasts: list[datetime] = [f["open_time"][-1] for f in series.values() if f.height]
+    if not firsts:
+        raise _fail("no candles in the requested range")
+    first = start or min(firsts)
+    last = end or max(lasts) + interval.length
+    if until is not None:
+        last = min(last, until)
+    ticks = interval.count_open_times(first, last)
+    _note(f"signals: running {strategy.name} on {len(read)} symbols over {ticks:,} candles")
+    started = time.perf_counter()
+    signals = rolling_signals(strategy, series, context, first, last)
+    _note(f"signals: {len(signals)} ({time.perf_counter() - started:.1f}s)")
+    return signals
+
+
+def run_plugin(
+    source: str, params: dict[str, object], name: str | None, symbols_text: str, options: Options
+) -> None:
+    """Everything behind `moonshot backtest plugin`."""
+    label = name or source.rpartition(":")[2].rpartition(".")[2].lower() or "plugin"
+    try:
+        strategy = load_strategy(source, name=label, params=params)
+    except PluginError as exc:
+        raise _fail(str(exc)) from None
+    if isinstance(strategy, RuleStrategy):
+        strategy.cache_dir = options.cache_dir
+        strategy.workers = options.workers
+    preset = Preset(Universe.POOL, strategy.exit or ExitPlan(), 5, 5, None, None)
+    config, until = _prepare(options, preset, interval=strategy.interval, require_exit=True)
+    root = _data_root(options)
+    symbols = _plugin_symbols(symbols_text, root, strategy.interval)
+    try:
+        if isinstance(strategy, BacktestSignalsProvider):
+            _note(f"signals: {label} on {len(symbols)} symbols (backtest_signals)")
+            signals = strategy.backtest_signals(root, symbols, until)
+        else:
+            signals = _rolling(
+                strategy,
+                symbols,
+                root,
+                until,
+                config.start,
+                config.end,
+            )
+    except (ValueError, FileNotFoundError) as exc:
+        raise _fail(f"{label}: {exc}") from None
+    signals = replace(signals, exit=config.exit, interval=strategy.interval)
+    head: dict[str, Any] = {
+        "strategy": label,
+        "source": source,
+        "params": params,
+        "symbols": symbols_text if symbols_text in ("pool", "all") else symbols,
+    }
+    _execute(label, options, config, signals, root, until, head)
+
+
+@backtest_app.command("plugin")
+def plugin_command(
+    source: Annotated[
+        str,
+        typer.Argument(
+            metavar="SOURCE", help="Strategy plugin: package.module:attr or path/to/file.py:attr."
+        ),
+    ],
+    param: Annotated[
+        list[str] | None,
+        typer.Option("--param", help="Plugin parameter key=value (JSON value, else text); repeat."),
+    ] = None,
+    symbols: Annotated[
+        str, typer.Option(help="pool, all or SYM1,SYM2: the symbols to trade.")
+    ] = "pool",
+    name: Annotated[
+        str | None, typer.Option(help="Strategy instance name (default: from SOURCE).")
+    ] = None,
+    data_dir: DataDirOpt = None,
+    until: UntilOpt = None,
+    start: StartOpt = None,
+    end: EndOpt = None,
+    slots: SlotsOpt = None,
+    stake: StakeOpt = None,
+    capital: CapitalOpt = DEFAULT_CAPITAL,
+    max_positions: MaxPositionsOpt = None,
+    hold: HoldOpt = None,
+    take_profit: TakeProfitOpt = None,
+    stop: StopOpt = None,
+    trailing: TrailingOpt = None,
+    tp_fill: TpFillOpt = None,
+    fee: FeeOpt = 0.001,
+    slippage: SlippageOpt = 0.0005,
+    latency: LatencyOpt = 0.0,
+    fine: FineOpt = False,
+    entry_delay: EntryDelayOpt = 0,
+    out: OutOpt = None,
+    json_output: JsonOpt = False,
+    cache_dir: CacheDirOpt = DEFAULT_CACHE_DIR,
+    workers: WorkersOpt = None,
+) -> None:
+    """Backtest a strategy plugin: 5 slots unless --slots or --stake, the plugin's exit plan.
+
+    Uses the plugin's `backtest_signals` when it has one, otherwise runs `on_candles` over
+    rolling windows of the stored candles (slower, but exactly the live signals). The CLI's
+    exit options override the plugin's exit plan.
+    """
+    options = Options(
+        data_dir, None, until, start, end, slots, stake, capital, max_positions,
+        hold, take_profit, stop, trailing, tp_fill, fee, slippage, latency, fine,
+        entry_delay, None, None, out, json_output, cache_dir, workers,
+    )  # fmt: skip
+    run_plugin(source, parse_params(param or []), name, symbols, options)
+
+
+@backtest_app.command("signals")
+def signals_command(
+    file: Annotated[
+        Path,
+        typer.Argument(
+            metavar="FILE",
+            help="Signal file (Parquet): symbol, open_time (UTC), priority, extra columns.",
+        ),
+    ],
+    interval: Annotated[Interval, typer.Option(help="Interval of the signal candles.")] = (
+        Interval.M5
+    ),
+    data_dir: DataDirOpt = None,
+    until: UntilOpt = None,
+    start: StartOpt = None,
+    end: EndOpt = None,
+    slots: SlotsOpt = None,
+    stake: StakeOpt = None,
+    capital: CapitalOpt = DEFAULT_CAPITAL,
+    max_positions: MaxPositionsOpt = None,
+    hold: HoldOpt = None,
+    take_profit: TakeProfitOpt = None,
+    stop: StopOpt = None,
+    trailing: TrailingOpt = None,
+    tp_fill: TpFillOpt = None,
+    fee: FeeOpt = 0.001,
+    slippage: SlippageOpt = 0.0005,
+    latency: LatencyOpt = 0.0,
+    fine: FineOpt = False,
+    entry_delay: EntryDelayOpt = 0,
+    out: OutOpt = None,
+    json_output: JsonOpt = False,
+    cache_dir: CacheDirOpt = DEFAULT_CACHE_DIR,
+    workers: WorkersOpt = None,
+) -> None:
+    """Backtest a signal file produced anywhere (the columns of `Signals.frame`).
+
+    The exit plan comes from the options (--hold, --take-profit, --stop, --trailing; at least
+    one is required); 5 slots unless --slots or --stake.
+    """
+    if not file.is_file():
+        raise typer.BadParameter(f"{file} is not a file", param_hint="FILE")
+    options = Options(
+        data_dir, None, until, start, end, slots, stake, capital, max_positions,
+        hold, take_profit, stop, trailing, tp_fill, fee, slippage, latency, fine,
+        entry_delay, None, None, out, json_output, cache_dir, workers,
+    )  # fmt: skip
+    preset = Preset(None, ExitPlan(), 5, 5, None, None)
+    config, until_ = _prepare(options, preset, interval=interval, require_exit=True)
+    try:
+        signals = Signals(pl.read_parquet(file), config.exit, interval)
+    except (ValueError, pl.exceptions.PolarsError, OSError) as exc:
+        raise typer.BadParameter(f"{file}: {exc}") from None
+    dtype = signals.frame.schema["open_time"]
+    if not isinstance(dtype, pl.Datetime) or dtype.time_zone is None:
+        msg = f"{file}: open_time must be a timezone-aware datetime, got {dtype}"
+        raise typer.BadParameter(msg, param_hint="FILE")
+    root = _data_root(options)
+    head: dict[str, Any] = {"strategy": file.stem, "signal_file": str(file)}
+    _execute("signals", options, config, signals, root, until_, head)
 
 
 @backtest_app.command("convert-scores")
