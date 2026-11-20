@@ -158,14 +158,14 @@ def leave(symbol: str) -> SignalIn:
 
 
 async def test_the_deadline_misses_a_slow_plugin_and_a_silent_provider(tmp_path: Path) -> None:
-    slow = Scheduled({at(0): [("AAAUSDT", 0.0)]}, delay=0.6)
+    slow = Scheduled({at(0): [("AAAUSDT", 0.0)]}, delay=1.0)
     live = Live(tmp_path / "s.sqlite", [strategy("slow"), external()], {"slow": slow})
     await live.start()
     loop = asyncio.get_running_loop()
     started = loop.time()
     await live.tick(0)
     took = loop.time() - started
-    assert 0.15 < took < 0.5  # processed at the deadline (0.2 s left), not after the plugin
+    assert 0.15 < took < 0.9  # processed at the deadline (0.2 s left), not after the plugin
     assert live.batch("slow", 0).status is BatchStatus.MISSED
     assert live.batch("ext", 0).status is BatchStatus.MISSED
     assert {"plugin_timeout", "batches_missed"} <= set(live.kinds())

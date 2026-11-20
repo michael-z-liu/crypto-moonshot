@@ -23,7 +23,8 @@ Per tick (interval *I*, candle *T*, entry time *E = T + I*)
    every strategy of *I* has reported or `signal_deadline` after the close (by the clock);
    in replay it waits for every batch, up to `replay_timeout` of real time. A plugin that
    raises, returns a bad frame or is still running then misses its batch and an error event
-   is written; the engine never crashes on a plugin.
+   is written; the engine never crashes on a plugin, and stops waiting for one that failed.
+   `stop()` abandons a tick still collecting: it is decided again after a restart.
 3. **Decisions** (one transaction, ending with the tick marker). Missed batches are recorded;
    the controls are read (a requested flatten sells every open position for *E*, cancels
    pending buys and pauses); exit signals become market sells for *E*; then entries, across
@@ -208,8 +209,11 @@ def build_specs(
             context: tuple[str, ...] = ()
             interval, warmup, base = sc.interval, sc.warmup, None
         else:
-            plugin = (plugins or {}).get(sc.name) or load_strategy(
-                sc.source, name=sc.name, params=sc.params
+            given = (plugins or {}).get(sc.name)
+            plugin = (
+                given
+                if given is not None
+                else load_strategy(sc.source, name=sc.name, params=sc.params)
             )
             if sc.interval is not None and sc.interval is not plugin.interval:
                 msg = (
