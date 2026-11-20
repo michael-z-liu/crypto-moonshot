@@ -36,15 +36,7 @@ from crypto_moonshot.broker.candles import Candles, from_us, to_us
 from crypto_moonshot.broker.simulated import ExitFill, SimulatedBroker
 from crypto_moonshot.models import Interval, as_utc
 from crypto_moonshot.portfolio import Book, FixedStake, Sizing, WeightedSizing
-from crypto_moonshot.risk import (
-    DailyLossLimit,
-    MaxEntriesPerDay,
-    MaxExposure,
-    MaxPositions,
-    OnePerSymbol,
-    RiskCheck,
-    first_rejection,
-)
+from crypto_moonshot.risk import RiskCheck, first_rejection, standard_checks
 
 _US = timedelta(microseconds=1)
 _MAX_WINDOW = timedelta(days=3660)
@@ -139,17 +131,12 @@ class BacktestConfig:
 
     def risk_checks(self) -> list[RiskCheck]:
         """The configured checks, in the order they are applied."""
-        checks: list[RiskCheck] = []
-        if self.daily_loss_limit is not None:
-            checks.append(DailyLossLimit(self.daily_loss_limit))
-        if self.max_entries_per_day is not None:
-            checks.append(MaxEntriesPerDay(self.max_entries_per_day))
-        if self.max_positions is not None:
-            checks.append(MaxPositions(self.max_positions))
-        checks.append(OnePerSymbol())
-        if self.max_exposure is not None:
-            checks.append(MaxExposure(self.max_exposure))
-        return checks
+        return standard_checks(
+            max_positions=self.max_positions,
+            max_exposure=self.max_exposure,
+            daily_loss_limit=self.daily_loss_limit,
+            max_entries_per_day=self.max_entries_per_day,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,7 +210,7 @@ class _Trade:
 
 
 @dataclass(slots=True)
-class _Marks:
+class Marks:
     """Per position: the open value at each curve point while it is open."""
 
     times: list[np.ndarray] = field(default_factory=list)
@@ -270,7 +257,7 @@ class _Run:
         self.checks = config.risk_checks()
         self.open: dict[str, _Open] = {}
         self.trades: list[_Trade] = []
-        self.marks = _Marks()
+        self.marks = Marks()
         self.every_us = config.mark_every // _US
         self.seq = 0
         self.group_entries: dict[int, int] = {}
@@ -387,19 +374,10 @@ class _Run:
     def _mark(
         self, candles: Candles, entry_ref: float, quantity: float, exit_fill: ExitFill
     ) -> None:
-        """The position's value at each curve point while open (`entry <= t < exit`): quantity x
-        the last close at or before the point (the entry open before any candle has closed)."""
-        every = self.every_us
-        entry_us, exit_us = int(candles.open_time[0]), to_us(exit_fill.time)
-        first = -(-entry_us // every) * every
-        if first >= exit_us:
-            return
-        times = np.arange(first, exit_us, every, dtype=np.int64)
-        closed = candles.open_time + candles.length_us
-        i = np.searchsorted(closed, times, side="right") - 1
-        prices = np.where(i >= 0, candles.close[np.maximum(i, 0)], entry_ref)
-        self.marks.times.append(times)
-        self.marks.values.append(prices * quantity)
+        marked = position_marks(candles, entry_ref, quantity, to_us(exit_fill.time), self.every_us)
+        if marked is not None:
+            self.marks.times.append(marked[0])
+            self.marks.values.append(marked[1])
 
     def _close(self, fill: Fill) -> None:
         position = self.open.pop(fill.symbol)
@@ -466,36 +444,80 @@ class _Run:
     def equity_frame(self) -> pl.DataFrame:
         """Mark-to-market equity at every `mark_every` boundary from the start of the first
         entry's period to the end of the last exit's period (both included)."""
-        if not self.trades:
-            return pl.DataFrame(schema=EQUITY_SCHEMA)
-        every = self.every_us
-        entry = np.sort(np.array([t.entry_us for t in self.trades], dtype=np.int64))
-        stakes = np.array([t.stake for t in sorted(self.trades, key=lambda t: t.entry_us)])
-        by_exit = sorted(self.trades, key=lambda t: t.exit_us)
-        exit_ = np.array([t.exit_us for t in by_exit], dtype=np.int64)
-        proceeds = np.array([t.proceeds for t in by_exit])
-        t0 = int(entry[0]) // every * every
-        t1 = -(-int(exit_[-1]) // every) * every
-        grid = np.arange(t0, t1 + every, every, dtype=np.int64)
-        n_in = np.searchsorted(entry, grid, side="right")
-        n_out = np.searchsorted(exit_, grid, side="right")
-        spent = np.concatenate(([0.0], np.cumsum(stakes)))[n_in]
-        returned = np.concatenate(([0.0], np.cumsum(proceeds)))[n_out]
-        cash = self.config.initial_capital - spent + returned
-        open_value = np.zeros(len(grid))
-        if self.marks.times:
-            times = np.concatenate(self.marks.times)
-            values = np.concatenate(self.marks.values)
-            open_value = np.bincount((times - t0) // every, values, minlength=len(grid))
-        return pl.DataFrame(
-            {
-                "time": grid,
-                "equity": cash + open_value,
-                "cash": cash,
-                "open_value": open_value,
-                "open_positions": (n_in - n_out).astype(np.int64),
-            }
-        ).with_columns(pl.from_epoch("time", "us").dt.replace_time_zone("UTC"))
+        return equity_curve(
+            np.array([t.entry_us for t in self.trades], dtype=np.int64),
+            np.array([t.stake for t in self.trades], dtype=np.float64),
+            np.array([t.exit_us for t in self.trades], dtype=np.int64),
+            np.array([t.proceeds for t in self.trades], dtype=np.float64),
+            self.marks,
+            self.config.initial_capital,
+            self.every_us,
+        )
+
+
+def position_marks(
+    candles: Candles, entry_ref: float, quantity: float, exit_us: int, every_us: int
+) -> tuple[np.ndarray, np.ndarray] | None:
+    """A position's value at each curve point while it is open (`entry <= t < exit`), as
+    (times, values): quantity x the last close at or before the point (the entry open before
+    any candle has closed). `candles` start at the entry candle. `None` when no curve point
+    falls inside the position."""
+    entry_us = int(candles.open_time[0])
+    first = -(-entry_us // every_us) * every_us
+    if first >= exit_us:
+        return None
+    times = np.arange(first, exit_us, every_us, dtype=np.int64)
+    closed = candles.open_time + candles.length_us
+    i = np.searchsorted(closed, times, side="right") - 1
+    prices = np.where(i >= 0, candles.close[np.maximum(i, 0)], entry_ref)
+    return times, prices * quantity
+
+
+def equity_curve(
+    entry_us: np.ndarray,
+    stakes: np.ndarray,
+    exit_us: np.ndarray,
+    proceeds: np.ndarray,
+    marks: Marks,
+    initial_capital: float,
+    every_us: int,
+) -> pl.DataFrame:
+    """The mark-to-market equity curve (`EQUITY_SCHEMA`) of a set of trades: one point at
+    every `every_us` boundary from the start of the first entry's period to the end of the last
+    exit's period. Per trade: entry time, stake (cash out at entry), exit time and proceeds
+    (cash back at exit); `marks` holds each trade's open value at the points it spans
+    (`position_marks`). Empty without trades."""
+    if len(entry_us) == 0:
+        return pl.DataFrame(schema=EQUITY_SCHEMA)
+    every = every_us
+    by_entry = np.argsort(entry_us, kind="stable")
+    entry = entry_us[by_entry]
+    spent_each = stakes[by_entry]
+    by_exit = np.argsort(exit_us, kind="stable")
+    exit_ = exit_us[by_exit]
+    back = proceeds[by_exit]
+    t0 = int(entry[0]) // every * every
+    t1 = -(-int(exit_[-1]) // every) * every
+    grid = np.arange(t0, t1 + every, every, dtype=np.int64)
+    n_in = np.searchsorted(entry, grid, side="right")
+    n_out = np.searchsorted(exit_, grid, side="right")
+    spent = np.concatenate(([0.0], np.cumsum(spent_each)))[n_in]
+    returned = np.concatenate(([0.0], np.cumsum(back)))[n_out]
+    cash = initial_capital - spent + returned
+    open_value = np.zeros(len(grid))
+    if marks.times:
+        times = np.concatenate(marks.times)
+        values = np.concatenate(marks.values)
+        open_value = np.bincount((times - t0) // every, values, minlength=len(grid))
+    return pl.DataFrame(
+        {
+            "time": grid,
+            "equity": cash + open_value,
+            "cash": cash,
+            "open_value": open_value,
+            "open_positions": (n_in - n_out).astype(np.int64),
+        }
+    ).with_columns(pl.from_epoch("time", "us").dt.replace_time_zone("UTC"))
 
 
 def run_backtest(

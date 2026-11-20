@@ -16,7 +16,6 @@ Exit codes: 0 ok, 1 the run could not start (no candles, no signals source), 2 u
 """
 
 import json
-import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -29,6 +28,7 @@ import polars as pl
 import typer
 
 from crypto_moonshot.backtest.engine import BacktestConfig, BacktestResult, run_backtest
+from crypto_moonshot.backtest.results import json_safe, write_run_files
 from crypto_moonshot.backtest.source import ParquetCandleSource
 from crypto_moonshot.broker.base import Costs, ExitPlan
 from crypto_moonshot.cli_output import print_backtest_summary, stdout_is_tty
@@ -200,19 +200,6 @@ def _signals(
     return replace(run.signals, exit=exit_plan)
 
 
-def _clean(value: Any) -> Any:
-    """JSON-safe: NaN and infinity become null, datetimes ISO strings, timedeltas seconds."""
-    if isinstance(value, float):
-        return value if math.isfinite(value) else None
-    if isinstance(value, dict):
-        return {k: _clean(v) for k, v in value.items()}
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, timedelta):
-        return value.total_seconds()
-    return value
-
-
 def _sizing_dict(sizing: Sizing) -> dict[str, Any]:
     if isinstance(sizing, EqualSlots):
         return {"type": "equal_slots", "slots": sizing.slots}
@@ -253,12 +240,7 @@ def config_dict(config: BacktestConfig, source: ParquetCandleSource) -> dict[str
 
 def write_results(out: Path, result: BacktestResult, document: dict[str, Any]) -> None:
     """Write the run's files into `out` (created if needed)."""
-    out.mkdir(parents=True, exist_ok=True)
-    result.trades.write_parquet(out / "trades.parquet")
-    result.trades.write_csv(out / "trades.csv")
-    result.equity.write_csv(out / "equity.csv")
-    result.yearly.write_csv(out / "yearly.csv")
-    (out / "metrics.json").write_text(json.dumps(_clean(document), indent=2) + "\n", "utf-8")
+    write_run_files(out, result.trades, result.equity, result.yearly, document)
 
 
 @dataclass(frozen=True, slots=True)
@@ -370,7 +352,7 @@ def _execute(
     }
     write_results(out, result, document)
     if options.json_output:
-        typer.echo(json.dumps(_clean(document)))
+        typer.echo(json.dumps(json_safe(document)))
     else:
         _note(f"results written to {out}")
         print_backtest_summary(result.metrics, result.skipped, result.yearly, tty=stdout_is_tty())
