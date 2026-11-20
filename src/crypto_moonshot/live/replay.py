@@ -373,17 +373,14 @@ def prepare_replay(
     """
     config.require_runnable()
     start, end = as_utc(start), as_utc(end)
-    specs = build_specs(config, data_root, plugins=plugins)
-    specs = _precompute(specs, data_root, start, end, signals, precomputed)
     config.state.parent.mkdir(parents=True, exist_ok=True)
     lock = StateLock(config.state)
     lock.acquire()  # a replay writes the state file: never beside a daemon or another replay
+    store: StateStore | None = None
     try:
+        specs = build_specs(config, data_root, plugins=plugins)
+        specs = _precompute(specs, data_root, start, end, signals, precomputed)
         store = StateStore.open(config.state)
-    except BaseException:
-        lock.release()
-        raise
-    try:
         last = store.last_ticks()
         intervals = {s.interval for s in specs}
         resume = [last[i] + i.length for i in intervals if i in last]
@@ -408,7 +405,8 @@ def prepare_replay(
         )
         feed.on_event = engine.on_feed_event
     except BaseException:
-        store.close()
+        if store is not None:
+            store.close()
         lock.release()
         raise
     return ReplayRun(config, specs, store, feed, engine, data_root, start, end, out_dir, lock)
