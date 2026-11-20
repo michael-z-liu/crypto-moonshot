@@ -6,7 +6,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Settings from the environment (`MOONSHOT_DATA_DIR`, `MOONSHOT_BINANCE_BASE_URL`).
+    """Settings from the environment (`MOONSHOT_DATA_DIR`, `MOONSHOT_BINANCE_BASE_URL`,
+    `MOONSHOT_STREAM_URL`).
 
     No `.env` file is read: keys and `.env` loading arrive with the broker work.
     """
@@ -15,3 +16,5 @@ class Settings(BaseSettings):
 
     data_dir: Path = Path("data")
     binance_base_url: str = "https://data-api.binance.vision"
+    stream_url: str = "wss://data-stream.binance.vision"
+    """Base URL of the Binance market-data WebSocket host (the client adds `/stream`)."""
