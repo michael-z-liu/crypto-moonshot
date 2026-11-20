@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `feat/testnet-broker` (stacked on PR #19, `feat/live-operations`)
 - **PR:**
-- **Updated:** 2026-11-21T02:10Z
+- **Updated:** 2026-11-21T02:40Z
 
 ## Goal
 
@@ -32,7 +32,7 @@ explicit go-ahead.
 - **Worker:** master
 - **Commits:** 0e66658
 
-### M2: Signed Binance client (in progress)
+### M2: Signed Binance client (done)
 
 - **Delivers:** signed REST client for the spot testnet (HMAC-SHA256, timestamp and server-time
   offset, recvWindow, `X-MBX-APIKEY`), request weight and order-count pacing, exchange rules
@@ -42,9 +42,9 @@ explicit go-ahead.
   retry, rate limits, filter rounding and rejection, each error mapping, and that keys never
   appear in logs or reprs.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** 1eba174, 28d30cd, 55a6f93, 2cbfa5c
 
-### M3: Execution layer refactor (todo)
+### M3: Execution layer refactor (in progress)
 
 - **Delivers:** an async execution interface both brokers satisfy (submit, cancel, events,
   reconcile; whether the broker needs candles and manages time exits); the engine commits each
@@ -96,6 +96,11 @@ explicit go-ahead.
   REST polling backs up the user data stream; reconciliation never trades on its own except to
   finish a provable time exit. New modules: `exchange/` (signed client, rules, errors),
   `broker/execution.py`, `broker/binance.py`.
+- 2026-11-21 (M2): `exchange/` = `client.py` (`SignedClient`), `rules.py`, `errors.py`, `models.py`,
+  `pacing.py`. Order POST/DELETE never retried (raise `OrderStatusUnknown`; query by client ID).
+  httpx logs signed URLs at INFO, so the client filters any record containing `signature=`.
+  Unverified until a real testnet run: request weights, exact -2010 message wording, order-count
+  header behaviour.
 - 2026-11-21: If the user provides testnet keys, add an M6: a small real testnet run (stop and ask
   for the go-ahead first).
 
