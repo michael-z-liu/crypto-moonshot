@@ -1,0 +1,1260 @@
+"""The trading engine: ticks in; batches, books, checks, orders and the state file out.
+
+One asyncio component with an injected clock, driven by any `Feed` (live or replay). It owns
+the paper broker and the strategy books and writes everything to the `StateStore` (used from
+the event-loop thread only). See `docs/architecture.md`, "Engine", for the design; the exact
+rules are here.
+
+Per tick (interval *I*, candle *T*, entry time *E = T + I*)
+----------------------------------------------------------
+1. **Broker** (one transaction). Every series the broker needs on *I* (a position from its
+   entry candle, a pending order from its time) gets its candles: the tick's candle when the
+   previous one was handed over, else the feed's window since the last `HISTORY_SLACK`
+   candles (so late candles that filled a hole are picked up). Then `advance(E, interval=I)`;
+   every event is recorded (fills, positions, bracket order rows, cancellations), and pending
+   buys whose entry candle has still not closed `entry_grace` after it should have are
+   cancelled (`no_candle`).
+2. **Signals.** Tick listeners run (M6 broadcasts the tick to external providers). In-process
+   plugins get their windows (read on the event-loop thread: the traded symbols, minus those
+   whose latest candle is more than `stale_after` intervals old, as `rolling_signals` does,
+   and the context symbols) and run in a worker thread; a plugin whose traded symbols have no
+   candle in this tick gets an empty batch without being called. External batches arrive
+   through `submit_batch`. Every batch is recorded when it arrives. The engine waits until
+   every strategy of *I* has reported or `signal_deadline` after the close (by the clock);
+   in replay it waits for every batch, up to `replay_timeout` of real time. A plugin that
+   raises, returns a bad frame or is still running then misses its batch and an error event
+   is written; the engine never crashes on a plugin.
+3. **Decisions** (one transaction, ending with the tick marker). Missed batches are recorded;
+   the controls are read (a requested flatten sells every open position for *E*, cancels
+   pending buys and pauses); exit signals become market sells for *E*; then entries, across
+   strategies, in order of signal priority, then strategy name, then symbol. Each entry passes,
+   in order (the first refusal is the signal's recorded reason):
+
+   `paused` -> `unknown_symbol` (not one of the strategy's symbols) -> `symbol_held` (the
+   account's one position per symbol, pending entries included) -> `stale` (`feed.stale_symbols`)
+   -> sizing on the strategy's book (the signal's `weight` for weighted sizing) -> the book's
+   risk checks (`risk.first_rejection`, unchanged: `daily_loss_limit`, `day_cap`,
+   `slots_full`, `symbol_held`, `exposure`) -> `cash` (the book's) -> `max_order_usdt` ->
+   `max_total_exposure` (open cost over realised equity, both summed over the books).
+
+   An accepted entry is a market buy for *E* with a deterministic client order ID, carrying
+   the strategy's exit plan with the signal's partial override; its order row and pending
+   position (stake reserved, `placed_at = E`) are written before the broker is called.
+
+Books are kept in memory for the decisions and re-derived from the state file
+(`StateStore.derive_book`) after every step that changed it and whenever the UTC day changes,
+so they always equal `derive_book` and a restarted engine computes exactly the same numbers.
+
+A batch for a candle already processed is *late*: it is recorded, its entries are expired and
+its exits become market sells for the next candle open. Duplicates are refused.
+
+Recovery
+--------
+At start the engine checks the config against the stored strategies (a changed capital or
+initial cash, or a removed strategy with open positions, is refused), restores the broker from
+`StateStore.broker_snapshot` and derives the books. On the first tick of each interval it gives
+the broker every candle it needs from each position's entry (and each pending order's time):
+the feed's window if it reaches back far enough, else the `history` fetcher. The tick's
+`advance` then applies exits that happened while the engine was down at their real times.
+Ticks missed while down are recorded as an event; their signals are not replayed. Because
+every step is one transaction, client order IDs are deterministic and the tick marker commits
+with the last step, a restart after a crash at any point neither loses nor duplicates an order
+or a position: a tick whose marker was not committed is processed again (its broker step finds
+nothing new, recorded batches are reused).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import inspect
+import logging
+import re
+from collections import Counter, defaultdict
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass, fields, is_dataclass
+from datetime import UTC, datetime, timedelta
+from enum import Enum, StrEnum
+from pathlib import Path
+from typing import Any
+
+import polars as pl
+
+from crypto_moonshot.broker.base import (
+    ExitPlan,
+    Order,
+    OrderRejected,
+    Side,
+    child_order_id,
+    client_order_id,
+)
+from crypto_moonshot.broker.candles import Candles
+from crypto_moonshot.broker.paper import (
+    BrokerEvent,
+    EntryFilled,
+    ExitFilled,
+    PaperBroker,
+)
+from crypto_moonshot.live.config import ConfigError, RunConfig, StrategyConfig
+from crypto_moonshot.live.contract import ExitPlanIn, SignalBatch, SignalIn, frame_to_batch
+from crypto_moonshot.live.feed import (
+    HISTORY_SLACK,
+    BackfillFailed,
+    Feed,
+    FeedDisconnected,
+    FeedEvent,
+    KlineFetcher,
+    SeedFailed,
+    StaleSymbolsChanged,
+    SubscriptionFailed,
+    Tick,
+)
+from crypto_moonshot.live.plugin import Strategy, load_strategy
+from crypto_moonshot.live.state import (
+    BatchRecord,
+    BatchStatus,
+    Control,
+    Controls,
+    EventLevel,
+    OrderRecord,
+    PositionRecord,
+    PositionStatus,
+    ProviderRecord,
+    SignalOutcome,
+    SignalRecord,
+    SignalRow,
+    StateStore,
+)
+from crypto_moonshot.models import KLINE_SCHEMA, Interval, as_utc
+from crypto_moonshot.portfolio import Book, Sizing, WeightedSizing, utc_day
+from crypto_moonshot.risk import RiskCheck, first_rejection
+
+logger = logging.getLogger(__name__)
+
+Clock = Callable[[], datetime]
+TickListener = Callable[[Tick], Awaitable[None] | None]
+StepHook = Callable[[str, Tick | None], None]
+"""Called at each step boundary (`Step`) with the tick: tests inject crashes here."""
+
+_TOLERANCE = 1e-9
+_EXPOSURE_TOLERANCE = 1e-12
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+class Step(StrEnum):
+    """Step boundaries of a tick, where `step_hook` is called."""
+
+    AFTER_BROKER = "after_broker"
+    """The broker step is committed."""
+    AFTER_SIGNALS = "after_signals"
+    """Every batch is in (or the deadline passed); nothing of step 3 is written yet."""
+    BEFORE_BROKER_CALL = "before_broker_call"
+    """Inside step 3: an order's intent is written, the broker not yet called."""
+    BEFORE_TICK_MARKER = "before_tick_marker"
+    """Inside step 3: every decision is written, the tick marker not yet."""
+    TICK_DONE = "tick_done"
+    """The tick is committed and the books re-derived."""
+
+
+# -- strategies -------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class StrategySpec:
+    """A strategy instance as the engine runs it: its config, the loaded plugin (`None` for an
+    external provider) and everything resolved from both."""
+
+    config: StrategyConfig
+    interval: Interval
+    warmup: int
+    symbols: tuple[str, ...]
+    context_symbols: tuple[str, ...]
+    exit: ExitPlan | None
+    plugin: Strategy | None
+    sizing: Sizing
+    checks: tuple[RiskCheck, ...]
+
+    @property
+    def name(self) -> str:
+        return self.config.name
+
+    @property
+    def capital(self) -> float:
+        return self.config.capital
+
+    @property
+    def external(self) -> bool:
+        return self.plugin is None
+
+
+def build_specs(
+    config: RunConfig,
+    data_root: Path | None,
+    *,
+    plugins: Mapping[str, Strategy] | None = None,
+) -> list[StrategySpec]:
+    """Load every in-process plugin (`load_strategy`; `plugins` supplies ready instances by
+    strategy name instead) and resolve intervals, warm-ups, symbols, exit plans, sizing and
+    risk checks. Raises `PluginError` or `ConfigError`."""
+    specs: list[StrategySpec] = []
+    for sc in config.strategies:
+        if sc.external:
+            assert sc.interval is not None
+            assert sc.warmup is not None
+            plugin: Strategy | None = None
+            context: tuple[str, ...] = ()
+            interval, warmup, base = sc.interval, sc.warmup, None
+        else:
+            plugin = (plugins or {}).get(sc.name) or load_strategy(
+                sc.source, name=sc.name, params=sc.params
+            )
+            if sc.interval is not None and sc.interval is not plugin.interval:
+                msg = (
+                    f"strategy {sc.name}: interval {sc.interval.value} given, but the plugin "
+                    f"trades {plugin.interval.value}"
+                )
+                raise ConfigError(msg)
+            interval = plugin.interval
+            warmup = sc.warmup or plugin.warmup
+            context = tuple(plugin.context_symbols)
+            base = plugin.exit
+        specs.append(
+            StrategySpec(
+                config=sc,
+                interval=interval,
+                warmup=warmup,
+                symbols=tuple(sc.resolve_symbols(data_root, interval)),
+                context_symbols=context,
+                exit=sc.exit_plan(base),
+                plugin=plugin,
+                sizing=sc.sizing.to_sizing(),
+                checks=tuple(sc.risk.checks()),
+            )
+        )
+    return specs
+
+
+def feed_subscriptions(specs: Sequence[StrategySpec]) -> dict[Interval, list[str]]:
+    """The symbols the feed must follow per interval: traded and context symbols."""
+    out: dict[Interval, dict[str, None]] = defaultdict(dict)
+    for spec in specs:
+        for symbol in (*spec.symbols, *spec.context_symbols):
+            out[spec.interval][symbol] = None
+    return {interval: list(symbols) for interval, symbols in out.items()}
+
+
+def feed_warmups(specs: Sequence[StrategySpec]) -> dict[Interval, int]:
+    """The window length the feed must hold per interval (the largest warm-up)."""
+    out: dict[Interval, int] = {}
+    for spec in specs:
+        out[spec.interval] = max(out.get(spec.interval, 1), spec.warmup)
+    return out
+
+
+# -- results and status -----------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class BatchOutcome:
+    """What `submit_batch` did with a batch.
+
+    `status`: `on_time` and `late` (accepted and recorded), `duplicate` (a batch for that
+    strategy and candle exists) or `refused` (`reason` says why).
+    """
+
+    status: str
+    reason: str | None = None
+    batch_id: int | None = None
+    lateness: timedelta | None = None
+
+    @property
+    def accepted(self) -> bool:
+        return self.status in ("on_time", "late")
+
+
+@dataclass(frozen=True)
+class BookStatus:
+    strategy: str
+    capital: float
+    cash: float
+    equity: float
+    open_cost: float
+    open_positions: int
+    day_pnl: float
+    day_entries: int
+
+
+@dataclass(frozen=True)
+class EngineStatus:
+    """A snapshot for the API: mode, controls, books, positions, open orders, stale symbols
+    per interval, the last processed candle per interval, providers and health."""
+
+    mode: str
+    running: bool
+    controls: Controls
+    books: dict[str, BookStatus]
+    positions: list[PositionRecord]
+    open_orders: list[OrderRecord]
+    stale_symbols: dict[str, list[str]]
+    last_ticks: dict[str, datetime]
+    providers: list[ProviderRecord]
+    health: dict[str, Any]
+
+    def to_json(self) -> dict[str, Any]:
+        """The snapshot as JSON-ready values (ISO times, plain numbers and strings)."""
+        value = to_json(self)
+        assert isinstance(value, dict)
+        return value
+
+
+def to_json(value: object) -> object:
+    """JSON-ready form of engine records: dataclasses become dicts, datetimes ISO strings,
+    durations seconds, enums their values."""
+    if is_dataclass(value) and not isinstance(value, type):
+        return {f.name: to_json(getattr(value, f.name)) for f in fields(value)}
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, timedelta):
+        return value.total_seconds()
+    if isinstance(value, Mapping):
+        return {str(to_json(k)): to_json(v) for k, v in value.items()}
+    if isinstance(value, list | tuple | set | frozenset):
+        return [to_json(v) for v in value]
+    if isinstance(value, Path):
+        return str(value)
+    return value
+
+
+def _snake(name: str) -> str:
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+
+
+_EMPTY_WINDOW = pl.DataFrame(schema=KLINE_SCHEMA)
+
+
+def _signal_row(signal: SignalIn) -> SignalRow:
+    override = None if signal.exit is None else signal.exit.model_dump(exclude_none=True)
+    return SignalRow(
+        symbol=signal.symbol,
+        action=signal.action,
+        priority=signal.priority,
+        weight=signal.weight,
+        exit_override=override or None,
+        info=dict(signal.info),
+    )
+
+
+def _effective(plan: ExitPlan | None) -> ExitPlan | None:
+    """`None` for a plan without any exit (no bracket is opened for it)."""
+    if plan is None or plan == ExitPlan(tp_fill=plan.tp_fill):
+        return None
+    return plan
+
+
+# -- the engine -------------------------------------------------------------------------------
+
+
+class Engine:
+    """The trading engine. Build with the run config, the strategies (`build_specs`) and an
+    open state store, then `await run(feed)`. See the module docstring for the rules.
+
+    Args:
+        clock: aware-UTC "now" (wall clock live; the replay feed's clock in replay).
+        replay: wait for every batch instead of the wall-clock deadline.
+        history: fetches candles a restarted broker needs that the feed's windows lack (a
+            REST client live, the Parquet store in replay).
+        step_hook: called at each `Step` boundary (tests inject crashes there).
+    """
+
+    def __init__(
+        self,
+        config: RunConfig,
+        specs: Sequence[StrategySpec],
+        store: StateStore,
+        *,
+        clock: Clock = _utc_now,
+        replay: bool = False,
+        history: KlineFetcher | None = None,
+        step_hook: StepHook | None = None,
+    ) -> None:
+        config.require_runnable()
+        names = [s.name for s in specs]
+        if sorted(names) != sorted(s.name for s in config.strategies):
+            msg = "the specs must be exactly the config's strategies"
+            raise ValueError(msg)
+        self.config = config
+        self.specs: dict[str, StrategySpec] = {s.name: s for s in specs}
+        self.store = store
+        self.clock = clock
+        self.replay = replay
+        self.history = history
+        self._hook = step_hook
+        self._costs = config.account.costs.to_costs()
+        self._by_interval: dict[Interval, list[StrategySpec]] = defaultdict(list)
+        for spec in sorted(specs, key=lambda s: s.name):
+            self._by_interval[spec.interval].append(spec)
+        self._listeners: list[TickListener] = []
+        self._feed: Feed | None = None
+        self._broker = PaperBroker(config.account.initial_cash, self._costs)
+        self._books: dict[str, Book] = {}
+        self._book_day: dict[str, int] = {}
+        self._dirty: set[str] = set()
+        self._last_ticks: dict[Interval, datetime] = {}
+        self._frontier: dict[Interval, datetime] = {}
+        self._collecting: dict[Interval, datetime] = {}
+        self._received: dict[tuple[Interval, datetime], set[str]] = {}
+        self._arrived = asyncio.Event()
+        self._busy: dict[str, asyncio.Task[None]] = {}
+        self._handed: dict[tuple[str, Interval], datetime] = {}
+        self._caught_up: set[Interval] = set()
+        self._started = False
+        self._running = False
+        self._stopping = False
+        self._last_tick_at: datetime | None = None
+        self._error: str | None = None
+
+    # -- public API ---------------------------------------------------------------------------
+
+    @property
+    def books(self) -> dict[str, Book]:
+        """Each strategy's book (always equal to `StateStore.derive_book` between steps)."""
+        return dict(self._books)
+
+    @property
+    def broker(self) -> PaperBroker:
+        return self._broker
+
+    def add_tick_listener(self, listener: TickListener) -> None:
+        """Called with every tick after the broker step, before the engine waits for batches
+        (M6 broadcasts it to external providers). May be async; errors become events."""
+        self._listeners.append(listener)
+
+    def start(self) -> None:
+        """Check the config against the state file, restore the broker and derive the books.
+        `run` calls it; idempotent. Raises `ConfigError` for a config the state contradicts."""
+        if self._started:
+            return
+        store = self.store
+        stored = {s.name: s for s in store.strategies()}
+        restart = bool(stored) or bool(store.last_ticks())
+        initial = self.config.account.initial_cash
+        known = store.meta("initial_cash")
+        if known is not None and float(known) != initial:
+            msg = (
+                f"account.initial_cash is {initial:g} but the state file {store.path} was "
+                f"started with {float(known):g}; use a new state file to change it"
+            )
+            raise ConfigError(msg)
+        for name, record in stored.items():
+            spec = self.specs.get(name)
+            if spec is None:
+                live = store.live_positions(name)
+                if live:
+                    msg = (
+                        f"strategy {name} has {len(live)} open or pending position(s) in "
+                        f"{store.path} but is not in the config; put it back (or flatten "
+                        "first) before removing it"
+                    )
+                    raise ConfigError(msg)
+            elif record.capital != spec.capital:
+                msg = (
+                    f"strategy {name}: capital changed from {record.capital:g} to "
+                    f"{spec.capital:g}; books are fixed allocations, so use a new state file "
+                    "(or a new strategy name) to change it"
+                )
+                raise ConfigError(msg)
+        with store.transaction():
+            store.set_meta("initial_cash", repr(initial))
+            for spec in self.specs.values():
+                store.upsert_strategy(spec.name, spec.config.model_dump(mode="json"), spec.capital)
+            if restart:
+                ticks = {i.value: t.isoformat() for i, t in store.last_ticks().items()}
+                self._event(
+                    EventLevel.INFO, "restart", "engine restarted from the state file", ticks
+                )
+        self._broker = PaperBroker.restore(store.broker_snapshot(initial), self._costs)
+        self._last_ticks = store.last_ticks()
+        self._derive(self.specs, self.clock())
+        self._started = True
+
+    async def run(self, feed: Feed) -> None:
+        """Process the feed's ticks until it ends or `stop` is called. An exception other
+        than a plugin's propagates (the daemon then restarts from the state file)."""
+        self._feed = feed
+        self.start()
+        self._running = True
+        try:
+            async for tick in feed.ticks():
+                await self._process(tick)
+                if self._stopping:
+                    break
+        except BaseException as exc:
+            self._error = f"{type(exc).__name__}: {exc}"
+            raise
+        finally:
+            self._running = False
+            for task in self._busy.values():
+                task.cancel()
+            await feed.aclose()
+
+    async def stop(self) -> None:
+        """Stop after the tick in progress."""
+        self._stopping = True
+        self._arrived.set()
+        if self._feed is not None:
+            await self._feed.aclose()
+
+    def pause(self) -> None:
+        """No new entries from the next decision on; exits keep working."""
+        self.store.set_control(Control.PAUSED, True)
+        self._event(EventLevel.INFO, "paused", "entries paused")
+
+    def resume(self) -> None:
+        self.store.set_control(Control.PAUSED, False)
+        self._event(EventLevel.INFO, "resumed", "entries resumed")
+
+    def flatten(self) -> None:
+        """At the next tick: sell every open position at market, cancel pending entries, and
+        pause."""
+        self.store.set_control(Control.FLATTEN_REQUESTED, True)
+        self._event(EventLevel.WARNING, "flatten_requested", "flatten requested")
+
+    def on_feed_event(self, event: FeedEvent) -> None:
+        """The feed's event sink: writes the event to the state file's event feed."""
+        warning = (FeedDisconnected, SeedFailed, BackfillFailed, SubscriptionFailed)
+        level = EventLevel.WARNING if isinstance(event, warning) else EventLevel.INFO
+        if isinstance(event, StaleSymbolsChanged) and event.symbols:
+            level = EventLevel.WARNING
+        data = to_json(event)
+        assert isinstance(data, dict)
+        message = ", ".join(f"{k}={v}" for k, v in data.items())
+        try:
+            self._event(level, _snake(type(event).__name__), message, data)
+        except Exception:
+            logger.exception("could not record a feed event")
+
+    def status(self) -> EngineStatus:
+        store = self.store
+        now = self.clock()
+        stale: dict[str, list[str]] = {}
+        health: dict[str, Any] = {
+            "running": self._running,
+            "error": self._error,
+            "last_tick_at": self._last_tick_at,
+            "feed": None,
+        }
+        if self._feed is not None:
+            for interval in self._by_interval:
+                found = self._feed.stale_symbols(interval, now, self.config.account.stale_after)
+                stale[interval.value] = sorted(found)
+            health["feed"] = to_json(self._feed.health())
+        books = {
+            name: BookStatus(
+                strategy=name,
+                capital=self.specs[name].capital,
+                cash=book.cash,
+                equity=book.equity,
+                open_cost=book.open_cost,
+                open_positions=book.open_positions,
+                day_pnl=book.day_pnl,
+                day_entries=book.day_entries,
+            )
+            for name, book in self._books.items()
+        }
+        return EngineStatus(
+            mode="replay" if self.replay else self.config.mode,
+            running=self._running,
+            controls=store.controls(),
+            books=books,
+            positions=store.live_positions(),
+            open_orders=store.pending_orders(),
+            stale_symbols=stale,
+            last_ticks={i.value: t for i, t in store.last_ticks().items()},
+            providers=store.providers(),
+            health=health,
+        )
+
+    async def submit_batch(
+        self, batch: SignalBatch, received_at: datetime | None = None
+    ) -> BatchOutcome:
+        """Accept an external provider's batch (the API calls this).
+
+        Refused: an unknown or in-process strategy, another interval, a candle that has not
+        closed by the clock, or the engine not started. A second batch for the same candle is
+        a `duplicate`. A batch for a candle already processed is `late` (entries expired,
+        exits sold at the next candle open); any other is `on_time` and joins its candle's
+        decisions (it may arrive before the engine has seen the tick).
+        """
+        received = self.clock() if received_at is None else as_utc(received_at)
+        if not self._started:
+            return BatchOutcome("refused", "the engine is not running")
+        spec = self.specs.get(batch.strategy)
+        if spec is None:
+            return BatchOutcome("refused", f"unknown strategy {batch.strategy!r}")
+        if not spec.external:
+            return BatchOutcome("refused", f"strategy {spec.name} runs in process")
+        if batch.interval is not spec.interval:
+            msg = f"strategy {spec.name} trades {spec.interval.value}, not {batch.interval.value}"
+            return BatchOutcome("refused", msg)
+        interval, time = spec.interval, batch.candle_time
+        if time + interval.length > received:
+            return BatchOutcome("refused", f"candle {time.isoformat()} has not closed yet")
+        existing = self.store.batch_for(spec.name, interval, time)
+        if existing is not None:
+            return BatchOutcome("duplicate", "a batch for this candle was already received")
+        if self._processed(interval, time):
+            record = self._record_late(spec, batch, received)
+            return BatchOutcome("late", None, record.id, record.lateness)
+        record = self._record_on_time(spec, batch, received, external=True)
+        return BatchOutcome("on_time", None, record.id, record.lateness)
+
+    # -- the tick -----------------------------------------------------------------------------
+
+    def _step(self, step: Step, tick: Tick | None) -> None:
+        if self._hook is not None:
+            self._hook(step.value, tick)
+
+    async def _process(self, tick: Tick) -> None:
+        interval, time = tick.interval, tick.open_time
+        last = self._last_ticks.get(interval)
+        if last is not None and time <= last:
+            return  # already processed (a resumed replay, or a repeated tick)
+        if interval not in self._caught_up:
+            await self._catch_up(tick)
+        self._broker_step(tick)
+        self._step(Step.AFTER_BROKER, tick)
+        specs = self._by_interval.get(interval, [])
+        await self._collect(tick, specs)
+        self._step(Step.AFTER_SIGNALS, tick)
+        self._decide(tick, specs)
+        self._last_tick_at = self.clock()
+        self._step(Step.TICK_DONE, tick)
+
+    async def _catch_up(self, tick: Tick) -> None:
+        """First tick of an interval: candles a restored broker needs, and missed ticks."""
+        interval, time = tick.interval, tick.open_time
+        self._caught_up.add(interval)
+        last = self._last_ticks.get(interval)
+        if last is not None and time > interval.next(last):
+            first = interval.next(last)
+            count = interval.count_open_times(first, time)
+            self._event(
+                EventLevel.WARNING,
+                "ticks_missed",
+                f"{count} {interval.value} tick(s) missed while down",
+                {"interval": interval.value, "from": first.isoformat(), "to": time.isoformat()},
+            )
+        needs: dict[str, datetime] = {}
+        for symbol, iv, start in self._broker.required_history():
+            if iv is interval:
+                needs[symbol] = min(needs.get(symbol, start), start)
+        for pending in self._broker.pending:
+            if pending.interval is interval and pending.order.time <= time:
+                start = pending.order.time
+                needs[pending.order.symbol] = min(needs.get(pending.order.symbol, start), start)
+        if not needs:
+            return
+        feed = self._feed
+        assert feed is not None
+        end = time + interval.length
+        for symbol, start in sorted(needs.items()):
+            count = interval.count_open_times(start, end) + 1
+            frame = feed.windows(interval, [symbol], time, count).get(symbol)
+            if frame is None or frame.height == 0 or frame["open_time"][0] > start:
+                if self.history is not None:
+                    fetched = await self.history.fetch_klines(symbol, interval, start, end)
+                    frame = fetched if frame is None else pl.concat([fetched, frame])
+                else:
+                    self._event(
+                        EventLevel.WARNING,
+                        "history_short",
+                        f"{symbol}: the feed has no candles back to {start.isoformat()}",
+                    )
+            if frame is None:
+                continue
+            frame = (
+                frame.filter((pl.col("open_time") >= start) & (pl.col("open_time") <= time))
+                .unique("open_time", keep="first", maintain_order=True)
+                .sort("open_time")
+            )
+            if frame.height:
+                self._broker.add_candles(symbol, Candles.from_frame(frame, interval, ended=False))
+                self._handed[symbol, interval] = frame["open_time"][-1]
+
+    def _hand_over(self, tick: Tick, symbol: str, start: datetime) -> None:
+        interval, time = tick.interval, tick.open_time
+        key = (symbol, interval)
+        if start > time:
+            return  # an order for a later candle: nothing of it can have closed
+        candle = tick.candles.get(symbol)
+        previous = self._handed.get(key)
+        if (
+            candle is not None
+            and previous is not None
+            and previous == time - interval.length
+            and start <= previous
+        ):
+            self._broker.add_candles(symbol, Candles.from_bars([candle], interval, ended=False))
+            self._handed[key] = time
+            return
+        feed = self._feed
+        assert feed is not None
+        count = min(interval.count_open_times(start, time + interval.length), HISTORY_SLACK)
+        frame = feed.windows(interval, [symbol], time, count).get(symbol)
+        if frame is None:
+            return
+        frame = frame.filter(pl.col("open_time") >= start)
+        if frame.height:
+            self._broker.add_candles(symbol, Candles.from_frame(frame, interval, ended=False))
+            self._handed[key] = frame["open_time"][-1]
+
+    def _broker_step(self, tick: Tick) -> None:
+        interval, time = tick.interval, tick.open_time
+        needed: dict[str, datetime] = {}
+        for position in self._broker.positions.values():
+            if position.interval is interval:
+                start = position.entry_time
+                needed[position.symbol] = min(needed.get(position.symbol, start), start)
+        for pending in self._broker.pending:
+            if pending.interval is interval:
+                start = pending.order.time
+                needed[pending.order.symbol] = min(needed.get(pending.order.symbol, start), start)
+        for symbol, start in needed.items():
+            self._hand_over(tick, symbol, start)
+        for key in [k for k in self._handed if k[1] is interval and k[0] not in needed]:
+            del self._handed[key]
+        with self.store.transaction():
+            for event in self._broker.advance(time + interval.length, interval=interval):
+                self._record(event)
+            self._cancel_overdue(interval)
+        if self._dirty:
+            self._derive(sorted(self._dirty), self.clock())
+
+    def _record(self, event: BrokerEvent) -> None:
+        """Write one broker event to the state file (inside the broker step's transaction)."""
+        store = self.store
+        if isinstance(event, EntryFilled):
+            position = store.position_for_order(event.fill.order_id)
+            assert position is not None
+            store.mark_order_filled(event.fill.order_id)
+            store.record_fill(event.fill)
+            paper = event.position
+            bracket = paper.bracket()
+            if bracket is not None:
+                store.insert_order(
+                    OrderRecord.from_order(bracket, position.strategy, paper.interval)
+                )
+            store.open_position(
+                position.id,
+                entry_time=paper.entry_time,
+                entry_ref=paper.entry_ref,
+                entry_price=paper.entry_price,
+                quantity=paper.quantity,
+                cost=paper.cost,
+                bracket_id=paper.bracket_id,
+            )
+        elif isinstance(event, ExitFilled):
+            if not event.closed:  # pragma: no cover - the engine only sells whole positions
+                msg = f"unexpected partial sell of {event.fill.symbol}"
+                raise AssertionError(msg)
+            position = store.live_position(event.fill.symbol)
+            assert position is not None
+            assert position.status is PositionStatus.OPEN
+            order = store.order(event.fill.order_id)
+            assert order is not None
+            store.mark_order_filled(order.id)
+            store.record_fill(event.fill)
+            bracket_id = event.position.bracket_id
+            if bracket_id is not None and bracket_id != order.id:
+                store.mark_order_cancelled(bracket_id, "position_sold")
+            if event.fill.reason is not None:
+                reason = event.fill.reason.value
+            else:
+                reason = "signal" if order.signal_id is not None else "flatten"
+            store.close_position(
+                position.id,
+                exit_time=event.fill.time,
+                exit_price=event.fill.price,
+                exit_reason=reason,
+                proceeds=event.proceeds,
+            )
+            self._dirty.add(position.strategy)
+        else:
+            store.mark_order_cancelled(event.order.id, event.reason.value)
+            if event.order.side is Side.BUY:
+                position = store.position_for_order(event.order.id)
+                assert position is not None
+                store.cancel_position(position.id, event.time, event.reason.value)
+                self._dirty.add(position.strategy)
+
+    def _cancel_overdue(self, interval: Interval) -> None:
+        """Cancel pending buys whose entry candle is overdue by more than `entry_grace`."""
+        now = self.clock()
+        grace = self.config.engine.entry_grace
+        cancelled: list[str] = []
+        for pending in self._broker.pending:
+            order = pending.order
+            if pending.interval is not interval or order.side is not Side.BUY:
+                continue
+            if now < order.time + interval.length + grace:
+                continue
+            self._broker.cancel_order(order.id)
+            self.store.mark_order_cancelled(order.id, "no_candle")
+            position = self.store.position_for_order(order.id)
+            assert position is not None
+            self.store.cancel_position(position.id, now, "no_candle")
+            self._dirty.add(position.strategy)
+            cancelled.append(order.symbol)
+        if cancelled:
+            self._event(
+                EventLevel.WARNING,
+                "entries_cancelled",
+                f"{len(cancelled)} pending entr(ies) cancelled: no candle after the grace",
+                {"symbols": cancelled},
+            )
+
+    # -- signals ------------------------------------------------------------------------------
+
+    async def _notify(self, tick: Tick) -> None:
+        for listener in list(self._listeners):
+            try:
+                result = listener(tick)
+                if inspect.isawaitable(result):
+                    await result
+            except Exception as exc:
+                self._event(
+                    EventLevel.ERROR,
+                    "listener_error",
+                    f"a tick listener failed: {type(exc).__name__}: {exc}",
+                )
+
+    def _plugin_inputs(
+        self, spec: StrategySpec, time: datetime
+    ) -> tuple[dict[str, pl.DataFrame], dict[str, pl.DataFrame]]:
+        if not getattr(spec.plugin, "needs_windows", True):
+            return {}, {}
+        feed = self._feed
+        assert feed is not None
+        interval = spec.interval
+        limit = time - self.config.account.stale_after * interval.length
+        windows = {
+            symbol: window
+            for symbol, window in feed.windows(interval, spec.symbols, time, spec.warmup).items()
+            if window["open_time"][-1] >= limit
+        }
+        raw = feed.windows(interval, spec.context_symbols, time, spec.warmup)
+        context = {s: raw.get(s, _EMPTY_WINDOW) for s in spec.context_symbols}
+        return windows, context
+
+    async def _call_plugin(
+        self,
+        spec: StrategySpec,
+        time: datetime,
+        windows: dict[str, pl.DataFrame],
+        context: dict[str, pl.DataFrame],
+    ) -> None:
+        plugin = spec.plugin
+        assert plugin is not None
+        try:
+            frame = await asyncio.to_thread(plugin.on_candles, windows, time, context)
+            batch = frame_to_batch(
+                frame, strategy=spec.name, interval=spec.interval, candle_time=time
+            )
+        except Exception as exc:
+            self._event(
+                EventLevel.ERROR,
+                "plugin_error",
+                f"{spec.name}: on_candles for {time.isoformat()} failed: "
+                f"{type(exc).__name__}: {exc}",
+                {"strategy": spec.name, "candle_time": time.isoformat()},
+            )
+            return
+        if self._collecting.get(spec.interval) != time:
+            self._event(
+                EventLevel.WARNING,
+                "plugin_late",
+                f"{spec.name}: signals for {time.isoformat()} came after the deadline; dropped",
+                {"strategy": spec.name, "candle_time": time.isoformat()},
+            )
+            return
+        self._record_on_time(spec, batch, self.clock())
+
+    def _start_plugin(self, spec: StrategySpec, tick: Tick) -> None:
+        time = tick.open_time
+        busy = self._busy.get(spec.name)
+        if busy is not None and not busy.done():
+            self._event(
+                EventLevel.ERROR,
+                "plugin_busy",
+                f"{spec.name}: still computing an earlier candle; {time.isoformat()} missed",
+                {"strategy": spec.name, "candle_time": time.isoformat()},
+            )
+            return
+        if not any(symbol in tick.candles for symbol in spec.symbols):
+            empty = SignalBatch(
+                contract=1, strategy=spec.name, interval=spec.interval, candle_time=time
+            )
+            self._record_on_time(spec, empty, self.clock())
+            return
+        windows, context = self._plugin_inputs(spec, time)
+        task = asyncio.create_task(self._call_plugin(spec, time, windows, context))
+        self._busy[spec.name] = task
+
+        def done(finished: asyncio.Task[None], name: str = spec.name) -> None:
+            if self._busy.get(name) is finished:
+                del self._busy[name]
+
+        task.add_done_callback(done)
+
+    async def _collect(self, tick: Tick, specs: Sequence[StrategySpec]) -> None:
+        interval, time = tick.interval, tick.open_time
+        key = (interval, time)
+        self._frontier[interval] = time
+        self._collecting[interval] = time
+        have = self._received.setdefault(key, set())
+        have.update(b.strategy for b in self.store.batches_for(interval, time))
+        try:
+            await self._notify(tick)
+            for spec in specs:
+                if spec.plugin is not None and spec.name not in have:
+                    self._start_plugin(spec, tick)
+            expected = {s.name for s in specs}
+            loop = asyncio.get_running_loop()
+            if self.replay:
+                wait = self.config.engine.replay_timeout.total_seconds()
+            else:
+                deadline = time + interval.length + self.config.engine.signal_deadline
+                wait = (deadline - self.clock()).total_seconds()
+            until = loop.time() + max(0.0, wait)
+            while not expected <= have and not self._stopping:
+                remaining = until - loop.time()
+                if remaining <= 0:
+                    break
+                self._arrived.clear()
+                if expected <= have:
+                    break
+                with contextlib.suppress(TimeoutError):
+                    await asyncio.wait_for(self._arrived.wait(), remaining)
+        finally:
+            del self._collecting[interval]
+        for spec in specs:
+            task = self._busy.get(spec.name)
+            if spec.name not in have and task is not None and not task.done():
+                self._event(
+                    EventLevel.ERROR,
+                    "plugin_timeout",
+                    f"{spec.name}: no signals for {time.isoformat()} by the deadline",
+                    {"strategy": spec.name, "candle_time": time.isoformat()},
+                )
+
+    def _processed(self, interval: Interval, time: datetime) -> bool:
+        last = self._last_ticks.get(interval)
+        if last is not None and time <= last:
+            return True
+        frontier = self._frontier.get(interval)
+        if frontier is None:
+            return False
+        return time < frontier or (time == frontier and interval not in self._collecting)
+
+    def _record_on_time(
+        self, spec: StrategySpec, batch: SignalBatch, received: datetime, *, external: bool = False
+    ) -> BatchRecord:
+        interval, time = spec.interval, batch.candle_time
+        with self.store.transaction():
+            record = self.store.record_batch(
+                spec.name,
+                interval,
+                time,
+                BatchStatus.ON_TIME,
+                received_at=received,
+                lateness=received - (time + interval.length),
+                signals=[_signal_row(s) for s in batch.signals],
+            )
+            if external:
+                self.store.provider_seen(spec.name, received, time)
+        self._received.setdefault((interval, time), set()).add(spec.name)
+        self._arrived.set()
+        return record
+
+    def _record_late(
+        self, spec: StrategySpec, batch: SignalBatch, received: datetime
+    ) -> BatchRecord:
+        interval, time = spec.interval, batch.candle_time
+        when = interval.ceil(received)
+        with self.store.transaction():
+            record = self.store.record_batch(
+                spec.name,
+                interval,
+                time,
+                BatchStatus.LATE,
+                received_at=received,
+                lateness=received - (time + interval.length),
+                signals=[_signal_row(s) for s in batch.signals],
+            )
+            self.store.provider_seen(spec.name, received, time)
+            for signal in record.signals:
+                if signal.action == "enter":
+                    self.store.set_signal_outcome(signal.id, SignalOutcome.EXPIRED, "late")
+                else:
+                    outcome, reason = self._place_exit(spec, signal, time, when, None)
+                    self.store.set_signal_outcome(signal.id, outcome, reason)
+            self._event(
+                EventLevel.WARNING,
+                "batch_late",
+                f"{spec.name}: batch for {time.isoformat()} arrived late; entries expired",
+                {
+                    "strategy": spec.name,
+                    "candle_time": time.isoformat(),
+                    "lateness_s": (received - (time + interval.length)).total_seconds(),
+                },
+            )
+        return record
+
+    # -- decisions ----------------------------------------------------------------------------
+
+    def _decide(self, tick: Tick, specs: Sequence[StrategySpec]) -> None:
+        store = self.store
+        interval, time = tick.interval, tick.open_time
+        entry_time = time + interval.length
+        feed = self._feed
+        assert feed is not None
+        refused: Counter[str] = Counter()
+        with store.transaction():
+            batches = store.batches_for(interval, time)
+            have = {b.strategy for b in batches}
+            missing = [s.name for s in specs if s.name not in have]
+            for name in missing:
+                store.record_batch(name, interval, time, BatchStatus.MISSED)
+            if missing:
+                self._event(
+                    EventLevel.WARNING,
+                    "batches_missed",
+                    f"no batch for {time.isoformat()} from {', '.join(missing)}",
+                    {"strategies": missing, "candle_time": time.isoformat()},
+                )
+            controls = store.controls()
+            paused = controls.paused
+            if controls.flatten_requested:
+                self._flatten(tick, time, entry_time)
+                store.set_control(Control.PAUSED, True)
+                store.set_control(Control.FLATTEN_REQUESTED, False)
+                paused = True
+            self._derive_for(entry_time)
+            on_time = [b for b in batches if b.status is BatchStatus.ON_TIME]
+            for batch in on_time:
+                spec = self.specs[batch.strategy]
+                for signal in batch.signals:
+                    if signal.action == "exit" and signal.outcome is None:
+                        outcome, reason = self._place_exit(spec, signal, time, entry_time, tick)
+                        store.set_signal_outcome(signal.id, outcome, reason)
+            entries = sorted(
+                (
+                    (signal.priority, batch.strategy, signal.symbol, signal.id, signal)
+                    for batch in on_time
+                    for signal in batch.signals
+                    if signal.action == "enter" and signal.outcome is None
+                ),
+                key=lambda e: e[:4],
+            )
+            stale = feed.stale_symbols(interval, self.clock(), self.config.account.stale_after)
+            for _, name, _, _, signal in entries:
+                reason = self._enter(self.specs[name], signal, tick, paused, stale)
+                if reason is not None:
+                    refused[reason] += 1
+                    store.set_signal_outcome(signal.id, SignalOutcome.REJECTED, reason)
+            if refused:
+                self._event(
+                    EventLevel.INFO,
+                    "entries_refused",
+                    f"{sum(refused.values())} entr(ies) refused for {time.isoformat()}",
+                    {"candle_time": time.isoformat(), "reasons": dict(sorted(refused.items()))},
+                )
+            self._step(Step.BEFORE_TICK_MARKER, tick)
+            store.set_last_tick(interval, time)
+        self._last_ticks[interval] = time
+        self._received.pop((interval, time), None)
+        if self._dirty:
+            self._derive(sorted(self._dirty), entry_time)
+
+    def _place_exit(
+        self,
+        spec: StrategySpec,
+        signal: SignalRecord,
+        time: datetime,
+        when: datetime,
+        tick: Tick | None,
+    ) -> tuple[SignalOutcome, str | None]:
+        """A market sell of the strategy's position in the signal's symbol for `when`."""
+        store = self.store
+        position = store.live_position(signal.symbol)
+        if position is None or position.strategy != spec.name:
+            return SignalOutcome.IGNORED, "not_held"
+        if position.status is PositionStatus.PENDING:
+            return SignalOutcome.IGNORED, "entry_pending"
+        if self._sell_pending(signal.symbol):
+            return SignalOutcome.IGNORED, "sell_pending"
+        order = Order(
+            signal.symbol,
+            Side.SELL,
+            when,
+            id=client_order_id(spec.name, signal.symbol, time, Side.SELL),
+        )
+        if store.order(order.id) is not None:
+            return SignalOutcome.IGNORED, "duplicate"
+        store.insert_order(OrderRecord.from_order(order, spec.name, position.interval, signal.id))
+        self._step(Step.BEFORE_BROKER_CALL, tick)
+        try:
+            self._broker.place_order(order, interval=position.interval)
+        except OrderRejected as exc:
+            store.mark_order_rejected(order.id, exc.reason.value)
+            return SignalOutcome.REJECTED, f"broker_{exc.reason.value}"
+        return SignalOutcome.PLACED, None
+
+    def _sell_pending(self, symbol: str) -> bool:
+        return any(
+            p.order.symbol == symbol and p.order.side is Side.SELL for p in self._broker.pending
+        )
+
+    def _flatten(self, tick: Tick, time: datetime, entry_time: datetime) -> None:
+        store = self.store
+        sold: list[str] = []
+        cancelled: list[str] = []
+        for position in store.live_positions():
+            if position.status is PositionStatus.PENDING:
+                self._broker.cancel_order(position.entry_order_id)
+                store.mark_order_cancelled(position.entry_order_id, "flatten")
+                store.cancel_position(position.id, entry_time, "flatten")
+                self._dirty.add(position.strategy)
+                cancelled.append(position.symbol)
+                continue
+            if self._sell_pending(position.symbol):
+                continue
+            base = client_order_id(position.strategy, position.symbol, time, Side.SELL)
+            order = Order(
+                position.symbol, Side.SELL, entry_time, id=child_order_id(base, "flatten")
+            )
+            store.insert_order(OrderRecord.from_order(order, position.strategy, position.interval))
+            self._step(Step.BEFORE_BROKER_CALL, tick)
+            self._broker.place_order(order, interval=position.interval)
+            sold.append(position.symbol)
+        self._event(
+            EventLevel.WARNING,
+            "flatten",
+            f"flatten: {len(sold)} sell(s) for {entry_time.isoformat()}, "
+            f"{len(cancelled)} pending entr(ies) cancelled; entries paused",
+            {"sold": sold, "cancelled": cancelled},
+        )
+
+    def _entry_plan(self, spec: StrategySpec, signal: SignalRecord) -> ExitPlan | None:
+        if not signal.exit_override:
+            return spec.exit
+        return _effective(ExitPlanIn.model_validate(signal.exit_override).to_plan(spec.exit))
+
+    def _enter(
+        self,
+        spec: StrategySpec,
+        signal: SignalRecord,
+        tick: Tick,
+        paused: bool,
+        stale: set[str],
+    ) -> str | None:
+        """Place an entry, or return the first check that refuses it."""
+        store = self.store
+        symbol = signal.symbol
+        time = tick.open_time
+        entry_time = time + spec.interval.length
+        if paused:
+            return "paused"
+        if symbol not in spec.symbols:
+            return "unknown_symbol"
+        if store.live_position(symbol) is not None:
+            return "symbol_held"
+        if symbol in stale:
+            return "stale"
+        book = self._books[spec.name]
+        book.roll_day(entry_time)
+        if isinstance(spec.sizing, WeightedSizing):
+            weight = 1.0 if signal.weight is None else signal.weight
+            stake = spec.sizing.stake_weighted(book, weight)
+        else:
+            stake = spec.sizing.stake(book)
+        reason = first_rejection(spec.checks, book, symbol, stake)
+        if reason is not None:
+            return reason
+        if not 0 < stake <= book.cash * (1 + _TOLERANCE):
+            return "cash"
+        stake = min(stake, book.cash)
+        account = self.config.account
+        if account.max_order_usdt is not None and stake > account.max_order_usdt * (
+            1 + _EXPOSURE_TOLERANCE
+        ):
+            return "max_order_usdt"
+        if account.max_total_exposure is not None:
+            open_cost = sum(b.open_cost for b in self._books.values())
+            equity = sum(b.equity for b in self._books.values())
+            limit = account.max_total_exposure * equity * (1 + _EXPOSURE_TOLERANCE)
+            if equity <= 0 or open_cost + stake > limit:
+                return "max_total_exposure"
+        plan = self._entry_plan(spec, signal)
+        order = Order(
+            symbol,
+            Side.BUY,
+            entry_time,
+            quote_amount=stake,
+            exit_plan=plan,
+            id=client_order_id(spec.name, symbol, time, Side.BUY),
+        )
+        record = OrderRecord.from_order(order, spec.name, spec.interval, signal.id)
+        try:
+            with store.transaction():
+                store.insert_order(record)
+                store.insert_position(
+                    spec.name,
+                    symbol,
+                    spec.interval,
+                    entry_time,
+                    order.id,
+                    stake,
+                    exit_plan=plan,
+                    signal_info=signal.info or None,
+                )
+                store.set_signal_outcome(signal.id, SignalOutcome.PLACED)
+                self._step(Step.BEFORE_BROKER_CALL, tick)
+                self._broker.place_order(order, interval=spec.interval)
+        except OrderRejected as exc:
+            store.insert_order(record)
+            store.mark_order_rejected(order.id, exc.reason.value)
+            return f"broker_{exc.reason.value}"
+        book.open(symbol, stake, entry_time)
+        self._dirty.add(spec.name)
+        return None
+
+    # -- books and events ---------------------------------------------------------------------
+
+    def _derive(self, names: Sequence[str] | Mapping[str, object], now: datetime) -> None:
+        for name in names:
+            spec = self.specs[name]
+            self._books[name] = self.store.derive_book(name, spec.capital, now)
+            self._book_day[name] = utc_day(now)
+            self._dirty.discard(name)
+
+    def _derive_for(self, now: datetime) -> None:
+        """Before decisions at `now`: re-derive books that changed or are of another day."""
+        day = utc_day(now)
+        stale = [n for n in self.specs if n in self._dirty or self._book_day.get(n) != day]
+        if stale:
+            self._derive(stale, now)
+
+    def _event(
+        self,
+        level: EventLevel,
+        kind: str,
+        message: str,
+        data: dict[str, Any] | None = None,
+    ) -> None:
+        self.store.add_event(self.clock(), level, kind, message, data)
