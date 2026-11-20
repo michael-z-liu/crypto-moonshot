@@ -8,6 +8,7 @@ import logging
 from collections.abc import AsyncIterator, Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 import pytest
@@ -23,7 +24,7 @@ from crypto_moonshot.provider import Provider, ProviderError
 pytestmark = pytest.mark.anyio
 
 H1 = Interval.H1
-FAST = {"backoff_start": 0.01, "backoff_max": 0.05}
+FAST: dict[str, Any] = {"backoff_start": 0.01, "backoff_max": 0.05}
 
 
 class Recorder(Scheduled):
@@ -46,9 +47,9 @@ class Recorder(Scheduled):
 
 @contextlib.asynccontextmanager
 async def running(
-    rig: ApiRig, plugin: Scheduled, *, token: str = TOKEN, name: str = "ext", **kwargs: object
+    rig: ApiRig, plugin: Scheduled, *, token: str = TOKEN, name: str = "ext", **kwargs: Any
 ) -> AsyncIterator[Provider]:
-    provider = Provider(plugin, url=rig.url, token=token, name=name, **FAST, **kwargs)  # type: ignore[arg-type]
+    provider = Provider(plugin, url=rig.url, token=token, name=name, **FAST, **kwargs)
     task = asyncio.create_task(provider.run())
     try:
         yield provider
@@ -71,8 +72,8 @@ async def test_one_batch_per_tick_even_an_empty_one(tmp_path: Path) -> None:
             await rig.tick(2, [CONTEXT])  # no traded symbol closed: empty batch, no call
             assert provider.stats.ticks == 3
             assert provider.stats.posted == 3
-            assert [b.status for b in (rig.store.batch_for("ext", H1, at(k)) for k in range(3))
-                    ] == [BatchStatus.ON_TIME] * 3  # fmt: skip
+            records = [rig.store.batch_for("ext", H1, at(k)) for k in range(3)]
+            assert [r.status for r in records if r is not None] == [BatchStatus.ON_TIME] * 3
             assert [t for t, _, _ in plugin.seen] == [at(0), at(1)]
             batch = rig.store.batch_for("ext", H1, at(1))
             assert batch is not None
@@ -88,6 +89,9 @@ async def test_the_plugin_sees_exactly_what_an_in_process_plugin_would(tmp_path:
         assert spec.name == "ext"
         async with running(rig, plugin) as provider:
             await connected(rig)
+            await until(lambda: provider._info is not None)
+            info = provider._info
+            assert info is not None
             # BBBUSDT stops closing candles after tick 0; the context symbol misses tick 3
             for k in range(8):
                 closing = [s for s in (*SYMBOLS, CONTEXT) if not (s == "BBBUSDT" and k > 0)]
@@ -95,7 +99,7 @@ async def test_the_plugin_sees_exactly_what_an_in_process_plugin_would(tmp_path:
                     closing.remove(CONTEXT)
                 await rig.tick(k, closing)
                 expected_windows, expected_context = rig.engine._plugin_inputs(spec, at(k))
-                windows, context = provider._inputs(provider._info, at(k))  # type: ignore[arg-type]
+                windows, context = provider._inputs(info, at(k))
                 assert list(windows) == list(expected_windows)
                 assert list(context) == list(expected_context)
                 for symbol in windows:
@@ -216,7 +220,9 @@ async def test_keep_going_logs_the_failure_and_the_daemon_records_a_missed_batch
             await rig.tick(0)
             await rig.tick(1)  # no batch: missed at the deadline
             await rig.tick(2)
-            assert rig.store.batch_for("ext", H1, at(1)).status is BatchStatus.MISSED  # type: ignore[union-attr]
+            missed = rig.store.batch_for("ext", H1, at(1))
+            assert missed is not None
+            assert missed.status is BatchStatus.MISSED
             assert provider.stats.posted == 2
     assert "no batch sent for this candle" in caplog.text
 
