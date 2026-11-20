@@ -917,3 +917,21 @@ def test_batch_lookups_and_meta(store: StateStore) -> None:
     assert store.meta("initial_cash") == "200.0"
     with pytest.raises(StateError, match="migrations only"):
         store.set_meta("schema_version", "9")
+
+
+def test_a_missed_batch_can_turn_up_late_once(store: StateStore) -> None:
+    missed = store.record_batch("alpha", Interval.M5, T0, BatchStatus.MISSED)
+    late = store.fill_missed_batch(
+        missed.id,
+        received_at=T0 + 2 * M5,
+        lateness=M5,
+        signals=[SignalRow("ABCUSDT", outcome=SignalOutcome.EXPIRED, reason="late")],
+    )
+    assert (late.id, late.status, late.lateness) == (missed.id, BatchStatus.LATE, M5)
+    assert late.received_at == T0 + 2 * M5
+    assert [(s.symbol, s.outcome) for s in late.signals] == [("ABCUSDT", SignalOutcome.EXPIRED)]
+    with pytest.raises(StateError, match="is late, not missed"):
+        store.fill_missed_batch(missed.id, received_at=T0, lateness=M5)
+    with pytest.raises(KeyError):
+        store.fill_missed_batch(999, received_at=T0, lateness=M5)
+    assert store.signal_outcomes() == {"expired:late": 1}

@@ -605,10 +605,10 @@ class Engine:
         if time + interval.length > received:
             return BatchOutcome("refused", f"candle {time.isoformat()} has not closed yet")
         existing = self.store.batch_for(spec.name, interval, time)
-        if existing is not None:
+        if existing is not None and existing.status is not BatchStatus.MISSED:
             return BatchOutcome("duplicate", "a batch for this candle was already received")
-        if self._processed(interval, time):
-            record = self._record_late(spec, batch, received)
+        if existing is not None or self._processed(interval, time):
+            record = self._record_late(spec, batch, received, existing)
             return BatchOutcome("late", None, record.id, record.lateness)
         record = self._record_on_time(spec, batch, received, external=True)
         return BatchOutcome("on_time", None, record.id, record.lateness)
@@ -982,20 +982,33 @@ class Engine:
         return record
 
     def _record_late(
-        self, spec: StrategySpec, batch: SignalBatch, received: datetime
+        self,
+        spec: StrategySpec,
+        batch: SignalBatch,
+        received: datetime,
+        missed: BatchRecord | None,
     ) -> BatchRecord:
+        """Record a late batch (filling in its `missed` record if there is one): entries
+        expire, exits become market sells for the next candle open."""
         interval, time = spec.interval, batch.candle_time
         when = interval.ceil(received)
+        lateness = received - (time + interval.length)
+        rows = [_signal_row(s) for s in batch.signals]
         with self.store.transaction():
-            record = self.store.record_batch(
-                spec.name,
-                interval,
-                time,
-                BatchStatus.LATE,
-                received_at=received,
-                lateness=received - (time + interval.length),
-                signals=[_signal_row(s) for s in batch.signals],
-            )
+            if missed is not None:
+                record = self.store.fill_missed_batch(
+                    missed.id, received_at=received, lateness=lateness, signals=rows
+                )
+            else:
+                record = self.store.record_batch(
+                    spec.name,
+                    interval,
+                    time,
+                    BatchStatus.LATE,
+                    received_at=received,
+                    lateness=lateness,
+                    signals=rows,
+                )
             self.store.provider_seen(spec.name, received, time)
             for signal in record.signals:
                 if signal.action == "enter":

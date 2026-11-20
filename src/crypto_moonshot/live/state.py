@@ -811,22 +811,51 @@ class StateStore:
             )
             batch_id = cursor.lastrowid
             assert batch_id is not None
-            for signal in signals:
-                self._exec(
-                    "INSERT INTO signals (batch_id, symbol, action, priority, weight,"
-                    " exit_override, info, outcome, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        batch_id,
-                        signal.symbol,
-                        signal.action,
-                        signal.priority,
-                        signal.weight,
-                        _json(signal.exit_override),
-                        _json(signal.info),
-                        None if signal.outcome is None else signal.outcome.value,
-                        signal.reason,
-                    ),
-                )
+            self._insert_signals(batch_id, signals)
+        batch = self.batch(batch_id)
+        assert batch is not None
+        return batch
+
+    def _insert_signals(self, batch_id: int, signals: Sequence[SignalRow]) -> None:
+        for signal in signals:
+            self._exec(
+                "INSERT INTO signals (batch_id, symbol, action, priority, weight,"
+                " exit_override, info, outcome, reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    batch_id,
+                    signal.symbol,
+                    signal.action,
+                    signal.priority,
+                    signal.weight,
+                    _json(signal.exit_override),
+                    _json(signal.info),
+                    None if signal.outcome is None else signal.outcome.value,
+                    signal.reason,
+                ),
+            )
+
+    def fill_missed_batch(
+        self,
+        batch_id: int,
+        *,
+        received_at: datetime,
+        lateness: timedelta,
+        signals: Sequence[SignalRow] = (),
+    ) -> BatchRecord:
+        """A batch recorded as missed arrived after all: missed -> late, with its signals."""
+        with self._atomic():
+            cursor = self._exec(
+                "UPDATE batches SET status = 'late', received_at = ?, lateness_us = ?"
+                " WHERE id = ? AND status = 'missed'",
+                (time_text(received_at), lateness // _US, batch_id),
+            )
+            if cursor.rowcount != 1:
+                current = self.batch(batch_id)
+                if current is None:
+                    raise KeyError(batch_id)
+                msg = f"batch {batch_id} is {current.status}, not missed"
+                raise StateError(msg)
+            self._insert_signals(batch_id, signals)
         batch = self.batch(batch_id)
         assert batch is not None
         return batch
