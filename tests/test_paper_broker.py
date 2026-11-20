@@ -512,3 +512,22 @@ def test_client_order_ids_are_deterministic_short_and_distinct() -> None:
     assert all(CLIENT_ORDER_ID.fullmatch(i) for i in others)
     with pytest.raises(ValueError, match="timezone-aware"):
         client_order_id("s", "BTCUSDT", t.replace(tzinfo=None), Side.BUY)
+
+
+def test_advance_can_be_limited_to_one_interval() -> None:
+    broker = PaperBroker(cash=1_000.0, costs=Costs(fee=0.0, slippage=0.0))
+    h1 = Interval.H1
+    broker.place_order(
+        Order("AAAUSDT", Side.BUY, T0, quote_amount=100.0, id="a"), interval=Interval.M5
+    )
+    broker.place_order(Order("BBBUSDT", Side.BUY, T0, quote_amount=100.0, id="b"), interval=h1)
+    broker.add_candles("AAAUSDT", candles(flat(1)))
+    broker.add_candles("BBBUSDT", candles(flat(1), interval=h1))
+    assert [
+        e.order.symbol if isinstance(e, OrderCancelled) else e.fill.symbol
+        for e in broker.advance(T0 + h1.length, interval=Interval.M5)
+    ] == ["AAAUSDT"]
+    assert [
+        e.order.symbol if isinstance(e, OrderCancelled) else e.fill.symbol
+        for e in broker.advance(T0 + h1.length, interval=h1)
+    ] == ["BBBUSDT"]

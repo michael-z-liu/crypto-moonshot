@@ -896,3 +896,24 @@ def test_the_broker_snapshot_from_the_store_resumes_the_broker(tmp_path: Path) -
         "no_entry_candle",
     )
     assert store.pending_orders() == []
+
+
+def test_batch_lookups_and_meta(store: StateStore) -> None:
+    store.record_batch("beta", Interval.M5, T0, BatchStatus.MISSED)
+    alpha = store.record_batch(
+        "alpha", Interval.M5, T0, BatchStatus.ON_TIME, signals=[SignalRow("ABCUSDT")]
+    )
+    store.record_batch("alpha", Interval.M5, T0 + M5, BatchStatus.ON_TIME)
+    assert [b.strategy for b in store.batches_for(Interval.M5, T0)] == ["alpha", "beta"]
+    assert store.batches_for(Interval.H1, T0) == []
+    assert store.batch_for("alpha", Interval.M5, T0) == alpha
+    assert store.batch_for("alpha", Interval.M5, T0 + 2 * M5) is None
+    assert store.signal(alpha.signals[0].id) == alpha.signals[0]
+    assert store.signal(999) is None
+
+    assert store.meta("initial_cash") is None
+    store.set_meta("initial_cash", "100.0")
+    store.set_meta("initial_cash", "200.0")
+    assert store.meta("initial_cash") == "200.0"
+    with pytest.raises(StateError, match="migrations only"):
+        store.set_meta("schema_version", "9")

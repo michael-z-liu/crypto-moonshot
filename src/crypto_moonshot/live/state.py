@@ -686,6 +686,22 @@ class StateStore:
             else StrategyRecord(name, _unjson(row["config"]) or {}, row["capital"])
         )
 
+    def meta(self, key: str) -> str | None:
+        """A value from the `meta` table (the schema version lives there too)."""
+        row = self._exec("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
+        return None if row is None else str(row["value"])
+
+    def set_meta(self, key: str, value: str) -> None:
+        if key == "schema_version":
+            msg = "the schema version is set by migrations only"
+            raise StateError(msg)
+        with self._atomic():
+            self._exec(
+                "INSERT INTO meta (key, value) VALUES (?, ?)"
+                " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+                (key, value),
+            )
+
     def set_last_tick(self, interval: Interval, candle_time: datetime) -> None:
         with self._atomic():
             self._exec(
@@ -814,6 +830,33 @@ class StateStore:
         batch = self.batch(batch_id)
         assert batch is not None
         return batch
+
+    def batch_for(
+        self, strategy: str, interval: Interval, candle_time: datetime
+    ) -> BatchRecord | None:
+        """`strategy`'s batch for the candle, if one was recorded."""
+        row = self._exec(
+            "SELECT id FROM batches WHERE strategy = ? AND interval = ? AND candle_time = ?",
+            (strategy, interval.value, time_text(candle_time)),
+        ).fetchone()
+        return None if row is None else self.batch(row["id"])
+
+    def batches_for(self, interval: Interval, candle_time: datetime) -> list[BatchRecord]:
+        """Every strategy's batch recorded for the candle, by strategy name."""
+        rows = self._exec(
+            "SELECT id FROM batches WHERE interval = ? AND candle_time = ? ORDER BY strategy",
+            (interval.value, time_text(candle_time)),
+        ).fetchall()
+        out = []
+        for row in rows:
+            batch = self.batch(row["id"])
+            assert batch is not None
+            out.append(batch)
+        return out
+
+    def signal(self, signal_id: int) -> SignalRecord | None:
+        row = self._exec("SELECT * FROM signals WHERE id = ?", (signal_id,)).fetchone()
+        return None if row is None else _signal(row)
 
     def set_signal_outcome(
         self, signal_id: int, outcome: SignalOutcome, reason: str | None = None

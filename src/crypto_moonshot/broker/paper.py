@@ -405,13 +405,24 @@ class PaperBroker:
         series = self._series.setdefault((symbol, interval), _Series(interval))
         series.add(candles)
 
-    def advance(self, until: datetime) -> list[BrokerEvent]:
+    def advance(self, until: datetime, *, interval: Interval | None = None) -> list[BrokerEvent]:
         """Apply everything the closed candles decide up to `until`; returns the events in time
-        order (cash credited in that order). Candles closing after `until` are not used."""
+        order (cash credited in that order). Candles closing after `until` are not used.
+
+        `interval`: only the symbols whose position or pending orders fill on that interval
+        (None: all). The engine advances each interval with its own ticks, so a series is never
+        decided before its interval's candles for that time have been handed over.
+        """
         until_us = to_us(until)
         events: list[BrokerEvent] = []
-        symbols = {p.symbol for p in self._positions.values()}
-        symbols.update(p.order.symbol for p in self._orders.values())
+        symbols = {
+            p.symbol for p in self._positions.values() if interval is None or p.interval is interval
+        }
+        symbols.update(
+            p.order.symbol
+            for p in self._orders.values()
+            if interval is None or p.interval is interval
+        )
         for symbol in sorted(symbols):
             events.extend(self._advance_symbol(symbol, until_us))
         events.sort(key=operator.attrgetter("time"))  # stable: per-symbol order is kept
