@@ -7,10 +7,14 @@ Commands:
   like `moonshot backtest`; `--serve` keeps the API up so external providers can trade it.
 - `live status`, `live pause`, `live resume`, `live flatten`: talk to a running daemon through
   its API (`status --config` falls back to reading the state file when the daemon is down).
+- `live backup --config FILE [--out DIR]`: an online backup of the state file (daemon running or
+  not); `live restore BACKUP --config FILE`: replace the state file with a backup (daemon stopped).
 - `provider run SOURCE --name NAME --url URL`: run a strategy plugin as an external provider.
 
-Exit codes: 0 ok, 1 runtime failure, 2 usage or configuration error (no token, bad config, a
-plugin that does not load), 130 interrupted. Errors go to stderr; results to stdout.
+Exit codes: 0 ok, 1 runtime failure (including a state file in use by another process), 2 usage
+or configuration error (no token, bad config, a plugin that does not load), 3 the daemon's
+watchdog stopped it (a stalled engine or a blocked event loop; a restart policy starts it
+again), 130 interrupted. Errors go to stderr; results to stdout.
 """
 
 from __future__ import annotations
@@ -18,7 +22,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import sys
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -39,6 +42,7 @@ from crypto_moonshot.cli_output import (
 from crypto_moonshot.config import Settings
 from crypto_moonshot.data.store import KlineStore
 from crypto_moonshot.data_cli import parse_when, resolve_settings
+from crypto_moonshot.live.backup import BackupError, make_backup, restore_backup
 from crypto_moonshot.live.config import ConfigError, RunConfig, load_config
 from crypto_moonshot.live.daemon import (
     DEFAULT_HOST,
@@ -54,6 +58,7 @@ from crypto_moonshot.live.engine import BookStatus, to_json
 from crypto_moonshot.live.plugin import PluginError, load_strategy
 from crypto_moonshot.live.replay import ReplayResult, prepare_replay
 from crypto_moonshot.live.state import StateError, StateStore
+from crypto_moonshot.logs import LogFormat, LogLevel, configure_logging
 from crypto_moonshot.provider import ProviderError, run_provider
 
 live_app = typer.Typer(
@@ -87,6 +92,13 @@ DataDirOpt = Annotated[
 ]
 HostOpt = Annotated[str, typer.Option(help="Address the API listens on.")]
 PortOpt = Annotated[int, typer.Option(min=0, max=65535, help="Port the API listens on.")]
+LogFormatOpt = Annotated[
+    LogFormat,
+    typer.Option(
+        help="text: lines on stderr; json: one JSON object per line on stdout (for Docker)."
+    ),
+]
+LogLevelOpt = Annotated[LogLevel | None, typer.Option(help="Log level (default: info for run).")]
 
 
 class SignalsMode(StrEnum):
@@ -100,10 +112,12 @@ def _fail(text: str, code: int = EXIT_FAILURE) -> typer.Exit:
 
 
 def _log_to_stderr(level: int = logging.INFO) -> None:
-    logging.basicConfig(
-        level=level, stream=sys.stderr, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-    )
-    logging.getLogger("httpx").setLevel(logging.WARNING)  # its INFO lines repeat every request
+    configure_logging(LogFormat.TEXT, level)
+
+
+def _logging(fmt: LogFormat, level: LogLevel | None, default: LogLevel, secrets: str = "") -> None:
+    """Set up logging for a long-running command; `secrets` are masked in every line."""
+    configure_logging(fmt, level or default, secrets=[secrets])
 
 
 def _config(path: Path) -> RunConfig:
@@ -129,27 +143,30 @@ def run_command(
     host: HostOpt = DEFAULT_HOST,
     port: PortOpt = DEFAULT_PORT,
     data_dir: DataDirOpt = None,
+    log_format: LogFormatOpt = LogFormat.TEXT,
+    log_level: LogLevelOpt = None,
 ) -> None:
     """Run the paper trading daemon until SIGINT or SIGTERM.
 
     Follows live Binance candles (public market data, no keys), runs the config's strategies
     (in-process plugins, and external providers that connect to the API), keeps its state in the
-    config's `state` file and serves the API on HOST:PORT. Needs MOONSHOT_API_TOKEN.
+    config's `state` file and serves the API on HOST:PORT. Needs MOONSHOT_API_TOKEN. Only one
+    daemon (or replay) can use a state file at a time. Exits with 3 when its watchdog stops it.
     """
     run = _config(config)
     settings = resolve_settings(data_dir)
-    _token(settings)
+    token = _token(settings)
     try:
         run.require_runnable()
     except ConfigError as exc:
         raise _fail(str(exc), EXIT_USAGE) from None
-    _log_to_stderr()
+    _logging(log_format, log_level, LogLevel.INFO, token)
     try:
         asyncio.run(run_daemon(run, settings, host=host, port=port))
     except (ConfigError, PluginError) as exc:
         raise _fail(str(exc), EXIT_USAGE) from None
     except DaemonError as exc:
-        raise _fail(str(exc), EXIT_USAGE if exc.usage else EXIT_FAILURE) from None
+        raise _fail(str(exc), exc.code or (EXIT_USAGE if exc.usage else EXIT_FAILURE)) from None
     except StateError as exc:
         raise _fail(str(exc)) from None
     except KeyboardInterrupt:
@@ -205,6 +222,8 @@ def replay_command(
         float, typer.Option(min=0.0, help="With --serve: seconds to wait for the providers.")
     ] = 60.0,
     json_output: JsonOpt = False,
+    log_format: LogFormatOpt = LogFormat.TEXT,
+    log_level: LogLevelOpt = None,
 ) -> None:
     """Replay the engine over stored candles and print the metrics.
 
@@ -222,11 +241,10 @@ def replay_command(
     root = settings.data_dir
     if not KlineStore(root).list_series():
         raise _fail(f"no candles stored in {root}; download some with `moonshot data sync`")
-    if serve:
-        _token(settings)
+    token = _token(settings) if serve else ""
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     out_dir = out or Path("results") / f"replay-{stamp}"
-    _log_to_stderr(logging.WARNING)
+    _logging(log_format, log_level, LogLevel.WARNING, token)
     try:
         prepared = prepare_replay(
             run,
@@ -266,6 +284,72 @@ def replay_command(
         typer.echo(json.dumps(json_safe({**result.document, "out": str(out_dir)})))
     else:
         _print_replay(result, out_dir)
+
+
+# -- backups ------------------------------------------------------------------------------------
+
+
+@live_app.command("backup")
+def backup_command(
+    config: ConfigOpt,
+    out: Annotated[
+        Path | None,
+        typer.Option(help="Folder for the backup (default: backups/ next to the state file)."),
+    ] = None,
+    json_output: JsonOpt = False,
+) -> None:
+    """Back up the config's state file (safe while the daemon runs).
+
+    Uses SQLite's online backup, so the copy is one consistent snapshot, and checks it
+    (`PRAGMA integrity_check`) before it gets its name `<state>-<UTC timestamp>.sqlite`. The
+    daemon also backs up by itself at start and every `health.backup_every`, keeping the newest
+    `health.backup_keep`; this command never deletes anything.
+    """
+    run = _config(config)
+    try:
+        result = make_backup(run.state, out)
+    except StateError as exc:
+        raise _fail(str(exc)) from None
+    except OSError as exc:
+        raise _fail(f"cannot write the backup: {exc.strerror or exc}") from None
+    if json_output:
+        typer.echo(
+            json.dumps(
+                {
+                    "path": str(result.path),
+                    "size": result.size,
+                    "schema_version": result.schema_version,
+                    "created_at": result.created_at.isoformat(),
+                }
+            )
+        )
+    else:
+        typer.echo(f"backup written to {result.path} ({result.size:,} bytes, verified)")
+
+
+@live_app.command("restore")
+def restore_command(
+    backup: Annotated[
+        Path, typer.Argument(metavar="BACKUP", help="A backup made by `moonshot live backup`.")
+    ],
+    config: ConfigOpt,
+) -> None:
+    """Replace the config's state file with BACKUP (the daemon must be stopped).
+
+    Checks the backup first (integrity and schema version) and refuses while a daemon or replay
+    uses the state file. The state file it replaces is kept next to it as
+    `<state>.before-restore-<UTC timestamp>`.
+    """
+    run = _config(config)
+    try:
+        result = restore_backup(backup, run.state)
+    except (BackupError, StateError) as exc:
+        raise _fail(str(exc)) from None
+    except OSError as exc:
+        raise _fail(f"cannot restore: {exc.strerror or exc}") from None
+    typer.echo(f"restored {result.state} from {result.restored_from}")
+    if result.replaced is not None:
+        typer.echo(f"the previous state file is kept as {result.replaced}")
 
 
 # -- talking to a daemon -------------------------------------------------------------------------
