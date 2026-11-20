@@ -9,6 +9,7 @@ fires near the end and every position exits before it.
 
 from __future__ import annotations
 
+import textwrap
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -157,3 +158,28 @@ def trades_core(frame: pl.DataFrame) -> pl.DataFrame:
         "stake",
         "pnl",
     )
+
+
+RULE_PLUGIN_SOURCE = textwrap.dedent(
+    """
+    from datetime import timedelta
+
+    from crypto_moonshot.broker.base import ExitPlan
+    from crypto_moonshot.live.plugin import RuleStrategy
+    from crypto_moonshot.models import Interval
+    from crypto_moonshot.strategy.capitulation import CapitulationRule
+
+
+    def make() -> RuleStrategy:
+        rule = CapitulationRule(
+            "cap",
+            min_qv_base=1.0,
+            exit=ExitPlan(take_profit=0.03, stop=0.04, max_hold=timedelta(hours=12)),
+            max_ret_4h=-0.03,
+            min_btc_vol_mult=3.0,
+            spike_mult=4.0,
+            interval=Interval.H1,
+        )
+        return RuleStrategy(rule, workers=1)
+    """
+)

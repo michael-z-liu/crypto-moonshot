@@ -22,7 +22,7 @@ import logging
 import signal
 import socket
 from collections.abc import AsyncIterator, Callable, Iterator
-from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import uvicorn
 from pydantic import SecretStr
@@ -45,6 +45,11 @@ from crypto_moonshot.live.state import EventLevel, StateStore
 from crypto_moonshot.models import Interval
 
 logger = logging.getLogger(__name__)
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
@@ -128,18 +133,9 @@ async def serve_app(app: object, host: str, port: int) -> AsyncIterator[int]:
         sock.close()
 
 
-@dataclass(frozen=True)
-class _Signals:
-    stop: asyncio.Event
-    installed: list[signal.Signals]
-
-    def remove(self) -> None:
-        loop = asyncio.get_running_loop()
-        for sig in self.installed:
-            loop.remove_signal_handler(sig)
-
-
-def _install_signals(stop: asyncio.Event) -> _Signals:
+def install_stop_signals(stop: asyncio.Event) -> Callable[[], None]:
+    """Set `stop` on SIGINT and SIGTERM (graceful shutdown instead of the default kill).
+    Returns a function that removes the handlers again. Does nothing off the main thread."""
     loop = asyncio.get_running_loop()
     installed: list[signal.Signals] = []
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -148,7 +144,12 @@ def _install_signals(stop: asyncio.Event) -> _Signals:
         except (NotImplementedError, RuntimeError, ValueError):  # not the main thread
             continue
         installed.append(sig)
-    return _Signals(stop, installed)
+
+    def remove() -> None:
+        for sig in installed:
+            loop.remove_signal_handler(sig)
+
+    return remove
 
 
 async def run_daemon(
@@ -182,7 +183,7 @@ async def run_daemon(
         own_client = BinanceClient.from_settings(settings, max_rate_limit_hits=RATE_LIMIT_HITS)
         client = own_client
     store = StateStore.open(config.state)
-    handlers = _install_signals(stop) if install_signals else None
+    remove_signals = install_stop_signals(stop) if install_signals else None
     try:
         engine = (
             Engine(config, specs, store, history=client)
@@ -199,6 +200,7 @@ async def run_daemon(
             tick_timeout=config.engine.tick_timeout.total_seconds(),
             on_event=engine.on_feed_event,
             stale_after=config.account.stale_after,
+            clock=_utc_now if clock is None else clock,
         )
         app = create_app(engine, feed, token)
         async with serve_app(app, host, port) as bound:
@@ -215,8 +217,8 @@ async def run_daemon(
         if error is not None:
             raise error
     finally:
-        if handlers is not None:
-            handlers.remove()
+        if remove_signals is not None:
+            remove_signals()
         if own_client is not None:
             await own_client.aclose()
         store.close()
@@ -297,7 +299,7 @@ async def serve_replay(
     """
     token = require_token(settings)
     stop = stop if stop is not None else asyncio.Event()
-    handlers = _install_signals(stop) if install_signals else None
+    remove_signals = install_stop_signals(stop) if install_signals else None
     app = create_app(run.engine, run.feed, token)
     hub: TickHub = app.state.hub
     try:
@@ -330,5 +332,5 @@ async def serve_replay(
             raise DaemonInterrupted(msg)
         return result
     finally:
-        if handlers is not None:
-            handlers.remove()
+        if remove_signals is not None:
+            remove_signals()

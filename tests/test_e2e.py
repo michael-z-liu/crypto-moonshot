@@ -6,7 +6,6 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +13,17 @@ import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
 from pydantic import SecretStr
-from replay_fakes import COINS, END, H1, START, at, run_config, strategy_dict, trades_core
+from replay_fakes import (
+    COINS,
+    END,
+    H1,
+    RULE_PLUGIN_SOURCE,
+    START,
+    at,
+    run_config,
+    strategy_dict,
+    trades_core,
+)
 
 from crypto_moonshot.config import Settings
 from crypto_moonshot.live.config import load_config
@@ -28,29 +37,6 @@ TOKEN = "tkn-e2e-0b6fK2sWq9"
 ROOT = Path(__file__).resolve().parent.parent
 EXAMPLE = ROOT / "examples" / "strategies" / "ma_cross.py"
 
-PLUGIN = textwrap.dedent(
-    """
-    from datetime import timedelta
-
-    from crypto_moonshot.broker.base import ExitPlan
-    from crypto_moonshot.live.plugin import RuleStrategy
-    from crypto_moonshot.models import Interval
-    from crypto_moonshot.strategy.capitulation import CapitulationRule
-
-
-    def make() -> RuleStrategy:
-        rule = CapitulationRule(
-            "cap",
-            min_qv_base=1.0,
-            exit=ExitPlan(take_profit=0.03, stop=0.04, max_hold=timedelta(hours=12)),
-            max_ret_4h=-0.03,
-            min_btc_vol_mult=3.0,
-            spike_mult=4.0,
-            interval=Interval.H1,
-        )
-        return RuleStrategy(rule, workers=1)
-    """
-)
 EXTERNAL: dict[str, Any] = {
     "source": "external",
     "interval": "1h",
@@ -78,7 +64,7 @@ def test_a_plugin_in_another_process_trades_exactly_like_one_in_process(
     replay_root: Path, tmp_path: Path
 ) -> None:
     plugin = tmp_path / "plugin.py"
-    plugin.write_text(PLUGIN)
+    plugin.write_text(RULE_PLUGIN_SOURCE)
     source = f"{plugin}:make"
     inproc, external = configs(tmp_path, source)
     expected = run_replay(inproc, at(START), at(END), replay_root, tmp_path / "out-inproc")  # type: ignore[arg-type]

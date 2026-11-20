@@ -18,7 +18,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import signal
 import sys
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -46,6 +45,7 @@ from crypto_moonshot.live.daemon import (
     DEFAULT_PORT,
     DaemonError,
     DaemonInterrupted,
+    install_stop_signals,
     require_token,
     run_daemon,
     serve_replay,
@@ -560,20 +560,14 @@ def provider_run_command(
 
     async def main() -> bool:
         stop = asyncio.Event()
-        loop = asyncio.get_running_loop()
-        interrupted = False
-
-        def interrupt() -> None:
-            nonlocal interrupted
-            interrupted = True
-            stop.set()
-
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, interrupt)
-        await run_provider(
-            strategy, url=url, token=token, name=name, keep_going=keep_going, stop=stop
-        )
-        return interrupted
+        remove_signals = install_stop_signals(stop)
+        try:
+            await run_provider(
+                strategy, url=url, token=token, name=name, keep_going=keep_going, stop=stop
+            )
+        finally:
+            remove_signals()
+        return stop.is_set()
 
     try:
         interrupted = asyncio.run(main())
