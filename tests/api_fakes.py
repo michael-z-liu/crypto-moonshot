@@ -44,12 +44,14 @@ def batch(name: str, k: int, *signals: SignalIn, interval: Interval = H1) -> Sig
     )
 
 
-def run_config(path: Path, *, extra: Sequence[dict[str, Any]] = ()) -> RunConfig:
+def run_config(
+    path: Path, *, extra: Sequence[dict[str, Any]] = (), deadline: str = "1.05s"
+) -> RunConfig:
     return config_from_dict(
         {
             "state": str(path),
             "account": {"initial_cash": 10_000.0},
-            "engine": {"signal_deadline": "1.05s", "entry_grace": "30m"},
+            "engine": {"signal_deadline": deadline, "entry_grace": "30m"},
             "strategies": [
                 {
                     "name": "ext",
@@ -78,8 +80,10 @@ def run_config(path: Path, *, extra: Sequence[dict[str, Any]] = ()) -> RunConfig
 class ApiRig:
     """Engine + `FakeFeed` + API server + an authorised httpx client (`http`)."""
 
-    def __init__(self, tmp_path: Path, *, queue_size: int = 64, token: str = TOKEN) -> None:
-        self.config = run_config(tmp_path / "state.sqlite")
+    def __init__(
+        self, tmp_path: Path, *, queue_size: int = 64, token: str = TOKEN, deadline: str = "1.05s"
+    ) -> None:
+        self.config = run_config(tmp_path / "state.sqlite", deadline=deadline)
         self.clock = FakeClock(at(0))
         self.feed = FakeFeed(H1, T0, {s: flat_bars(40) for s in (*SYMBOLS, CONTEXT, "DDDUSDT")})
         self.store = StateStore.open(self.config.state)

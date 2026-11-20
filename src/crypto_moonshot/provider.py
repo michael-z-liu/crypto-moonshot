@@ -39,7 +39,7 @@ from typing import Any
 import httpx
 import polars as pl
 from pydantic import SecretStr
-from websockets.asyncio.client import connect
+from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed, InvalidStatus, WebSocketException
 
 from crypto_moonshot.live.api import API_PREFIX
@@ -193,27 +193,11 @@ class Provider:
             async with connect(
                 uri, additional_headers=self._headers, max_size=64 * 1024 * 1024
             ) as ws:
-                hello = json.loads(await ws.recv())
-                await self._load_windows(info)
-                collecting = hello.get("collecting")
-                if collecting is not None:
-                    await self._answer_collecting(info, _parse_time(collecting))
-                progressed = False
-                async for raw in ws:
-                    message = json.loads(raw)
-                    kind = message.get("type")
-                    if kind == "tick":
-                        progressed = True
-                        await self._on_tick(info, message)
-                    elif kind == "end":
-                        logger.info(
-                            "provider %s: the run is over (%s)", self.name, message["reason"]
-                        )
-                        self._finished = True
-                        return progressed
-                    if self.stop.is_set():
-                        return progressed
-                return progressed
+                closer = asyncio.create_task(self._close_on_stop(ws))
+                try:
+                    return await self._follow(ws, info)
+                finally:
+                    closer.cancel()
         except InvalidStatus as exc:
             code = exc.response.status_code
             if code == 401:
@@ -222,6 +206,31 @@ class Provider:
             raise
         except ConnectionClosed:
             return False
+
+    async def _close_on_stop(self, ws: ClientConnection) -> None:
+        await self.stop.wait()
+        await ws.close()
+
+    async def _follow(self, ws: ClientConnection, info: StrategyInfo) -> bool:
+        hello = json.loads(await ws.recv())
+        await self._load_windows(info)
+        collecting = hello.get("collecting")
+        if collecting is not None:
+            await self._answer_collecting(info, _parse_time(collecting))
+        progressed = False
+        async for raw in ws:
+            message = json.loads(raw)
+            kind = message.get("type")
+            if kind == "tick":
+                progressed = True
+                await self._on_tick(info, message)
+            elif kind == "end":
+                logger.info("provider %s: the run is over (%s)", self.name, message["reason"])
+                self._finished = True
+                return progressed
+            if self.stop.is_set():
+                break
+        return progressed
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         assert self._http is not None
@@ -369,7 +378,10 @@ class Provider:
             window = view(symbol)
             if window is not None and window["open_time"][-1] >= limit:
                 windows[symbol] = window
-        context = {s: view(s) or _EMPTY_WINDOW for s in self.strategy.context_symbols}
+        context: dict[str, pl.DataFrame] = {}
+        for symbol in self.strategy.context_symbols:
+            found = view(symbol)
+            context[symbol] = _EMPTY_WINDOW if found is None else found
         return windows, context
 
     async def _answer(self, info: StrategyInfo, time: datetime, any_traded: bool) -> None:
