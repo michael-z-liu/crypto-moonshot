@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `worktree-bridge-cse_015bssAUbtXue4wkarka78Pb`
 - **PR:**
-- **Updated:** 2026-11-20T14:45Z
+- **Updated:** 2026-11-20T15:05Z
 
 ## Goal
 
@@ -43,7 +43,7 @@ separate provider process, not in the trader.
 - **Worker:** sonnet
 - **Commits:** a2bbed8, fed9191, 54011ba, 99fde41, 8754178, ef9b290, 3bddad3, 35f2474
 
-### M3: Market data feed (in progress)
+### M3: Market data feed (done)
 
 - **Delivers:** combined Binance kline WebSocket (closed candles only), a tick assembled per
   candle time with a timeout, reconnect with backoff (incl. the 24-hour drop), REST backfill of
@@ -51,9 +51,9 @@ separate provider process, not in the trader.
 - **Done when:** tests against a local fake WebSocket server and fake REST cover disconnects,
   gaps, out-of-order and late symbols.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** 15644ec, b492336, a0d4652, bff02cc
 
-### M4: Paper broker and state store (todo)
+### M4: Paper broker and state store (in progress)
 
 - **Delivers:** an incremental paper broker that triggers brackets candle by candle with exactly
   the backtest's rules; a SQLite state file (signals, orders, fills, positions, events; schema
@@ -110,6 +110,12 @@ separate provider process, not in the trader.
 - 2026-11-20 (M2): `on_candles` frames have no `open_time`; exit-override columns are partial
   (null keeps the strategy's value); backtests of plugins keep only entries and apply the single
   config exit plan (per-signal overrides apply live only).
+- 2026-11-20 (M3): `Feed` protocol: `ticks()`, `windows()`, `last_candle()`, `stale_symbols()`,
+  `health()`, `aclose()`; `Tick.candles` are named tuples. Not every candle time gets a tick
+  (a fully-down interval or an empty backfill); windows hold `max(warmup) + 32` candles; a
+  failed backfill leaves a hole and is reported, not retried. `silence_timeout` off by default.
+- 2026-11-20 (M3, for M5): the REST client aborts for good after 3 rate-limit hits (a sync-run
+  rule); the daemon must configure or recreate it so backfill keeps working.
 
 ## Blocked on
 
