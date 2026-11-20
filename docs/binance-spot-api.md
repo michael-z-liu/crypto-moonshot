@@ -87,16 +87,25 @@ per symbol), `GET /api/v3/orderList`, `GET /api/v3/openOrderList`, `GET /api/v3/
   is per IP (6,000 per minute). HTTP 429 means back off for `Retry-After`; HTTP 418 means banned.
 - WebSocket API responses carry a `rateLimits` array with the same limits.
 
+- A client that logs requests must not print signed URLs: `httpx` logs the full URL (signature
+  included) at INFO, so `exchange/client.py` installs a log filter that drops those lines.
+- `exchangeInfo` filter values of `0` mean "no limit" (`stepSize` of `MARKET_LOT_SIZE` is
+  usually `0.00000000`: market orders then use `LOT_SIZE`'s step). Older symbols carry
+  `MIN_NOTIONAL` (`applyToMarket`) where newer ones carry `NOTIONAL` (`applyMinToMarket`).
+- Verified by test vector: the signature of the docs' example query (secret
+  `NhqPtm...Nj0j`) is `c8db5682...bd6b71`; see `tests/test_exchange_client.py`.
+
 ## Errors the broker handles
 
 | Code | Meaning | Broker action |
 | --- | --- | --- |
 | -1021 | timestamp outside recvWindow | resync server time, retry once |
-| -1022 / -2015 | bad signature / bad key, IP or permissions | fatal: stop placing orders, error alert |
+| -1022 / -2014 / -2015 | bad signature / key format invalid / bad key, IP or permissions | fatal: stop placing orders, error alert |
 | -1013 | rejected before the matching engine; filter failures ("Filter failure: LOT_SIZE", ...) | reject the order with the filter's name |
 | -2010 | new order rejected (insufficient balance, duplicate order, would match and take) | map by message: `insufficient_balance`, `duplicate` (query by client ID), `would_take` |
+| -2021 | stop order would trigger immediately (stop price already crossed) | place a market order instead (`WouldTrigger`) |
 | -2011 / -2013 | cancel rejected / no such order | query the order: it filled or was already cancelled |
-| -1007 | timeout, status unknown | query by client order ID before any retry |
+| -1007 / -1006 | timeout / unexpected response, status unknown (HTTP 503 / 409) | query by client order ID before any retry |
 | -1015 / -1003 | too many orders / requests | back off |
 
 ## User data stream (WebSocket API)

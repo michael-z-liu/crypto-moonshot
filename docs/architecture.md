@@ -1105,8 +1105,15 @@ against a fake exchange; mainnet stays refused until P4. The API facts it relies
   the strategies' capital (otherwise start-up refuses), books still come from the state file, and
   `initial_cash` is ignored. Symbols not trading on the exchange are dropped from strategies with
   a warning event; entries below a symbol's minimum notional are refused (`min_notional`).
-- **Rate limits.** The signed client paces requests by the weight and order-count headers,
-  backs off on 429 and stops placing orders on 418 (`exchange_banned` error alert).
+- **Rate limits.** The signed client (`exchange/client.py`) paces requests by the weight and
+  order-count headers (and by the orders it sent itself), backs off on 429 for `Retry-After` and
+  refuses everything after 418 (`Banned`; the broker raises an `exchange_banned` error alert).
+  It never retries an order-placing or cancelling request: a timeout or 5xx raises
+  `OrderStatusUnknown` and the broker queries by client order ID. Read-only requests retry on
+  5xx and network errors, and a `-1021` triggers one server-time resync and retry. Symbol
+  filters come from `ExchangeRules` (refreshed hourly or after a filter rejection), with all
+  prices and quantities as `Decimal` rounded to the tick and step. The fake testnet REST server
+  for tests is `tests/exchange_fakes.py`.
 - **Keys** (`MOONSHOT_BINANCE_TESTNET_API_KEY`, `MOONSHOT_BINANCE_TESTNET_API_SECRET`, from the
   environment or `.env`) are `SecretStr`s, required only in testnet mode, sent only in the
   `X-MBX-APIKEY` header and signatures, and never logged, echoed or stored. Mainnet keys will use
@@ -1141,6 +1148,7 @@ src/crypto_moonshot/
 ├── strategy/           # base.py, features.py, compute.py, capitulation.py, scores.py
 ├── portfolio.py        # the book and position sizing
 ├── risk.py
+├── exchange/           # client.py (SignedClient: signing, time offset, pacing), pacing.py, rules.py (exchangeInfo filters, Decimal rounding), errors.py (typed Binance errors), models.py (parsed responses) (P3)
 ├── broker/             # base.py (orders, ExitPlan, Costs), candles.py, simulated.py, paper.py; execution.py, binance.py (P3)
 ├── backtest/           # engine.py, metrics.py, results.py (result files), source.py (candle windows)
 ├── live/               # config.py (TOML run config), contract.py (signal batches), plugin.py (Strategy,
