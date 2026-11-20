@@ -810,6 +810,13 @@ class StateStore:
         ).fetchall()
         return [_event(r) for r in rows]
 
+    def recent_events(self, limit: int) -> list[EventRecord]:
+        """The latest `limit` events, oldest first."""
+        rows = self._exec(
+            "SELECT * FROM (SELECT * FROM events ORDER BY id DESC LIMIT ?) ORDER BY id", (limit,)
+        ).fetchall()
+        return [_event(r) for r in rows]
+
     # -- batches and signals --------------------------------------------------------------
 
     def record_batch(

@@ -57,7 +57,12 @@ TOKEN_HELP = (
 
 
 class DaemonError(Exception):
-    """The daemon cannot start or had to stop; the message says why (never a secret)."""
+    """The daemon cannot start or had to stop; the message says why (never a secret).
+    `usage` marks a configuration problem (the CLI exits with 2), not a runtime failure."""
+
+    def __init__(self, message: str, *, usage: bool = False) -> None:
+        super().__init__(message)
+        self.usage = usage
 
 
 class DaemonInterrupted(Exception):
@@ -68,7 +73,7 @@ def require_token(settings: Settings) -> SecretStr:
     """The API token from the settings, or a `DaemonError` that says how to set it."""
     token = settings.api_token
     if token is None or not token.get_secret_value().strip():
-        raise DaemonError(TOKEN_HELP)
+        raise DaemonError(TOKEN_HELP, usage=True)
     return token
 
 

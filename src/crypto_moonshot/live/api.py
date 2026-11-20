@@ -351,13 +351,15 @@ def create_app(
 
     @router.get("/events")
     async def events(
-        since: Annotated[int, Query(ge=0)] = 0,
+        since: Annotated[int | None, Query(ge=0)] = None,
         limit: Annotated[int, Query(ge=1, le=1000)] = 200,
     ) -> dict[str, Any]:
-        records = engine.store.events_since(since, limit)
+        """Events with an id above `since`, oldest first (without `since`: the latest ones)."""
+        store = engine.store
+        records = store.recent_events(limit) if since is None else store.events_since(since, limit)
         return {
             "events": [to_json(r) for r in records],
-            "last_id": records[-1].id if records else since,
+            "last_id": records[-1].id if records else (since or 0),
         }
 
     # -- the tick stream ----------------------------------------------------------------------
