@@ -2,8 +2,8 @@
 
 - **Status:** review
 - **Branch:** `worktree-bridge-cse_015bssAUbtXue4wkarka78Pb`
-- **PR:**
-- **Updated:** 2026-11-20T17:50Z
+- **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/18
+- **Updated:** 2026-11-20T18:10Z
 
 ## Goal
 
@@ -148,6 +148,8 @@ separate provider process, not in the trader.
   trades as `moonshot backtest f2` (prices identical, P&L within 5e-13; 26,208 candles in 40 s).
   A real `moonshot live run` on public Binance data (1m example plugin) seeded, connected,
   processed 5 consecutive on-time ticks and stopped gracefully on SIGTERM; token never logged.
+- 2026-11-20 (hand-off): CI exposed two test-only issues (a provider-counter race and CLI error
+  panels wrapping at 80 columns); fixed in tests, CI green.
 
 ## Blocked on
 
