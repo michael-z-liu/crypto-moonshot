@@ -1,9 +1,9 @@
 # Strategy-agnostic live engine in paper mode
 
-- **Status:** building
+- **Status:** review
 - **Branch:** `worktree-bridge-cse_015bssAUbtXue4wkarka78Pb`
 - **PR:**
-- **Updated:** 2026-11-20T16:55Z
+- **Updated:** 2026-11-20T17:50Z
 
 ## Goal
 
@@ -73,7 +73,7 @@ separate provider process, not in the trader.
 - **Worker:** opus
 - **Commits:** f6b9c76, 2db1218, df56714, f179db3, fdc2523, 0e1922b, f8fa7b7, 0688c1c, 80b5002, 8c15316, 2b52010
 
-### M6: Daemon API, provider SDK and CLI (in progress)
+### M6: Daemon API, provider SDK and CLI (done)
 
 - **Delivers:** HTTP + WebSocket API (signals in; candles, ticks, status, health out) with token
   auth; a provider SDK running the same plugin class out of process; an example external
@@ -81,7 +81,7 @@ separate provider process, not in the trader.
 - **Done when:** end-to-end test: the daemon replays while an external provider in a separate
   process trades over HTTP, matching the in-process result; unauthenticated requests are refused.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** 5396f68, b8ca957, cf405e8, ab724a2, 0811257, a5900cd, cb5d51b, 6e284e4, 3f303fb, 0333f37, c0a6b6f, 1b0d705 (master)
 
 ## Decisions
 
@@ -137,10 +137,27 @@ separate provider process, not in the trader.
   (e.g. after a long backfill) is decided at once, so in-process plugins miss that candle.
 - 2026-11-20 (M5): the paper broker's `place_order` runs inside the decisions transaction (it is
   rebuilt from the state file); P3's exchange broker must commit the intent first.
+- 2026-11-20 (M6): the API token (`MOONSHOT_API_TOKEN`) is required to start the daemon and is
+  accepted in the `Authorization` header only (never a query string); uvicorn access logs off.
+  The WebSocket hello carries the candle being collected so a provider can join mid-tick; a
+  served replay sends `end`. A plugin exception stops a provider unless `--keep-going`.
+  Providers take `warmup`, `exit` and `stale_after` from the daemon's `/strategies/{name}`.
+- 2026-11-20 (M6, master): `API_PREFIX` moved to `live/contract.py` so providers don't need
+  fastapi/uvicorn; live state files gitignored.
+- 2026-11-20 (hand checks): F2 replay over Q1 2024 on the real data folder gives the same 26
+  trades as `moonshot backtest f2` (prices identical, P&L within 5e-13; 26,208 candles in 40 s).
+  A real `moonshot live run` on public Binance data (1m example plugin) seeded, connected,
+  processed 5 consecutive on-time ticks and stopped gracefully on SIGTERM; token never logged.
 
 ## Blocked on
 
 ## Follow-ups
+
+- From the build: an HTTP 418 (IP ban) still disables the daemon's REST client until restart;
+  providers miss late candles until they reconnect; no TLS on the API (LAN + token only); the
+  suite now takes ~50 s (the e2e test is 8 s); several intervals in one run and partial sells are
+  untested; a backtest-only optimism (exit gapped at the next entry's open) is documented, not
+  changed.
 
 - P2: web dashboard (positions, orders, P&L, signals, provider/stream health, alert feed),
   pause/resume/flatten controls, Docker image and compose for Proxmox, runbook.
