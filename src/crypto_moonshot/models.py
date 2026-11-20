@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -28,6 +29,47 @@ KLINE_SCHEMA: dict[str, pl.DataType] = {
     "taker_buy_quote_volume": pl.Float64(),
 }
 """Column names and dtypes of a kline frame, in order (schema v1)."""
+
+
+_DURATION_RE = re.compile(r"(\d+(?:\.\d+)?)\s*([smhdw])", re.IGNORECASE)
+_DURATION_UNITS = {
+    "s": timedelta(seconds=1),
+    "m": timedelta(minutes=1),
+    "h": timedelta(hours=1),
+    "d": timedelta(days=1),
+    "w": timedelta(weeks=1),
+}
+
+
+def parse_duration(text: str) -> timedelta | None:
+    """`1h`, `90m`, `3d`, `1.5h`, `2w` or `30s` (units s m h d w); `none` or `off` for None.
+
+    Raises `ValueError` for anything else and for a zero duration.
+    """
+    if text.strip().lower() in ("none", "off"):
+        return None
+    match = _DURATION_RE.fullmatch(text.strip())
+    if match is None:
+        msg = f"invalid duration {text!r}: use a number and a unit, for example 1h, 90m, 3d or 2w"
+        raise ValueError(msg)
+    value = float(match[1]) * _DURATION_UNITS[match[2].lower()]
+    if value <= timedelta(0):
+        msg = f"invalid duration {text!r}: must be positive (or 'none')"
+        raise ValueError(msg)
+    return value
+
+
+def format_duration(value: timedelta) -> str:
+    """The shortest exact form `parse_duration` reads back: `90m`, `2h`, `3d`, `1w`."""
+    seconds = value.total_seconds()
+    if seconds <= 0:
+        msg = f"duration must be positive, got {value}"
+        raise ValueError(msg)
+    for unit in ("w", "d", "h", "m", "s"):
+        size = _DURATION_UNITS[unit].total_seconds()
+        if seconds % size == 0:
+            return f"{int(seconds // size)}{unit}"
+    return f"{seconds}s"
 
 
 def as_utc(dt: datetime) -> datetime:

@@ -17,7 +17,6 @@ Exit codes: 0 ok, 1 the run could not start (no candles, no signals source), 2 u
 
 import json
 import math
-import re
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -35,6 +34,7 @@ from crypto_moonshot.cli_output import print_backtest_summary, stdout_is_tty
 from crypto_moonshot.data.store import KlineStore
 from crypto_moonshot.data.universe import Universe, universe_symbols
 from crypto_moonshot.data_cli import parse_when, resolve_settings
+from crypto_moonshot.models import parse_duration
 from crypto_moonshot.portfolio import EqualSlots, FixedStake, Sizing
 from crypto_moonshot.strategy.base import Signals
 from crypto_moonshot.strategy.capitulation import F2, R2, R2_LAST_ENTRY, CapitulationRule
@@ -47,14 +47,6 @@ backtest_app = typer.Typer(
 
 DEFAULT_CAPITAL = 10_000.0
 DEFAULT_CACHE_DIR = Path(".cache")
-_HOLD_RE = re.compile(r"(\d+(?:\.\d+)?)\s*([smhdw])", re.IGNORECASE)
-_HOLD_UNITS = {
-    "s": timedelta(seconds=1),
-    "m": timedelta(minutes=1),
-    "h": timedelta(hours=1),
-    "d": timedelta(days=1),
-    "w": timedelta(weeks=1),
-}
 
 
 class TpFill(StrEnum):
@@ -89,17 +81,10 @@ RULES: dict[str, CapitulationRule] = {"f2": F2, "capitulation": R2}
 
 def parse_hold(text: str) -> timedelta | None:
     """`1h`, `90m`, `3d`, `1.5h`, `2w` or `30s` (units s m h d w); `none` for no time exit."""
-    if text.strip().lower() in ("none", "off"):
-        return None
-    match = _HOLD_RE.fullmatch(text.strip())
-    if match is None:
-        msg = f"invalid duration {text!r}: use a number and a unit, for example 1h, 90m, 3d or 2w"
-        raise typer.BadParameter(msg, param_hint="--hold")
-    hold = float(match[1]) * _HOLD_UNITS[match[2].lower()]
-    if hold <= timedelta(0):
-        msg = f"invalid duration {text!r}: must be positive (or 'none')"
-        raise typer.BadParameter(msg, param_hint="--hold")
-    return hold
+    try:
+        return parse_duration(text)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="--hold") from None
 
 
 def build_exit(
