@@ -222,10 +222,9 @@ order size, maximum total exposure, no entries on a symbol whose latest candle i
   thousands of positions.
 - `PaperBroker` (`broker/paper.py`) fills orders against candles as they arrive, calling the
   same `resolve_exit` on the candles seen so far (see Trading platform, Paper broker).
-- `BinanceBroker` (P3) rounds price and quantity to each symbol's trading rules (tick size, step
-  size, minimum notional) from a cached `exchangeInfo`, and sets a deterministic client order ID
-  on every order so a retry can't place it twice. Brackets become OCO order lists (take-profit
-  limit plus stop-loss, trailing stops via `trailingDelta`); the engine places time exits.
+- `BinanceBroker` (`broker/binance.py`, P3) trades on the exchange: market entries, brackets as
+  OCO order lists, fills from the user data stream; the engine runs its time exits. See Trading
+  platform, Exchange broker.
 
 ### Backtest engine
 
@@ -1043,6 +1042,80 @@ channel). The runbook (`docs/runbook.md`) is the operator's guide; this section 
   the token, the dashboard, the non-root uid, and a graceful `docker stop` (exit 0). The
   operator's guide is `docs/runbook.md`.
 
+#### Exchange broker
+
+P3 (`docs/plans/testnet-broker.md`): trading on the Binance spot **testnet**, built and tested
+against a fake exchange; mainnet stays refused until P4. The API facts it relies on are in
+[binance-spot-api.md](binance-spot-api.md).
+
+- **One execution interface** (`broker/execution.py`). The engine talks to an async
+  `ExecutionBroker`: `submit(order)` returns accepted (with the exchange's ids and any immediate
+  fills), rejected (a reason) or unknown (a timeout: the outcome must be queried); `cancel(id)`;
+  `events(until)` returns the fills, cancellations and rejections that happened since the last
+  call; `reconcile()` compares the exchange with the state file at start-up and after every
+  reconnect. Two properties tell the engine what the broker needs: `needs_candles` (the paper
+  broker simulates fills from candles; the exchange does not) and `manages_time_exits` (the paper
+  broker's bracket includes the time exit; on Binance the engine runs it). `PaperBroker` sits
+  behind a thin adapter, so paper mode, replay and their parity tests do not change.
+- **Intent, then action, then outcome.** For an exchange broker the engine commits the order row
+  (`pending`, with its deterministic client order ID) before calling `submit`, and records the
+  outcome in a second transaction. A crash between the two leaves a `pending` row that the next
+  start resolves by querying the order by its client ID: filled, open, cancelled or never placed
+  (only then may it be placed again). Nothing is ever retried blind.
+- **Entries.** A market buy by `quoteOrderQty` (the stake in USDT, fee included, as in the book).
+  The fill's average price becomes the position's reference price: exit levels are relative to
+  where the testnet actually filled, because testnet prices drift from the mainnet candles that
+  drive the signals. The base quantity bought minus a commission charged in the base asset, rounded
+  down to the step size, is what the bracket sells; the rest is *dust*, recorded on the position
+  and never sold by the broker. Cost = USDT spent; proceeds = USDT received minus USDT
+  commission; a commission in another asset (BNB) is recorded, not converted.
+- **Brackets.** Take profit and stop become one OCO sell list: `LIMIT_MAKER` above at
+  `ref x (1 + take_profit)` and `STOP_LOSS` below at `ref x (1 - stop)` (a market order once
+  triggered), prices rounded to the tick size (take profit up, stop down, so neither is tighter
+  than planned). A trailing stop is the `STOP_LOSS` leg with `trailingDelta = trailing x 10,000`
+  (basis points) instead of a stop price. Only one of stop and trailing can be live on Binance: a
+  plan with both is accepted when `stop >= trailing` (the trailing level is never below the fixed
+  one, so the trailing leg alone is equivalent) and refused at start-up otherwise. A plan with
+  only a take profit or only a stop places that single order; `tp_fill = "close"` cannot be
+  mirrored (a resting limit fills on touch) and is refused in exchange modes. IDs: the list's
+  `listClientOrderId` and its legs' IDs are `child_order_id`s of the entry, so a restart finds
+  them.
+- **Levels already crossed.** If the price is already beyond the take profit when the bracket is
+  placed (the `LIMIT_MAKER` would match at once) or below the stop, the broker sells at market at
+  once with the corresponding reason, as the backtest fills a gap at the open.
+- **Time exits** (engine, for brokers that do not manage them): at the first tick at or after
+  `entry time + max_hold`, cancel the position's order list, then sell its quantity at market,
+  reason `time`. A fill that races the cancel wins; the engine checks before selling.
+- **Unprotected positions.** If a bracket cannot be placed (a filter such as
+  `PERCENT_PRICE_BY_SIDE`, a balance or rate-limit error), the position is marked unprotected,
+  an `unprotected_position:<symbol>` error alert fires and the broker retries every tick; flatten
+  still works.
+- **Fills.** The user data stream on a WebSocket API connection
+  (`userDataStream.subscribe.signature`): `executionReport` events become fills and cancellations,
+  matched to positions by client order ID (`c`, or `C` for cancels); `listStatus` closes an OCO.
+  While the stream is down (and after every reconnect, at least once a minute regardless) the
+  broker polls open orders over REST, so a missed event only delays a fill, never loses it.
+- **Reconciliation.** At start-up and after a reconnect: every local pending or open order is
+  queried by client ID and brought up to date; open orders on the exchange with our ID prefixes
+  but unknown locally are reported (`orphan_order` alert) and left alone; each open position's base
+  balance (free plus locked) must cover its quantity, otherwise a `balance_mismatch` error alert
+  pauses entries. Reconciliation never places or cancels orders on its own except to finish an
+  exit it can prove was intended (a time exit past its deadline).
+- **Account checks.** In exchange modes the account's free USDT at start must cover the sum of
+  the strategies' capital (otherwise start-up refuses), books still come from the state file, and
+  `initial_cash` is ignored. Symbols not trading on the exchange are dropped from strategies with
+  a warning event; entries below a symbol's minimum notional are refused (`min_notional`).
+- **Rate limits.** The signed client paces requests by the weight and order-count headers,
+  backs off on 429 and stops placing orders on 418 (`exchange_banned` error alert).
+- **Keys** (`MOONSHOT_BINANCE_TESTNET_API_KEY`, `MOONSHOT_BINANCE_TESTNET_API_SECRET`, from the
+  environment or `.env`) are `SecretStr`s, required only in testnet mode, sent only in the
+  `X-MBX-APIKEY` header and signatures, and never logged, echoed or stored. Mainnet keys will use
+  `MOONSHOT_BINANCE_API_KEY` / `_SECRET` (P4), so the two cannot be mixed up.
+- **Known differences from paper.** Fills happen at the testnet's prices, not the mainnet candles;
+  a stop fills at market after it triggers (slippage beyond the level); take profits fill on touch;
+  dust stays behind; time exits happen at the first tick after the deadline rather than exactly at
+  it.
+
 ## Run modes
 
 | Mode                           | Candles             | Order fills                           |
@@ -1068,7 +1141,7 @@ src/crypto_moonshot/
 ├── strategy/           # base.py, features.py, compute.py, capitulation.py, scores.py
 ├── portfolio.py        # the book and position sizing
 ├── risk.py
-├── broker/             # base.py (orders, ExitPlan, Costs), candles.py, simulated.py, paper.py; binance.py (P3)
+├── broker/             # base.py (orders, ExitPlan, Costs), candles.py, simulated.py, paper.py; execution.py, binance.py (P3)
 ├── backtest/           # engine.py, metrics.py, results.py (result files), source.py (candle windows)
 ├── live/               # config.py (TOML run config), contract.py (signal batches), plugin.py (Strategy,
 │                       # loader, RuleStrategy), feed.py (ticks, windows), state.py (SQLite), engine.py,
