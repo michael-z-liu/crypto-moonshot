@@ -237,12 +237,18 @@ def build_specs(
     return specs
 
 
-def feed_subscriptions(specs: Sequence[StrategySpec]) -> dict[Interval, list[str]]:
-    """The symbols the feed must follow per interval: traded and context symbols."""
+def feed_subscriptions(
+    specs: Sequence[StrategySpec], positions: Sequence[PositionRecord] = ()
+) -> dict[Interval, list[str]]:
+    """The symbols the feed must follow per interval: traded and context symbols, plus the
+    symbols of `positions` (pass `StateStore.live_positions()`: a position whose symbol left
+    its strategy's list still needs candles to exit)."""
     out: dict[Interval, dict[str, None]] = defaultdict(dict)
     for spec in specs:
         for symbol in (*spec.symbols, *spec.context_symbols):
             out[spec.interval][symbol] = None
+    for position in positions:
+        out[position.interval][position.symbol] = None
     return {interval: list(symbols) for interval, symbols in out.items()}
 
 

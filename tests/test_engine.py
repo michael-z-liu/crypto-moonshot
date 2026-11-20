@@ -21,15 +21,22 @@ from engine_fakes import (
     write_bars,
 )
 
-from crypto_moonshot.broker.base import ExitPlan, Side, client_order_id
+from crypto_moonshot.broker.base import ExitPlan, Order, Side, client_order_id
 from crypto_moonshot.live.config import ConfigError, RunConfig, config_from_dict
 from crypto_moonshot.live.contract import CONTRACT_VERSION, SignalBatch, SignalIn
-from crypto_moonshot.live.engine import Engine, Step, build_specs
+from crypto_moonshot.live.engine import (
+    Engine,
+    Step,
+    build_specs,
+    feed_subscriptions,
+    feed_warmups,
+)
 from crypto_moonshot.live.feed import FeedDisconnected, Seeded, StaleSymbolsChanged
 from crypto_moonshot.live.replay import prepare_replay
 from crypto_moonshot.live.state import (
     BatchStatus,
     EventLevel,
+    OrderRecord,
     OrderStatus,
     PositionStatus,
     SignalOutcome,
@@ -63,9 +70,8 @@ def strategy(name: str, **overrides: Any) -> dict[str, Any]:
 
 
 def external(name: str = "ext", **overrides: Any) -> dict[str, Any]:
-    return strategy(
-        name, source="external", interval="1h", warmup=3, exit={"max_hold": "10h"}, **overrides
-    )
+    entry = {"source": "external", "interval": "1h", "warmup": 3, "exit": {"max_hold": "10h"}}
+    return strategy(name, **(entry | overrides))
 
 
 class Live:
@@ -723,3 +729,29 @@ def test_feed_events_go_to_the_event_feed(tmp_path: Path) -> None:
     assert events[0].data == {"connection": 0, "reason": "closed by peer"}
     assert events[2].data == {"interval": "1h", "symbols": ["AAAUSDT"]}
     assert events[0].time == at(3)
+
+
+def test_feed_subscriptions_cover_traded_context_and_held_symbols(tmp_path: Path) -> None:
+    config = config_from_dict(
+        {
+            "state": str(tmp_path / "s.sqlite"),
+            "account": {"initial_cash": 2000.0},
+            "strategies": [
+                external(symbols=["AAAUSDT", "BBBUSDT"], warmup=50),
+                external("five", symbols=["BBBUSDT"], interval="5m", warmup=7),
+            ],
+        }
+    )
+    specs = build_specs(config, None)
+    with StateStore.open(config.state) as store:
+        store.upsert_strategy("ext", {}, 1000.0)
+        store.insert_order(
+            OrderRecord.from_order(
+                Order("ZZZUSDT", Side.BUY, at(1), quote_amount=10.0, id="z"), "ext", H1
+            )
+        )
+        store.insert_position("ext", "ZZZUSDT", H1, at(1), "z", 10.0)
+        held = store.live_positions()
+    assert feed_subscriptions(specs) == {H1: ["AAAUSDT", "BBBUSDT"], Interval.M5: ["BBBUSDT"]}
+    assert feed_subscriptions(specs, held)[H1] == ["AAAUSDT", "BBBUSDT", "ZZZUSDT"]
+    assert feed_warmups(specs) == {H1: 50, Interval.M5: 7}

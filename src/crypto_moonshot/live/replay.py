@@ -379,7 +379,7 @@ def prepare_replay(
         feed_start = min([*resume, *([start] if fresh else [])], default=start)
         feed = ReplayFeed(
             data_root,
-            feed_subscriptions(specs),
+            feed_subscriptions(specs, store.live_positions()),
             feed_start,
             end,
             warmup=feed_warmups(specs),
