@@ -215,8 +215,8 @@ class KlineStream:
 
     def _backoff(self, attempt: int) -> float:
         cfg = self.config
-        delay = min(cfg.backoff_max, cfg.backoff_base * 2**attempt)
-        return delay * (0.5 + self._rng.random() / 2)
+        delay: float = min(cfg.backoff_max, cfg.backoff_base * 2**attempt)
+        return float(delay * (0.5 + self._rng.random() / 2))
 
     async def _run(self, index: int, group: Sequence[tuple[str, Interval]]) -> None:
         cfg = self.config
