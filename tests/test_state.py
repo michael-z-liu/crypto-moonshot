@@ -103,7 +103,7 @@ def test_a_new_file_gets_the_schema_and_safe_settings(store: StateStore) -> None
     assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
     assert db.execute("PRAGMA synchronous").fetchone()[0] == 2  # FULL
     assert db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
-    assert store.schema_version == SCHEMA_VERSION == 2
+    assert store.schema_version == SCHEMA_VERSION == 3
     tables = {r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
     assert tables >= {
         "meta",
@@ -121,7 +121,7 @@ def test_a_new_file_gets_the_schema_and_safe_settings(store: StateStore) -> None
     }
 
 
-V3: Migration = (
+EXTRA: Migration = (
     "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL)",
     "ALTER TABLE strategies ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1",
 )
@@ -131,15 +131,15 @@ def test_opening_an_older_file_runs_the_missing_migrations(tmp_path: Path) -> No
     path = tmp_path / "state.sqlite"
     with StateStore.open(path) as old:
         old.upsert_strategy("alpha", {"x": 1}, 10.0)
-        assert old.schema_version == 2
-    with StateStore.open(path, migrations=(*MIGRATIONS, V3)) as new:
-        assert new.schema_version == 3
+        assert old.schema_version == SCHEMA_VERSION
+    with StateStore.open(path, migrations=(*MIGRATIONS, EXTRA)) as new:
+        assert new.schema_version == SCHEMA_VERSION + 1
         assert new.strategies() == [StrategyRecord("alpha", {"x": 1}, 10.0)]
         row = new._db.execute("SELECT enabled FROM strategies").fetchone()
         assert row[0] == 1
         new._db.execute("INSERT INTO notes (text) VALUES ('ok')")
-    with StateStore.open(path, migrations=(*MIGRATIONS, V3)) as again:
-        assert again.schema_version == 3  # nothing left to run
+    with StateStore.open(path, migrations=(*MIGRATIONS, EXTRA)) as again:
+        assert again.schema_version == SCHEMA_VERSION + 1  # nothing left to run
 
 
 def test_a_failed_migration_changes_nothing(tmp_path: Path) -> None:
@@ -149,19 +149,22 @@ def test_a_failed_migration_changes_nothing(tmp_path: Path) -> None:
     with pytest.raises(sqlite3.OperationalError):
         StateStore.open(path, migrations=(*MIGRATIONS, broken))
     with StateStore.open(path) as store:
-        assert store.schema_version == 2
+        assert store.schema_version == SCHEMA_VERSION
         tables = {r[0] for r in store._db.execute("SELECT name FROM sqlite_master")}
         assert "notes" not in tables
 
 
 def test_a_newer_file_is_refused(tmp_path: Path) -> None:
     path = tmp_path / "state.sqlite"
-    with StateStore.open(path, migrations=(*MIGRATIONS, V3)):
+    with StateStore.open(path, migrations=(*MIGRATIONS, EXTRA)):
         pass
-    with pytest.raises(SchemaVersionError, match="schema version 3, newer than this build's 2"):
+    with pytest.raises(
+        SchemaVersionError,
+        match=f"schema version {SCHEMA_VERSION + 1}, newer than this build's {SCHEMA_VERSION}",
+    ):
         StateStore.open(path)
-    with StateStore.open(path, migrations=(*MIGRATIONS, V3)) as store:
-        assert store.schema_version == 3  # untouched
+    with StateStore.open(path, migrations=(*MIGRATIONS, EXTRA)) as store:
+        assert store.schema_version == SCHEMA_VERSION + 1  # untouched
 
 
 # Round trips -----------------------------------------------------------------------------
@@ -331,6 +334,42 @@ def test_orders_and_fills_round_trip(store: StateStore) -> None:
     with pytest.raises(KeyError):
         store.mark_order_filled("missing")
     assert store.pending_orders() == []
+
+
+def test_an_order_moves_from_intent_to_accepted_or_unknown_then_to_final(
+    store: StateStore,
+) -> None:
+    intent = replace(order_record(k=1), status=OrderStatus.NEW)
+    store.insert_order(intent)
+    assert store.order(intent.id).status is OrderStatus.NEW  # type: ignore[union-attr]
+    assert [o.id for o in store.pending_orders()] == [intent.id]  # working orders
+    store.mark_order_accepted(intent.id)
+    store.mark_order_accepted(intent.id)  # accepting twice is harmless
+    assert store.order(intent.id).status is OrderStatus.PENDING  # type: ignore[union-attr]
+    with pytest.raises(StateError, match="pending, not new"):
+        store.mark_order_unknown(intent.id)
+
+    unsure = replace(order_record(symbol="XYZUSDT", k=2), status=OrderStatus.NEW)
+    store.insert_order(unsure)
+    store.mark_order_unknown(unsure.id)
+    store.mark_order_unknown(unsure.id)
+    assert store.order(unsure.id).status is OrderStatus.UNKNOWN  # type: ignore[union-attr]
+    assert OrderStatus.UNKNOWN.working
+    assert {o.id for o in store.pending_orders()} == {intent.id, unsure.id}
+    store.mark_order_rejected(unsure.id, "not_placed")  # final straight from unknown
+    with pytest.raises(StateError, match="rejected, not new or unknown"):
+        store.mark_order_accepted(unsure.id)
+    never = replace(order_record(symbol="QRSUSDT", k=3), status=OrderStatus.NEW)
+    store.insert_order(never)
+    store.mark_order_filled(never.id)  # and from new
+    assert not OrderStatus.FILLED.working
+    with pytest.raises(StateError, match="must be pending or new"):
+        store.insert_order(replace(order_record(k=4), status=OrderStatus.UNKNOWN))
+    with pytest.raises(KeyError):
+        store.mark_order_accepted("missing")
+    with pytest.raises(KeyError):
+        store.mark_order_unknown("missing")
+    assert [o.id for o in store.pending_orders()] == [intent.id]
 
 
 def test_position_lifecycle(store: StateStore) -> None:
