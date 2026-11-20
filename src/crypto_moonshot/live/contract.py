@@ -29,6 +29,9 @@ from crypto_moonshot.models import Interval, format_duration, parse_duration
 
 CONTRACT_VERSION = 1
 
+API_PREFIX = "/api/v1"
+"""Path prefix of the daemon's HTTP API (see `live/api.py`)."""
+
 type Scalar = str | int | float | bool | None
 
 

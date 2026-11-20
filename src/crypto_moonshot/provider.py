@@ -42,8 +42,12 @@ from pydantic import SecretStr
 from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed, InvalidStatus, WebSocketException
 
-from crypto_moonshot.live.api import API_PREFIX
-from crypto_moonshot.live.contract import CONTRACT_VERSION, SignalBatch, frame_to_batch
+from crypto_moonshot.live.contract import (
+    API_PREFIX,
+    CONTRACT_VERSION,
+    SignalBatch,
+    frame_to_batch,
+)
 from crypto_moonshot.live.feed import HISTORY_SLACK
 from crypto_moonshot.live.plugin import Strategy
 from crypto_moonshot.models import KLINE_SCHEMA, Interval, as_utc

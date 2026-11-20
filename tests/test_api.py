@@ -18,8 +18,8 @@ from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import ConnectionClosed, InvalidStatus
 
 from crypto_moonshot.data.stream import Candle
-from crypto_moonshot.live.api import API_PREFIX, TickHub, tick_message
-from crypto_moonshot.live.contract import SignalIn
+from crypto_moonshot.live.api import TickHub, tick_message
+from crypto_moonshot.live.contract import API_PREFIX, SignalIn
 from crypto_moonshot.live.feed import Tick
 from crypto_moonshot.live.state import EventLevel
 from crypto_moonshot.models import KLINE_SCHEMA, Interval

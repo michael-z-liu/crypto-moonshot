@@ -42,7 +42,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from pydantic import SecretStr
 
-from crypto_moonshot.live.contract import CONTRACT_VERSION, ExitPlanIn, SignalBatch
+from crypto_moonshot.live.contract import API_PREFIX, CONTRACT_VERSION, ExitPlanIn, SignalBatch
 from crypto_moonshot.live.engine import Engine, to_json
 from crypto_moonshot.live.feed import Feed, Tick
 from crypto_moonshot.live.state import EventLevel
@@ -50,7 +50,6 @@ from crypto_moonshot.models import KLINE_SCHEMA, Interval
 
 logger = logging.getLogger(__name__)
 
-API_PREFIX = "/api/v1"
 ARROW_MEDIA_TYPE = "application/vnd.apache.arrow.stream"
 CANDLE_COLUMNS = list(KLINE_SCHEMA)
 MAX_CANDLES = 5000
