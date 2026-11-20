@@ -1,0 +1,44 @@
+# Example run config for `moonshot live run --config examples/paper.toml`.
+# Run it from the repository root (the plugin path below is relative to the working directory).
+# No secrets here: the API token comes from MOONSHOT_API_TOKEN in the environment.
+
+mode = "paper"                      # paper only: testnet and live are refused in this build
+state = "state/paper.sqlite"        # relative to this file's folder
+
+[account]
+initial_cash = 10000
+max_order_usdt = 500
+max_total_exposure = 1.0
+stale_after = 2
+costs = { fee = 0.001, slippage = 0.0005 }
+
+[engine]
+tick_timeout = "10s"                # wait this long after a close for every symbol's candle
+signal_deadline = "30s"             # wait this long for each strategy's batch
+entry_grace = "5m"
+
+# An in-process strategy: the plugin runs inside the daemon.
+[[strategies]]
+name = "cross"
+source = "examples/strategies/ma_cross.py:MaCross"
+params = { fast = 12, slow = 48 }
+symbols = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT"]
+capital = 5000
+sizing = { slots = 5 }
+risk = { max_positions = 5 }
+
+# The same plugin as an external provider: the daemon waits for a process that runs
+#   moonshot provider run examples/strategies/ma_cross.py:MaCross --name cross_ext \
+#       --url http://127.0.0.1:8765 --param fast=12 --param slow=48
+# Uncomment to try it (give each strategy its own capital; one symbol is held by one strategy).
+#
+# [[strategies]]
+# name = "cross_ext"
+# source = "external"
+# interval = "1h"
+# warmup = 50                       # slow + 2
+# symbols = ["ADAUSDT", "DOGEUSDT", "LINKUSDT"]
+# context_symbols = []              # symbols the plugin reads besides the traded ones
+# capital = 3000
+# sizing = { slots = 3 }
+# exit = { take_profit = 0.05, stop = 0.03, max_hold = "2d" }

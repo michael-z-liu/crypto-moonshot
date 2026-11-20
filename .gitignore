@@ -24,10 +24,14 @@ htmlcov/
 .env.*
 !.env.example
 
-# Local market data, backtest output, logs
+# Local market data, backtest output, logs, live state files
 /data/
 /logs/
 /results/
+state/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
 
 # Editors / OS
 .vscode/

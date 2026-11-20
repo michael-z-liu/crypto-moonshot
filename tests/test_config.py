@@ -26,3 +26,19 @@ def test_dotenv_file_is_not_read(monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     (tmp_path / ".env").write_text("MOONSHOT_DATA_DIR=from-dotenv\n")
     monkeypatch.chdir(tmp_path)
     assert Settings().data_dir == Path("data")
+
+
+def test_the_api_token_is_a_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("MOONSHOT_API_TOKEN", raising=False)
+    assert Settings().api_token is None
+    monkeypatch.setenv("MOONSHOT_API_TOKEN", "tkn-visible-nowhere")
+    settings = Settings()
+    assert settings.api_token is not None
+    assert settings.api_token.get_secret_value() == "tkn-visible-nowhere"
+    for text in (
+        repr(settings),
+        str(settings),
+        settings.model_dump_json(),
+        str(settings.api_token),
+    ):
+        assert "tkn-visible-nowhere" not in text

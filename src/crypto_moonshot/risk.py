@@ -1,4 +1,4 @@
-"""Pre-trade risk checks, shared by the backtest and (later) the live engine.
+"""Pre-trade risk checks, shared by the backtest and the live engine.
 
 Each check looks at the `Book` and a proposed entry (symbol and stake) and either allows it or
 names why not. Checks are independent and composed as a sequence; `first_rejection` returns the
@@ -106,6 +106,28 @@ class MaxEntriesPerDay:
 
     def allows(self, book: Book, symbol: str, stake: float) -> bool:
         return book.day_entries < self.limit
+
+
+def standard_checks(
+    *,
+    max_positions: int | None = None,
+    max_exposure: float | None = None,
+    daily_loss_limit: float | None = None,
+    max_entries_per_day: int | None = None,
+) -> list[RiskCheck]:
+    """The configured checks in the order every engine applies them: daily loss limit, entries
+    per day, max positions, one per symbol (always), max exposure. `None` disables a check."""
+    checks: list[RiskCheck] = []
+    if daily_loss_limit is not None:
+        checks.append(DailyLossLimit(daily_loss_limit))
+    if max_entries_per_day is not None:
+        checks.append(MaxEntriesPerDay(max_entries_per_day))
+    if max_positions is not None:
+        checks.append(MaxPositions(max_positions))
+    checks.append(OnePerSymbol())
+    if max_exposure is not None:
+        checks.append(MaxExposure(max_exposure))
+    return checks
 
 
 def first_rejection(

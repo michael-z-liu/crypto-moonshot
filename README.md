@@ -2,10 +2,11 @@
 
 Personal toolkit for researching, backtesting and trading crypto on Binance.
 
-Planned scope:
+Scope:
 
 - **Research**: download historical data from Binance and analyse strategies.
-- **Trading**: a small CLI that runs those strategies live against Binance.
+- **Trading**: a paper trading daemon that runs strategies on live Binance candles (orders on the
+  Binance testnet and mainnet come later).
 
 ## Setup
 
@@ -87,6 +88,48 @@ signal range; `--json` prints the `metrics.json` document on stdout. The presets
 validation against the research results are in [docs/backtest-validation.md](docs/backtest-validation.md);
 the design is in [docs/architecture.md](docs/architecture.md).
 
+## Paper trading
+
+The trading daemon follows live Binance candles (public market data, no API keys), runs your
+strategies and keeps simulated positions in a SQLite state file. It places no orders anywhere:
+only paper mode runs (`testnet` and `live` are refused). The design is in
+[docs/architecture.md](docs/architecture.md); writing a strategy is covered in
+[docs/strategy-plugins.md](docs/strategy-plugins.md).
+
+```bash
+# 1. a secret for the API (the daemon refuses to start without one); keep it out of files and git
+export MOONSHOT_API_TOKEN=<a-long-random-string>     # e.g. python -c 'import secrets; print(secrets.token_urlsafe(32))'
+
+# 2. a run config: account, limits and strategies (see examples/paper.toml)
+# 3. rehearse it over stored candles; prints the metrics like `moonshot backtest`
+uv run moonshot live replay --config examples/paper.toml --start 2024-01-01 --end 2024-06-01 \
+    --state /tmp/replay.sqlite
+
+# 4. run it (the API listens on 127.0.0.1:8765 unless --host/--port say otherwise)
+uv run moonshot live run --config examples/paper.toml
+
+# 5. look at it and steer it, from another terminal
+uv run moonshot live status                      # books, positions, providers, recent events
+uv run moonshot live pause                       # no new entries (exits keep working)
+uv run moonshot live resume
+uv run moonshot live flatten                     # sell everything at the next candle (asks first)
+uv run moonshot live status --config examples/paper.toml   # daemon down: reads the state file
+```
+
+A strategy that needs heavy libraries (a torch model, say) runs as an **external provider**:
+list it in the config with `source = "external"` (`examples/paper.toml` has a commented
+`cross_ext` entry) and run the same plugin file in its own environment, on this or another
+machine:
+
+```bash
+uv run moonshot provider run examples/strategies/ma_cross.py:MaCross --name cross_ext \
+    --url http://127.0.0.1:8765 --param fast=12 --param slow=48
+```
+
+To rehearse an external strategy, add `--serve` to `live replay`: the replay waits for the
+provider, then they trade together over the same API. Exit codes of the `live` and `provider`
+commands: 0 ok, 1 runtime failure, 2 usage or configuration error, 130 interrupted.
+
 ## Development
 
 ```bash
@@ -102,4 +145,5 @@ Commits follow Conventional Commits. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Safety
 
-This repository is public. API keys go in `.env`, which is gitignored. Use the Binance spot testnet until a strategy has been proven.
+This repository is public. API keys go in `.env`, which is gitignored; the daemon's `MOONSHOT_API_TOKEN` is read from the
+environment only and is never logged. Use the Binance spot testnet until a strategy has been proven.
