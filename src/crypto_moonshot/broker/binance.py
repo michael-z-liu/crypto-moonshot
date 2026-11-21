@@ -361,6 +361,8 @@ class _Holding:
     """What a cancelled, partly filled bracket sold (carried into the closing sell)."""
     protect: bool = True
     """Keep a bracket working (off once the engine cancelled it to sell)."""
+    adopt_first: bool = False
+    """Look for this entry's bracket on the exchange before placing one (a recovered entry)."""
     failures: int = 0
     retry_at: datetime | None = None
     attempt: int = 0
@@ -600,7 +602,11 @@ class BinanceBroker:
             try:
                 if self._reconcile_due:
                     self._reconcile_due = False
-                    report = await self._reconciliation(now)
+                    try:
+                        report = await self._reconciliation(now)
+                    except ExchangeError:
+                        self._reconcile_due = True  # again at the next call
+                        raise
                 elif self._poll_due(now):
                     await self._poll()
                 await self._retry_brackets()
@@ -681,11 +687,11 @@ class BinanceBroker:
         """A duplicate client ID: the order exists already (a retry after a lost answer)."""
         try:
             state = await self._query_order(order)
-            await self._settle()
         except UnknownOrder:
             return SubmitResult.rejected("duplicate_id")
         except ExchangeError:
             return SubmitResult.unknown()
+        await self._settle()
         if state is OrderState.REJECTED:
             return SubmitResult.rejected("rejected")
         return SubmitResult.accepted(None, self._take(order.id))
@@ -760,14 +766,11 @@ class BinanceBroker:
             entry_order_id=order.id,
             exit_plan=order.exit_plan,
         )
-        holding = _Holding(position, avg, quantity, time, dust)
+        holding = _Holding(position, avg, quantity, time, dust, adopt_first=entry.recovered)
         self._holdings[order.symbol] = holding
         failure: str | None = None
         if needs_bracket(order.exit_plan):
-            if entry.recovered and await self._adopt_bracket(holding):
-                failure = None
-            else:
-                failure = await self._protect(holding)
+            failure = await self._protect(holding)
         self._queue.append((order.id, EntryFilled(fill, holding.position)))
         if failure is not None:
             self._schedule_retry(holding, failure)
@@ -836,6 +839,16 @@ class BinanceBroker:
         if rules is None:
             return "unknown_symbol"
         bid = bracket_id(position.entry_order_id, holding.attempt)
+        if holding.adopt_first:  # it may have been placed before a restart
+            try:
+                found = await self._adopt_bracket(holding, bid)
+            except (AuthError, Banned) as exc:
+                return self._halt(exc)
+            except ExchangeError:
+                return "unknown"
+            holding.adopt_first = False
+            if found:
+                return None
         ref = holding.ref
         tp = (
             rules.round_price(ref * (1 + _d(plan.take_profit)), "up")
@@ -887,14 +900,16 @@ class BinanceBroker:
         except WouldTrigger:
             return await self._sell_crossed(holding, bid, _stop_reason(plan))
         except DuplicateOrder:
-            if await self._adopt_bracket(holding, bid):
-                return None
-            holding.attempt += 1
+            holding.adopt_first = True  # the next attempt adopts it
             return "duplicate_id"
         except OrderStatusUnknown:
+            try:
+                if await self._adopt_bracket(holding, bid):
+                    return None
+            except ExchangeError:
+                holding.adopt_first = True  # look again before the next attempt
+                return "unknown"
             holding.attempt += 1  # it may still appear: the next attempt uses a fresh ID
-            if await self._adopt_bracket(holding, bid):
-                return None
             return "unknown"
         except (FilterRejected, OrderNotAccepted) as exc:
             crossed = await self._crossed_level(symbol, tp, stop, plan, exc)
@@ -1058,19 +1073,19 @@ class BinanceBroker:
                 response = await self._client.cancel_order(bracket.symbol, bracket.id)
                 bracket.progress[bracket.id].apply(response)
         except UnknownOrder:
-            # Not open: it filled, was cancelled, or (after a restart) never existed.
+            # Not open: it filled, was cancelled (by an earlier cancel whose answer was lost,
+            # or elsewhere), or never existed.
             try:
                 await self._refresh_bracket(bracket)
             except UnknownOrder:
-                self._untrack_bracket(bracket)
-                if holding is not None:
-                    holding.position = replace(holding.position, bracket_id=None)
-                return CancelResult(CancelStatus.NOT_OPEN)
+                return self._bracket_gone(bracket, holding)
+            except (AuthError, Banned) as exc:
+                self._halt(exc)
+                bracket.cancel_requested = False
+                return CancelResult(CancelStatus.UNKNOWN)
             except ExchangeError:
                 bracket.cancel_requested = False
                 return CancelResult(CancelStatus.UNKNOWN)
-            await self._settle()
-            return CancelResult(CancelStatus.NOT_OPEN, tuple(self._take_bracket(bracket)))
         except (AuthError, Banned) as exc:
             self._halt(exc)
             bracket.cancel_requested = False
@@ -1079,12 +1094,29 @@ class BinanceBroker:
             logger.warning("cancel of bracket %s failed: %s", bracket.id, exc)
             bracket.cancel_requested = False
             return CancelResult(CancelStatus.UNKNOWN)
-        await self._fetch_trades(bracket)
+        bracket = self._brackets.get(order.id, bracket)  # retyped by a refresh
         await self._settle()
-        events = self._take_bracket(bracket)
-        if events:  # a leg filled completely before the cancel
+        events = self._take(order.id) + self._take(self._entry_of_bracket(order.id))
+        if events:  # a leg filled completely before the cancel: that is its outcome
             return CancelResult(CancelStatus.NOT_OPEN, tuple(events))
-        return CancelResult(CancelStatus.CANCELLED)
+        if bracket.done:  # cancelled now (or by an earlier cancel whose answer was lost)
+            return CancelResult(CancelStatus.CANCELLED)
+        bracket.cancel_requested = False  # still open (the exchange did not say why)
+        return CancelResult(CancelStatus.UNKNOWN)
+
+    def _bracket_gone(self, bracket: _Bracket, holding: _Holding | None) -> CancelResult:
+        """A bracket the exchange has never heard of (never placed, or a testnet reset): it
+        holds nothing, so it is reported cancelled and the position can be sold."""
+        bracket.done = True
+        self._untrack_bracket(bracket)
+        if holding is None or holding.position.bracket_id != bracket.id:
+            return CancelResult(CancelStatus.NOT_OPEN)
+        order = holding.position.bracket()
+        holding.position = replace(holding.position, bracket_id=None)
+        holding.protect = False
+        assert order is not None
+        event = OrderCancelled(order, self._clock(), CancelReason.CANCELLED)
+        return CancelResult(CancelStatus.NOT_OPEN, (event,))
 
     def _retype_single(
         self, bracket: _Bracket, holding: _Holding | None, response: ExchangeOrder
@@ -1132,7 +1164,6 @@ class BinanceBroker:
                 cancel = bracket.cancel_requested
                 fresh = self._retype_single(bracket, holding, single)
                 fresh.cancel_requested = cancel
-                await self._fetch_trades(fresh)
                 return
             self._apply_list(bracket, listed)
             await self._refresh_legs(bracket)
@@ -1145,7 +1176,6 @@ class BinanceBroker:
                 bracket.cancel_requested = cancel
             else:
                 bracket.progress[bracket.id].apply(order)
-        await self._fetch_trades(bracket)
 
     async def _query_bracket(self, order: Order) -> OrderState:
         bracket = self._brackets.get(order.id)
@@ -1322,7 +1352,6 @@ class BinanceBroker:
             tracked.cancel_requested = False
             return CancelResult(CancelStatus.UNKNOWN)
         tracked.progress.apply(response)
-        await self._fetch_order_trades(tracked.progress)
         await self._settle()
         events = self._take(order.id)
         if tracked.progress.executed > 0:  # it partly filled first: that is its outcome
@@ -1343,7 +1372,6 @@ class BinanceBroker:
                 tracked = _Sell(order, _Progress(order.id, order.symbol))
                 self._sells[order.id] = tracked
         tracked.progress.apply(response)
-        await self._fetch_order_trades(tracked.progress)
         status = tracked.progress.status
         if status == "FILLED" or (tracked.progress.final and tracked.progress.executed > 0):
             return OrderState.FILLED
@@ -1414,12 +1442,13 @@ class BinanceBroker:
         """Bring every working order up to date over REST."""
         self._force_poll = False
         self._last_poll = self._clock()
+        failed = False
         for entry in list(self._entries.values()):
             if not entry.done:
-                await self._poll_order(entry.order)
+                failed |= not await self._poll_order(entry.order)
         for sell in list(self._sells.values()):
             if not sell.done:
-                await self._poll_order(sell.order)
+                failed |= not await self._poll_order(sell.order)
         for bracket in list(self._brackets.values()):
             if bracket.done:
                 continue
@@ -1428,14 +1457,28 @@ class BinanceBroker:
             except UnknownOrder:
                 logger.warning("bracket %s is not on the exchange", bracket.id)
                 self._lost_bracket(bracket)
+            except (AuthError, Banned):
+                raise
+            except ExchangeError as exc:
+                logger.warning("bracket %s not polled: %s", bracket.id, exc)
+                failed = True
+        if failed:
+            self._force_poll = True  # again at the next call
 
-    async def _poll_order(self, order: Order) -> None:
+    async def _poll_order(self, order: Order) -> bool:
+        """Bring one order up to date; False if the exchange could not be asked."""
         try:
             await self._query_order(order)
         except UnknownOrder:
             # Not on the exchange (yet): an unknown submit the engine resolves by query, or
             # the testnet was reset. Nothing to report from here.
             logger.info("order %s is not on the exchange", order.id)
+        except (AuthError, Banned):
+            raise
+        except ExchangeError as exc:
+            logger.warning("order %s not polled: %s", order.id, exc)
+            return False
+        return True
 
     def _lost_bracket(self, bracket: _Bracket) -> None:
         """A bracket the exchange does not know (a testnet reset): the position is
@@ -1452,10 +1495,6 @@ class BinanceBroker:
             self._queue.append(
                 (bracket.entry_id, OrderCancelled(order, self._clock(), CancelReason.CANCELLED))
             )
-
-    async def _fetch_trades(self, bracket: _Bracket) -> None:
-        for progress in bracket.progress.values():
-            await self._fetch_order_trades(progress)
 
     async def _fetch_order_trades(self, progress: _Progress) -> None:
         """Fetch an order's trades when the reports heard do not cover its executed
@@ -1477,25 +1516,39 @@ class BinanceBroker:
     # -- settling: turning progress into events ----------------------------------------------
 
     async def _settle(self) -> None:
-        """Report every order that reached its outcome (fetching missing trades first)."""
+        """Report every order that reached its outcome (fetching missing trades first). Never
+        raises an exchange error: an order whose trades could not be fetched is settled at a
+        later call."""
         for entry in list(self._entries.values()):
-            if not entry.done and entry.progress.final:
-                await self._fetch_order_trades(entry.progress)
+            if not entry.done and entry.progress.final and await self._trades_of(entry.progress):
                 await self._finish_entry(entry)
         for sell in list(self._sells.values()):
-            if not sell.done and sell.progress.final:
-                await self._fetch_order_trades(sell.progress)
+            if not sell.done and sell.progress.final and await self._trades_of(sell.progress):
                 await self._finish_sell(sell)
         for bracket in list(self._brackets.values()):
             if not bracket.done:
                 await self._settle_bracket(bracket)
+
+    async def _trades_of(self, progress: _Progress) -> bool:
+        """Fetch an order's missing trades; False if that failed (try again later)."""
+        try:
+            await self._fetch_order_trades(progress)
+        except (AuthError, Banned) as exc:
+            self._halt(exc)
+            return False
+        except ExchangeError as exc:
+            logger.warning("trades of %s not fetched: %s", progress.client_id, exc)
+            return False
+        return True
 
     async def _settle_bracket(self, bracket: _Bracket) -> None:
         progresses = list(bracket.progress.values())
         filled = [p for p in progresses if p.status == "FILLED"]
         if not filled and not all(p.final for p in progresses):
             return
-        await self._fetch_trades(bracket)
+        fetched = [await self._trades_of(p) for p in progresses]
+        if not all(fetched) and not bracket.cancel_requested:
+            return  # settled later, with its commissions
         holding = self._holdings.get(bracket.symbol)
         bracket.done = True
         self._untrack_bracket(bracket)

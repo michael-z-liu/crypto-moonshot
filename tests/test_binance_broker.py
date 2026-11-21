@@ -531,6 +531,64 @@ async def test_a_cancel_without_an_answer_is_unknown(rig: BrokerRig) -> None:
     assert result.status is CancelStatus.CANCELLED
 
 
+async def test_a_cancel_whose_answer_was_lost_is_cancelled_on_retry(rig: BrokerRig) -> None:
+    event = await entered(rig)
+    rig.fake.timeout("/api/v3/orderList", method="DELETE", placed=True)
+    result = await rig.broker.cancel(bracket_order(event.position))
+    assert result.status is CancelStatus.UNKNOWN
+    assert rig.fake.lists[bracket_id(buy().id)].status == "ALL_DONE"  # it did cancel
+    result = await rig.broker.cancel(bracket_order(event.position))
+    assert (result.status, result.events) == (CancelStatus.CANCELLED, ())
+    sold = await rig.broker.submit(sell(), interval=H1)
+    assert [type(e) for e in sold.events] == [ExitFilled]
+    assert await drain(rig) == []
+
+
+async def test_cancelling_a_bracket_the_exchange_lost_reports_it_cancelled(
+    rig: BrokerRig,
+) -> None:
+    event = await entered(rig)
+    rig.fake.reset()
+    rig.fake.deposit("AAA", D("9.99"))
+    result = await rig.broker.cancel(bracket_order(event.position))
+    assert result.status is CancelStatus.NOT_OPEN
+    (cancelled,) = result.events
+    assert isinstance(cancelled, OrderCancelled)
+    assert cancelled.order.id == event.position.bracket_id
+    sold = await rig.broker.submit(sell(), interval=H1)
+    assert [type(e) for e in sold.events] == [ExitFilled]
+
+
+async def test_a_fill_whose_trades_cannot_be_fetched_is_reported_later() -> None:
+    rig = await make_rig(stream=False)
+    try:
+        await entered(rig)
+        rig.fake.set_price(SYMBOL, D("111"))
+        rig.fake.fail("/api/v3/myTrades", status=500, times=10)
+        assert await rig.broker.events(rig.clock()) == []  # commissions unknown: not yet
+        rig.fake.faults.clear()
+        (exit_,) = await rig.broker.events(rig.clock())
+        assert isinstance(exit_, ExitFilled)
+        assert exit_.fill.fee == pytest.approx(9.99 * 110 * 0.001)
+        assert await rig.broker.events(rig.clock()) == []
+    finally:
+        await rig.close()
+
+
+async def test_a_failing_poll_is_retried_at_the_next_call() -> None:
+    rig = await make_rig(stream=False, poll_interval_down=timedelta(minutes=5))
+    try:
+        await entered(rig)
+        rig.fake.set_price(SYMBOL, D("111"))
+        rig.fake.fail("/api/v3/orderList", method="GET", status=500, times=10)
+        assert await rig.broker.events(rig.clock()) == []
+        rig.fake.faults.clear()
+        (exit_,) = await rig.broker.events(rig.clock())  # not five minutes later: at once
+        assert isinstance(exit_, ExitFilled)
+    finally:
+        await rig.close()
+
+
 # -- the stream and its gaps ------------------------------------------------------------------
 
 
