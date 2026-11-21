@@ -117,7 +117,7 @@ sizing = {{ slots = 2 }}
 def test_live_parses_but_is_refused_and_testnet_runs_but_not_as_a_replay() -> None:
     live = parse_config(GOOD.replace('mode = "paper"', 'mode = "live"'))
     assert live.mode == "live"
-    with pytest.raises(ConfigError, match="mode 'live' is not available.*only 'paper' and"):
+    with pytest.raises(ConfigError, match=r"mode 'live' is not available.*only 'paper' and"):
         live.require_runnable()
     testnet = parse_config(GOOD.replace('mode = "paper"', 'mode = "testnet"'))
     testnet.require_runnable()
@@ -129,7 +129,7 @@ def test_live_parses_but_is_refused_and_testnet_runs_but_not_as_a_replay() -> No
 def test_initial_cash_is_required_for_paper_and_ignored_for_testnet() -> None:
     no_cash = GOOD.replace("initial_cash = 10000\n", "")
     assert no_cash != GOOD
-    with pytest.raises(ConfigError, match="account.initial_cash is required"):
+    with pytest.raises(ConfigError, match=r"account\.initial_cash is required"):
         parse_config(no_cash)
     config = parse_config(no_cash.replace('mode = "paper"', 'mode = "testnet"'))
     assert config.account.initial_cash is None
