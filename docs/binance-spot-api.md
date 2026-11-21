@@ -164,10 +164,15 @@ BTCUSDT and ETHUSDT, a restart, time exits and a flatten) confirmed:
 - Request weight peaked at 194 per minute over a session with start-up, reconcile, polling and
   four orders.
 
-Still not observed (no take profit, stop or trailing stop triggered in the short run, and no
-rejection was provoked): the `-2010` and OCO-relationship wording, the order-count headers,
-partial fills, and how a trailing stop with no stop price starts. They remain covered by the
-simulator only.
+- A run with 0.1% levels saw the real triggers: the OCO's `LIMIT_MAKER` take profit filled 23 s
+  after entry at exactly `ref x 1.001` rounded up to the tick (the stop leg was cancelled by the
+  exchange), and the trailing `STOP_LOSS` (10 bips, no stop price) followed the price up and
+  triggered about 3 minutes later. Both fills arrived over the user data stream and closed the
+  positions with reasons `take_profit` and `trailing_stop`.
+
+Still not observed (no rejection was provoked and no fill was partial): the `-2010` and
+OCO-relationship wording, the order-count headers, partial fills, and a fixed `STOP_LOSS` leg
+triggering. They remain covered by the simulator only.
 
 ## Assumptions to check on the real testnet
 
