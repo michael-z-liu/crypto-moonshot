@@ -98,16 +98,13 @@ def test_run_needs_a_token_and_a_runnable_config(tmp_path: Path) -> None:
     assert "cannot read the run config" in missing.stderr
 
 
-def test_run_refuses_modes_that_place_orders(tmp_path: Path) -> None:
-    for mode in ("testnet", "live"):
-        config = config_text(
-            tmp_path,
-            RULE_STRATEGY.format(plugin="x.py", symbols='["AAAUSDT"]'),
-            mode=mode,
-        )
-        result = invoke("live", "run", "--config", str(config), env=ENV)
-        assert result.exit_code == 2
-        assert "not available in this build" in result.stderr
+def test_run_refuses_the_mainnet_mode(tmp_path: Path) -> None:
+    config = config_text(
+        tmp_path, RULE_STRATEGY.format(plugin="x.py", symbols='["AAAUSDT"]'), mode="live"
+    )
+    result = invoke("live", "run", "--config", str(config), env=ENV)
+    assert result.exit_code == 2
+    assert "not available in this build" in result.stderr
 
 
 def test_run_passes_its_options_and_maps_failures_to_exit_codes(

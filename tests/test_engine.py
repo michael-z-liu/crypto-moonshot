@@ -543,7 +543,7 @@ async def test_a_restart_refuses_a_contradicting_config(tmp_path: Path) -> None:
         Engine(config, build_specs(config, None), store).start()
 
 
-def test_the_engine_refuses_testnet_and_live(tmp_path: Path) -> None:
+def test_the_engine_refuses_live_and_testnet_without_a_broker(tmp_path: Path) -> None:
     for mode in ("testnet", "live"):
         config = config_from_dict(
             {

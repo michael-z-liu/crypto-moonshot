@@ -65,7 +65,7 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
-from typing import Literal
+from typing import Any, Literal
 
 from crypto_moonshot.broker.base import (
     QUOTE_ASSET,
@@ -474,6 +474,23 @@ class BinanceBroker:
     @property
     def positions(self) -> dict[str, Position]:
         return {s: h.position for s, h in self._holdings.items()}
+
+    def exchange_status(self) -> dict[str, Any]:
+        """What the status shows of the exchange side: the stream, a halt, dust, commissions in
+        other assets, the clock offset and the request weight. Never a key or a signature."""
+        commissions: dict[str, Decimal] = {}
+        for _, asset, amount in self.other_commissions:
+            commissions[asset] = commissions.get(asset, ZERO) + amount
+        return {
+            "kind": "binance",
+            "stream_connected": self.stream_connected,
+            "halted": self._halted,
+            "banned": self._client.banned,
+            "dust": {symbol: format(q, "f") for symbol, q in sorted(self.dust.items()) if q},
+            "other_commissions": {a: format(v, "f") for a, v in sorted(commissions.items())},
+            "time_offset_ms": round(self._client.time_offset / timedelta(milliseconds=1)),
+            "max_used_weight": self._client.max_used_weight,
+        }
 
     async def start(self) -> None:
         """Load the symbol rules and start the user data stream (idempotent; the first async

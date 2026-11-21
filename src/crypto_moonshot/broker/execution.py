@@ -55,7 +55,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from crypto_moonshot.broker.base import Costs, Order, OrderRejected, Side
 from crypto_moonshot.broker.candles import Candles
@@ -90,6 +90,7 @@ __all__ = [
     "Position",
     "QueryResult",
     "Reconciliation",
+    "ReportsExchange",
     "RestoresState",
     "SubmitResult",
     "SubmitStatus",
@@ -359,6 +360,15 @@ class RestoresState(Protocol):
     def load(self, orders: Sequence[WorkingOrder], positions: Sequence[Position]) -> None:
         """Adopt the state file's working orders (new, pending or unknown) and open
         positions. Contacts nothing."""
+        ...
+
+
+@runtime_checkable
+class ReportsExchange(Protocol):
+    """An exchange broker that reports its own state for the status (never a secret)."""
+
+    def exchange_status(self) -> dict[str, Any]:
+        """JSON-ready facts: stream connection, halt reason, dust, odd commissions..."""
         ...
 
 

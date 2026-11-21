@@ -133,6 +133,7 @@ from crypto_moonshot.broker.execution import (
     OrderState,
     PaperExecution,
     Reconciliation,
+    ReportsExchange,
     RestoresState,
     SubmitResult,
     SubmitStatus,
@@ -359,6 +360,8 @@ class EngineStatus:
     last_ticks: dict[str, datetime]
     providers: list[ProviderRecord]
     health: dict[str, Any]
+    exchange: dict[str, Any] | None = None
+    """An exchange broker's state (testnet mode; `None` for paper): see `exchange_state`."""
 
     def to_json(self) -> dict[str, Any]:
         """The snapshot as JSON-ready values (ISO times, plain numbers and strings)."""
@@ -460,6 +463,9 @@ class Engine:
         broker: ExecutionBroker | None = None,
     ) -> None:
         config.require_runnable()
+        if broker is None and config.mode == "testnet":
+            msg = "testnet mode trades through an exchange broker; none was given"
+            raise ConfigError(msg)
         names = [s.name for s in specs]
         if sorted(names) != sorted(s.name for s in config.strategies):
             msg = "the specs must be exactly the config's strategies"
@@ -478,9 +484,7 @@ class Engine:
         self._listeners: list[TickListener] = []
         self._feed: Feed | None = None
         self._broker: ExecutionBroker = (
-            broker
-            if broker is not None
-            else PaperExecution.create(config.account.initial_cash, self._costs)
+            broker if broker is not None else PaperExecution.create(config.paper_cash, self._costs)
         )
         self._reconciliation: Reconciliation | None = None
         self._recovered = False
@@ -580,9 +584,10 @@ class Engine:
         store = self.store
         stored = {s.name: s for s in store.strategies()}
         restart = bool(stored) or bool(store.last_ticks())
-        initial = self.config.account.initial_cash
+        paper = self.config.mode != "testnet"
+        initial = self.config.paper_cash if paper else 0.0
         known = store.meta("initial_cash")
-        if known is not None and float(known) != initial:
+        if paper and known is not None and float(known) != initial:
             msg = (
                 f"account.initial_cash is {initial:g} but the state file {store.path} was "
                 f"started with {float(known):g}; use a new state file to change it"
@@ -607,7 +612,8 @@ class Engine:
                 )
                 raise ConfigError(msg)
         with store.transaction():
-            store.set_meta("initial_cash", repr(initial))
+            if paper:  # a testnet account is the exchange's: there is no initial cash
+                store.set_meta("initial_cash", repr(initial))
             for spec in self.specs.values():
                 store.upsert_strategy(spec.name, spec.config.model_dump(mode="json"), spec.capital)
             if restart:
@@ -778,7 +784,26 @@ class Engine:
             last_ticks={i.value: t for i, t in store.last_ticks().items()},
             providers=store.providers(),
             health=health,
+            exchange=self.exchange_state(),
         )
+
+    def exchange_state(self) -> dict[str, Any] | None:
+        """The exchange broker's facts plus the last reconciliation (`None` for paper)."""
+        if not isinstance(self._broker, ReportsExchange):
+            return None
+        state = self._broker.exchange_status()
+        report = self._reconciliation
+        state["last_reconcile"] = (
+            None
+            if report is None
+            else {
+                "time": report.time.isoformat(),
+                "clean": report.clean,
+                "orphans": len(report.orphans),
+                "mismatches": len(report.mismatches),
+            }
+        )
+        return state
 
     async def submit_batch(
         self, batch: SignalBatch, received_at: datetime | None = None

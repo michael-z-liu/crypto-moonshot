@@ -31,8 +31,10 @@ risk = { max_positions = 200 }
 exit = { take_profit = 0.2, max_hold = "3d" }
 ```
 
-Only `paper` runs in this build: `testnet` and `live` parse, and `RunConfig.require_runnable`
-refuses them with a clear message. Every validation error names its field
+`paper` and `testnet` run in this build (`testnet` only for `live run`: a replay stays paper);
+`live` parses, and `RunConfig.require_runnable` refuses it with a clear message. In `testnet`
+mode the account is the exchange's: `initial_cash` is ignored (leave it out).
+Every validation error names its field
 (`strategies[1] (cnn).warmup: ...`).
 """
 
@@ -65,7 +67,7 @@ EXTERNAL = "external"
 """The `source` of a strategy whose batches an external provider posts."""
 
 Mode = Literal["paper", "testnet", "live"]
-RUNNABLE_MODES: tuple[Mode, ...] = ("paper",)
+RUNNABLE_MODES: tuple[Mode, ...] = ("paper", "testnet")
 
 
 class ConfigError(ValueError):
@@ -116,6 +118,8 @@ class CostsConfig(_Model):
 class AccountConfig(_Model):
     """The account: paper cash and the limits checked across every strategy's book.
 
+    - `initial_cash`: the paper account's cash (required in paper mode; ignored in testnet mode,
+      where the exchange's balances are the account).
     - `max_order_usdt`: an entry's stake above this is refused.
     - `max_total_exposure`: the open cost basis of every book, the new stake included, at most
       this fraction of the books' total realised equity.
@@ -123,7 +127,7 @@ class AccountConfig(_Model):
       intervals old.
     """
 
-    initial_cash: float = Field(gt=0)
+    initial_cash: float | None = Field(default=None, gt=0)
     max_order_usdt: float | None = Field(default=None, gt=0)
     max_total_exposure: float | None = Field(default=None, gt=0)
     stale_after: int = Field(default=2, ge=1)
@@ -358,23 +362,39 @@ class RunConfig(_Model):
                 msg = f"strategy name {strategy.name!r} is used twice; names must be unique"
                 raise ValueError(msg)
             seen.add(strategy.name)
+        if self.mode == "testnet":
+            return self
+        initial = self.account.initial_cash
+        if initial is None:
+            msg = "account.initial_cash is required (the paper account's cash)"
+            raise ValueError(msg)
         total = sum(s.capital for s in self.strategies)
-        if total > self.account.initial_cash * (1 + 1e-12):
+        if total > initial * (1 + 1e-12):
             msg = (
                 f"the strategies' capital ({total:g}) exceeds the account's initial_cash "
-                f"({self.account.initial_cash:g})"
+                f"({initial:g})"
             )
             raise ValueError(msg)
         return self
 
-    def require_runnable(self) -> None:
-        """Raise `ConfigError` unless this build can run the config's mode (paper only)."""
+    def require_runnable(self, *, replay: bool = False) -> None:
+        """Raise `ConfigError` unless this build can run the config's mode: `paper` and
+        `testnet` (a replay only `paper`: it never places exchange orders)."""
         if self.mode not in RUNNABLE_MODES:
             msg = (
-                f"mode {self.mode!r} is not available in this build: only 'paper' runs "
-                "(no exchange orders are placed). Testnet and live trading come later."
+                f"mode {self.mode!r} is not available in this build: only 'paper' and "
+                "'testnet' run. Live (mainnet) trading comes later."
             )
             raise ConfigError(msg)
+        if replay and self.mode != "paper":
+            msg = f"a replay is paper-only: it cannot run a config with mode {self.mode!r}"
+            raise ConfigError(msg)
+
+    @property
+    def paper_cash(self) -> float:
+        """The paper account's cash (paper mode only: it is validated there)."""
+        assert self.account.initial_cash is not None
+        return self.account.initial_cash
 
     def strategy(self, name: str) -> StrategyConfig:
         for strategy in self.strategies:
