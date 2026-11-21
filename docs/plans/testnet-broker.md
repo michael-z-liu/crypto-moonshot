@@ -1,9 +1,9 @@
 # Binance testnet broker (built against mocks)
 
-- **Status:** blocked
+- **Status:** building
 - **Branch:** `feat/testnet-broker` (stacked on PR #19, `feat/live-operations`)
 - **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/20 (draft until M6)
-- **Updated:** 2026-11-21T14:55Z
+- **Updated:** 2026-11-21T16:10Z
 
 ## Goal
 
@@ -82,7 +82,7 @@ explicit go-ahead.
 - **Worker:** sonnet
 - **Commits:** e69a42f, 7cbc864, 4921177, 593cde6, 9276477, 93fb813
 
-### M6: Real testnet check (todo)
+### M6: Real testnet check (in progress)
 
 - **Delivers:** a scripted check and a short `live run` in testnet mode against the real spot
   testnet with the user's keys from `.env`: a tiny market buy on a major pair, the OCO bracket,
@@ -141,13 +141,10 @@ explicit go-ahead.
   not trading are dropped with a warning; exchange card on the dashboard; `examples/testnet.toml`.
   End to end vs paper on the same candles: same entries and exit reasons; exchange fills differ
   (lot steps, commissions, stops at market). F2 real-data replay still equals the backtest.
+- 2026-11-21: User confirmed testnet keys are in `/Users/mike/code/crypto-moonshot/.env`; taken as
+  the go-ahead for M6 as described (testnet only, ~10 USDT test stakes, exchange check, short
+  run, restart, flatten).
 
 ## Blocked on
-
-M6 (real testnet check) needs, from the user: (1) confirmation that testnet keys are in
-`/Users/mike/code/crypto-moonshot/.env` (preferably regenerated, since the first pair was pasted
-in chat), and (2) an explicit go-ahead to send real requests to the Binance spot testnet: first
-the read-only `moonshot exchange check`, then a short `live run` with `examples/testnet.toml`
-(about 10 USDT test stakes on BTCUSDT/ETHUSDT), a restart, and a flatten.
 
 ## Follow-ups
