@@ -39,6 +39,7 @@ from crypto_moonshot.exchange.errors import (
     RateLimited,
     error_from_response,
 )
+from crypto_moonshot.exchange.guard import require_testnet_url
 from crypto_moonshot.exchange.models import (
     Account,
     ExchangeOrder,
@@ -134,6 +135,7 @@ class SignedClient:
         if max_attempts < 1:
             msg = "max_attempts must be at least 1"
             raise ValueError(msg)
+        require_testnet_url(base_url, "REST URL")
         self._api_key = api_key
         self._api_secret = api_secret
         self._base_url = base_url.rstrip("/")

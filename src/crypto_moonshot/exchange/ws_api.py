@@ -43,6 +43,7 @@ from websockets.asyncio.client import ClientConnection, connect
 from websockets.exceptions import WebSocketException
 
 from crypto_moonshot.exchange.client import DEFAULT_RECV_WINDOW_MS, sign
+from crypto_moonshot.exchange.guard import require_testnet_url
 from crypto_moonshot.exchange.models import dec, from_ms, to_ms
 
 logger = logging.getLogger(__name__)
@@ -276,6 +277,7 @@ class UserDataStream:
         connect: Connect = connect,
         rng: random.Random | None = None,
     ) -> None:
+        require_testnet_url(url, "WebSocket API URL")
         self._api_key = api_key
         self._api_secret = api_secret
         self._sink = sink

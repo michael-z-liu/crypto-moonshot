@@ -9,10 +9,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Settings from the environment (`MOONSHOT_DATA_DIR`, `MOONSHOT_BINANCE_BASE_URL`,
     `MOONSHOT_STREAM_URL`, `MOONSHOT_API_TOKEN`, `MOONSHOT_BINANCE_TESTNET_API_KEY`, `_SECRET`,
-    `MOONSHOT_BINANCE_TESTNET_REST_URL`).
+    `MOONSHOT_BINANCE_TESTNET_REST_URL`, `MOONSHOT_BINANCE_TESTNET_WS_API_URL`).
 
-    No `.env` file is read (testnet mode decides how to load one). The API token and the
-    testnet keys are `SecretStr`s: they are never shown in a repr, log line or error message.
+    No `.env` file is read by default: only the testnet code paths load one, through
+    `load_settings(env_file=...)` (paper mode never does). The API token and the testnet keys
+    are `SecretStr`s: they are never shown in a repr, log line or error message.
     """
 
     model_config = SettingsConfigDict(env_prefix="MOONSHOT_", env_file=None, extra="ignore")
@@ -33,3 +34,29 @@ class Settings(BaseSettings):
     """Binance spot testnet API secret (`MOONSHOT_BINANCE_TESTNET_API_SECRET`)."""
     binance_testnet_rest_url: str = "https://testnet.binance.vision"
     """Base URL of the Binance spot testnet REST API (`MOONSHOT_BINANCE_TESTNET_REST_URL`)."""
+    binance_testnet_ws_api_url: str = "wss://ws-api.testnet.binance.vision/ws-api/v3"
+    """Spot testnet WebSocket API (user data stream; `MOONSHOT_BINANCE_TESTNET_WS_API_URL`)."""
+
+
+class EnvFileError(Exception):
+    """The `--env-file` cannot be used; the message says why (never a value from the file)."""
+
+
+def load_settings(*, env_file: Path | None = None, search_cwd: bool = False) -> Settings:
+    """`Settings`, with the variables of an env file added for this process only (real
+    environment variables win over the file's).
+
+    `env_file` is read when given (`EnvFileError` if it is missing or not a file); otherwise
+    `./.env` is read when `search_cwd` is set and the file exists. With neither, no file is read.
+    Only testnet code paths should pass either: paper mode never reads a `.env`.
+    """
+    if env_file is not None:
+        if not env_file.is_file():
+            msg = f"the env file {env_file} does not exist or is not a file"
+            raise EnvFileError(msg)
+        return Settings(_env_file=env_file)  # type: ignore[call-arg]
+    if search_cwd:
+        default = Path.cwd() / ".env"
+        if default.is_file():
+            return Settings(_env_file=default)  # type: ignore[call-arg]
+    return Settings()
