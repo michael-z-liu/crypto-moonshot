@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `feat/testnet-broker` (stacked on PR #19, `feat/live-operations`)
 - **PR:**
-- **Updated:** 2026-11-21T04:20Z
+- **Updated:** 2026-11-21T05:05Z
 
 ## Goal
 
@@ -56,7 +56,7 @@ explicit go-ahead.
 - **Worker:** opus
 - **Commits:** edccfce, 7df02e6, 5590e40, 0331ec4, 659e603, 6ee614b, a507820
 
-### M4: BinanceBroker (in progress)
+### M4: BinanceBroker (done)
 
 - **Delivers:** market entries by quote amount, brackets as OCO (take-profit `LIMIT_MAKER` plus
   `STOP_LOSS`, trailing via `trailingDelta`), single-leg exits, immediate-trigger fallbacks,
@@ -68,9 +68,9 @@ explicit go-ahead.
   timeouts, WS disconnects with missed events, a restart mid-order, orphaned and unknown orders,
   balance mismatches.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** 0abb9eb, f1825b7, a49b0fe, 505ea7a, 46ce80d, b00f886, e31bf7a, 4194bbd, 7e657cb, 1c57cb5, a67dad6
 
-### M5: Testnet mode (todo)
+### M5: Testnet mode (in progress)
 
 - **Delivers:** `mode = "testnet"` runnable: keys from `MOONSHOT_BINANCE_TESTNET_API_KEY` /
   `_SECRET` (environment or `.env`, never logged), testnet URLs configurable, start-up checks
@@ -126,6 +126,14 @@ explicit go-ahead.
 - 2026-11-21: The user shared testnet keys in chat. Not stored anywhere by the agent; the user was
   asked to put (preferably regenerated) keys in `.env` themselves, since the agent may not read or
   write `.env`. M6 added; it still needs an explicit go-ahead right before it runs.
+- 2026-11-21 (M4): `exchange/ws_api.py` (`UserDataStream`), `broker/binance.py` (`BinanceBroker`),
+  `RestoresState.load` so a restarted broker knows positions, `BrokerHalted` + `broker_halted`
+  alert for auth/ban, engine drain between ticks (default 5 s, exchange brokers only). Position
+  `entry_time` = order time so time exits land on the same tick as paper. Crossed levels sell at
+  market under the bracket ID. Partial exit fills merge into one `ExitFilled`. Not persisted
+  (rare): a partly filled bracket's sold quantity before an engine cancel; BNB commissions.
+- 2026-11-21: Keys live in one file, `/Users/mike/code/crypto-moonshot/.env` (main checkout,
+  gitignored); M5 adds `--env-file` so runs from worktrees use it.
 
 ## Blocked on
 
