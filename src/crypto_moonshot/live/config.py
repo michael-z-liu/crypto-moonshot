@@ -88,6 +88,16 @@ def _duration(value: object) -> object:
 Duration = Annotated[timedelta, BeforeValidator(_duration)]
 
 
+def _optional_duration(value: object) -> object:
+    if isinstance(value, str) and parse_duration(value) is None:
+        return None
+    return _duration(value)
+
+
+OptionalDuration = Annotated[timedelta | None, BeforeValidator(_optional_duration)]
+"""A duration, or `'none'` (None)."""
+
+
 class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -130,14 +140,14 @@ class EngineConfig(_Model):
     - `replay_timeout`: in replay, the longest real time to wait for a candle's batches (replay
       has no wall-clock deadline: it waits for every strategy).
     - `drain_interval`: exchange brokers only: between ticks, record the broker's fills this
-      often (0 turns it off; the paper broker is never drained between ticks).
+      often (`'none'` turns it off; the paper broker is never drained between ticks).
     """
 
     tick_timeout: Duration = timedelta(seconds=10)
     signal_deadline: Duration = timedelta(seconds=30)
     entry_grace: Duration = timedelta(minutes=5)
     replay_timeout: Duration = timedelta(hours=1)
-    drain_interval: Duration = timedelta(seconds=5)
+    drain_interval: OptionalDuration = timedelta(seconds=5)
 
 
 class HealthConfig(_Model):

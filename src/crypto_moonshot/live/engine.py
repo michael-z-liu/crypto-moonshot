@@ -661,12 +661,13 @@ class Engine:
             await feed.aclose()
 
     def _drains(self) -> bool:
-        interval = self.config.engine.drain_interval
-        return not self._broker.needs_candles and interval > timedelta(0)
+        return not self._broker.needs_candles and self.config.engine.drain_interval is not None
 
     async def _drain_loop(self) -> None:
         """Between ticks: record what the broker heard (see the module docstring)."""
-        wait = self.config.engine.drain_interval.total_seconds()
+        interval = self.config.engine.drain_interval
+        assert interval is not None
+        wait = interval.total_seconds()
         try:
             while not self._stopping:
                 await asyncio.sleep(wait)

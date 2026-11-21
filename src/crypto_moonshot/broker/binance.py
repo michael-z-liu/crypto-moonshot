@@ -506,24 +506,31 @@ class BinanceBroker:
         self._inbox.append(message)
 
     def load(self, orders: Sequence[WorkingOrder], positions: Sequence[Position]) -> None:
-        """Adopt the state file's working orders and open positions (`RestoresState`)."""
+        """Adopt the state file's working orders and open positions (`RestoresState`). A
+        position's bracket is live only if it is among the working orders (the engine may
+        have cancelled it to sell)."""
+        working = {w.order.id for w in orders}
         for position in positions:
             if position.symbol in self._holdings:
                 continue
+            bid = position.bracket_id
+            live = bid is not None and bid in working
+            if bid is not None and not live:
+                position = replace(position, bracket_id=None)
             holding = _Holding(
                 position, _d(position.entry_ref), _d(position.quantity), position.entry_time
             )
-            holding.protect = position.bracket_id is not None or needs_bracket(position.exit_plan)
+            holding.protect = live or (bid is None and needs_bracket(position.exit_plan))
             self._holdings[position.symbol] = holding
-            if position.bracket_id is not None:
-                self._track_bracket(position, position.bracket_id, verified=False)
-        for working in orders:
-            order = working.order
+            if live and bid is not None:
+                self._track_bracket(position, bid, verified=False)
+        for item in orders:
+            order = item.order
             if order.id in self._entries or order.id in self._sells or order.id in self._legs:
                 continue
             if order.side is Side.BUY:
                 entry = _Entry(
-                    order, working.interval, _Progress(order.id, order.symbol), recovered=True
+                    order, item.interval, _Progress(order.id, order.symbol), recovered=True
                 )
                 self._entries[order.id] = entry
             elif order.type is OrderType.MARKET:
