@@ -17,9 +17,11 @@ Storage rules
 - `transaction()` makes a block atomic (one tick step = one transaction); nested use becomes a
   savepoint, so an inner failure that is caught rolls back only the inner block. Every write
   method outside a transaction runs in its own.
-- Status columns only move forward: orders and positions leave `pending` once (to filled /
-  cancelled / rejected, or to open / cancelled) and an open position closes once; a write that
-  would move one backwards raises `StateError`.
+- Status columns only move forward: an order goes `new` (the intent, written before the broker
+  is called) -> `pending` (accepted by the broker) or `unknown` (the broker could not say; it
+  is queried) -> filled / cancelled / rejected, each final once; a position goes pending ->
+  open -> closed, or pending -> cancelled. A write that would move one backwards raises
+  `StateError`.
 - One live (pending or open) position per symbol across all strategies, enforced by a unique
   index: the account rule that only one strategy holds a symbol at a time.
 """
@@ -28,7 +30,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from collections.abc import Iterator, Sequence
+from collections.abc import Collection, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -174,7 +176,41 @@ _V2: Migration = (
 """Alerts (the active ones; a row lives from firing to resolution, so an acknowledgement dies
 with it) and indexes for the dashboard's queries."""
 
-MIGRATIONS: tuple[Migration, ...] = (_V1, _V2)
+_ORDER_COLUMNS = (
+    "id, strategy, symbol, interval, side, type, quote_amount, quantity, exit_plan, time,"
+    " status, reason, signal_id"
+)
+
+_V3: Migration = (
+    """CREATE TABLE orders_v3 (
+        id TEXT PRIMARY KEY,
+        strategy TEXT NOT NULL REFERENCES strategies(name),
+        symbol TEXT NOT NULL,
+        interval TEXT NOT NULL,
+        side TEXT NOT NULL CHECK (side IN ('buy', 'sell')),
+        type TEXT NOT NULL CHECK (type IN ('market', 'bracket')),
+        quote_amount REAL,
+        quantity REAL,
+        exit_plan TEXT,
+        time TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN
+            ('new', 'pending', 'unknown', 'filled', 'cancelled', 'rejected')),
+        reason TEXT,
+        signal_id INTEGER REFERENCES signals(id)
+    )""",
+    f"INSERT INTO orders_v3 (rowid, {_ORDER_COLUMNS}) SELECT rowid, {_ORDER_COLUMNS} FROM orders",
+    "DROP TABLE orders",
+    "ALTER TABLE orders_v3 RENAME TO orders",
+    "CREATE INDEX orders_pending ON orders (strategy)"
+    " WHERE status IN ('new', 'pending', 'unknown')",
+    "CREATE INDEX orders_signal ON orders (signal_id)",
+)
+"""Order states for exchange brokers: `new` (the intent is committed, the broker not yet
+called) and `unknown` (the broker could not tell whether it placed the order). SQLite cannot
+change a CHECK constraint, so the table is rebuilt (rowids kept; foreign keys are off while
+migrations run and checked before they commit)."""
+
+MIGRATIONS: tuple[Migration, ...] = (_V1, _V2, _V3)
 """Migration `k` (0-based) takes a file from schema version `k` to `k + 1`."""
 SCHEMA_VERSION = len(MIGRATIONS)
 
@@ -196,10 +232,25 @@ class SignalOutcome(StrEnum):
 
 
 class OrderStatus(StrEnum):
+    NEW = "new"
+    """The intent is committed; the broker has not answered yet (a crash leaves it so)."""
     PENDING = "pending"
+    """Accepted by the broker and working (a bracket: live)."""
+    UNKNOWN = "unknown"
+    """The broker could not tell whether it placed the order: it must be queried."""
     FILLED = "filled"
     CANCELLED = "cancelled"
     REJECTED = "rejected"
+
+    @property
+    def working(self) -> bool:
+        """Not final: new, pending or unknown."""
+        return self in WORKING
+
+
+WORKING = frozenset({OrderStatus.NEW, OrderStatus.PENDING, OrderStatus.UNKNOWN})
+"""Order statuses that are not final."""
+_WORKING_SQL = "('new', 'pending', 'unknown')"
 
 
 class PositionStatus(StrEnum):
@@ -694,15 +745,26 @@ class StateStore:
             raise SchemaVersionError(msg)
         if version == len(migrations):
             return
-        with self.transaction():
-            for migration in migrations[version:]:
-                for statement in migration:
-                    self._db.execute(statement)
-            self._db.execute(
-                "INSERT INTO meta (key, value) VALUES ('schema_version', ?)"
-                " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
-                (str(len(migrations)),),
-            )
+        # Foreign keys are off while migrations run (a table rebuild drops the old table), and
+        # checked before the migrations commit; PRAGMA foreign_keys cannot change in a
+        # transaction, so it is switched around it.
+        self._db.execute("PRAGMA foreign_keys = OFF")
+        try:
+            with self.transaction():
+                for migration in migrations[version:]:
+                    for statement in migration:
+                        self._db.execute(statement)
+                broken = self._db.execute("PRAGMA foreign_key_check").fetchall()
+                if broken:
+                    msg = f"migrating {self.path} broke {len(broken)} foreign key(s)"
+                    raise StateError(msg)
+                self._db.execute(
+                    "INSERT INTO meta (key, value) VALUES ('schema_version', ?)"
+                    " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+                    (str(len(migrations)),),
+                )
+        finally:
+            self._db.execute("PRAGMA foreign_keys = ON")
 
     # -- transactions ---------------------------------------------------------------------
 
@@ -1166,9 +1228,10 @@ class StateStore:
     # -- orders and fills -----------------------------------------------------------------
 
     def insert_order(self, order: OrderRecord) -> None:
-        """Record an order before it goes to the broker (intent before action)."""
-        if order.status is not OrderStatus.PENDING:
-            msg = f"a new order must be pending, got {order.status}"
+        """Record an order before it goes to the broker (intent before action): `new` for an
+        intent, `pending` for an order the broker already holds (a bracket opened by a fill)."""
+        if order.status not in (OrderStatus.NEW, OrderStatus.PENDING):
+            msg = f"a new order must be pending or new, got {order.status}"
             raise StateError(msg)
         with self._atomic():
             self._exec(
@@ -1195,7 +1258,8 @@ class StateStore:
     def _finish_order(self, order_id: str, status: OrderStatus, reason: str | None) -> None:
         with self._atomic():
             cursor = self._exec(
-                "UPDATE orders SET status = ?, reason = ? WHERE id = ? AND status = 'pending'",
+                "UPDATE orders SET status = ?, reason = ?"
+                f" WHERE id = ? AND status IN {_WORKING_SQL}",
                 (status.value, reason, order_id),
             )
             if cursor.rowcount == 1:
@@ -1205,6 +1269,39 @@ class StateStore:
                 raise KeyError(order_id)
             msg = f"order {order_id} is {current.status}, not pending"
             raise StateError(msg)
+
+    def mark_order_accepted(self, order_id: str) -> None:
+        """The broker holds the order: new or unknown -> pending (pending stays pending)."""
+        with self._atomic():
+            cursor = self._exec(
+                "UPDATE orders SET status = 'pending'"
+                " WHERE id = ? AND status IN ('new', 'unknown')",
+                (order_id,),
+            )
+            if cursor.rowcount == 1:
+                return
+            current = self.order(order_id)
+            if current is None:
+                raise KeyError(order_id)
+            if current.status is not OrderStatus.PENDING:
+                msg = f"order {order_id} is {current.status}, not new or unknown"
+                raise StateError(msg)
+
+    def mark_order_unknown(self, order_id: str) -> None:
+        """The broker could not tell whether it placed the order: new -> unknown."""
+        with self._atomic():
+            cursor = self._exec(
+                "UPDATE orders SET status = 'unknown' WHERE id = ? AND status = 'new'",
+                (order_id,),
+            )
+            if cursor.rowcount == 1:
+                return
+            current = self.order(order_id)
+            if current is None:
+                raise KeyError(order_id)
+            if current.status is not OrderStatus.UNKNOWN:
+                msg = f"order {order_id} is {current.status}, not new"
+                raise StateError(msg)
 
     def mark_order_filled(self, order_id: str) -> None:
         self._finish_order(order_id, OrderStatus.FILLED, None)
@@ -1220,8 +1317,9 @@ class StateStore:
         return None if row is None else _order(row)
 
     def pending_orders(self, strategy: str | None = None) -> list[OrderRecord]:
-        """Orders not yet filled, cancelled or rejected (brackets included), oldest first."""
-        sql = "SELECT * FROM orders WHERE status = 'pending'"
+        """Orders not yet filled, cancelled or rejected (new, pending or unknown; brackets
+        included), oldest first."""
+        sql = f"SELECT * FROM orders WHERE status IN {_WORKING_SQL}"
         params: tuple[str, ...] = ()
         if strategy is not None:
             sql += " AND strategy = ?"
@@ -1442,7 +1540,14 @@ class StateStore:
 
     # -- derived state --------------------------------------------------------------------
 
-    def derive_book(self, strategy: str, capital: float, now: datetime) -> Book:
+    def derive_book(
+        self,
+        strategy: str,
+        capital: float,
+        now: datetime,
+        *,
+        exclude: Collection[int] = (),
+    ) -> Book:
         """`strategy`'s book rebuilt from its positions, as of the UTC day of `now`.
 
         - `cash = capital + sum(pnl of closed) - sum(cost of open and pending)`; `costs` the
@@ -1456,14 +1561,20 @@ class StateStore:
 
         This equals a `Book` fed every non-cancelled entry (at `placed_at`) and every close (at
         `exit_time`) in time order, then `roll_day(now)`.
+
+        `exclude`: ids of pending or open positions to leave out, as if not placed yet (the
+        engine reapplies a resumed tick's entries one by one, exactly as it first did).
         """
         day = utc_day(now)
+        skip = ""
+        if exclude:
+            skip = " AND id NOT IN (" + ", ".join(str(int(i)) for i in exclude) + ")"
         midnight = as_utc(now).replace(hour=0, minute=0, second=0, microsecond=0)
         start, end = time_text(midnight), time_text(midnight + _DAY)
         db = self._db
         live = db.execute(
             "SELECT symbol, cost FROM positions WHERE strategy = ?"
-            " AND status IN ('pending', 'open') ORDER BY placed_at, id",
+            f" AND status IN ('pending', 'open'){skip} ORDER BY placed_at, id",
             (strategy,),
         ).fetchall()
         before = db.execute(
@@ -1478,7 +1589,7 @@ class StateStore:
         ).fetchall()
         entries = db.execute(
             "SELECT count(*) AS n FROM positions WHERE strategy = ? AND status != 'cancelled'"
-            " AND placed_at >= ? AND placed_at < ?",
+            f" AND placed_at >= ? AND placed_at < ?{skip}",
             (strategy, start, end),
         ).fetchone()["n"]
         costs = {r["symbol"]: float(r["cost"]) for r in live}
@@ -1503,9 +1614,10 @@ class StateStore:
 
     def broker_snapshot(self, initial_cash: float) -> PaperSnapshot:
         """The paper broker's state from the file, for a restart: open positions with their
-        brackets, pending market orders, and free cash `initial_cash + sum(pnl of closed) -
-        sum(cost of open and pending)`. Its candles must be added again (see
-        `PaperBroker.required_history`)."""
+        brackets, working market orders (an intent the crash left `new` included: the paper
+        broker is deterministic, so restoring it is placing it), and free cash `initial_cash +
+        sum(pnl of closed) - sum(cost of open and pending)`. Its candles must be added again
+        (see `PaperBroker.required_history`)."""
         live = self.live_positions()
         pnl = self._db.execute(
             "SELECT coalesce(sum(pnl), 0.0) AS pnl FROM positions WHERE status = 'closed'"

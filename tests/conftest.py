@@ -43,3 +43,17 @@ def replay_signals(replay_root: Path) -> Signals:
     series = {s: store.read_series(s, H1) for s in COINS}
     context = {"BTCUSDT": store.read_series("BTCUSDT", H1)}
     return rolling_signals(rule_strategy(), series, context, at(START), at(END))
+
+
+@pytest.fixture(autouse=True)
+def _no_testnet_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A developer's own testnet keys or URLs in the shell never reach a test."""
+    for name in (
+        "MOONSHOT_BINANCE_TESTNET_API_KEY",
+        "MOONSHOT_BINANCE_TESTNET_API_SECRET",
+        "MOONSHOT_BINANCE_TESTNET_REST_URL",
+        "MOONSHOT_BINANCE_TESTNET_WS_API_URL",
+        "MOONSHOT_BINANCE_API_KEY",
+        "MOONSHOT_BINANCE_API_SECRET",
+    ):
+        monkeypatch.delenv(name, raising=False)

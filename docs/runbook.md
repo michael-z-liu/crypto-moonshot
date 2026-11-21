@@ -1,7 +1,8 @@
 # Runbook: running the paper trading daemon on a Proxmox host
 
 How to run `moonshot live run` unattended in Docker and watch it from a browser on your LAN.
-Paper mode only: no API keys, no orders on any exchange. The design is in
+Paper mode needs no API keys and places no orders; testnet mode (fake money on the Binance spot
+testnet) is covered in [First testnet run](#first-testnet-run). The design is in
 [architecture.md](architecture.md) ("Operations"); this page is what to type.
 
 All commands below run in the repository folder on the Docker host, unless they say otherwise.
@@ -64,6 +65,78 @@ All commands below run in the repository folder on the Docker host, unless they 
    The first build takes a few minutes; the container starts with `restart: unless-stopped`, so
    it also comes back after a reboot of the host.
 
+## First testnet run
+
+The Binance spot testnet trades fake money with the same API as the real exchange. Use it to see
+the daemon place real orders (market entries, OCO brackets, fills on the user data stream)
+before any real money is involved. Mainnet is not available in this build, and the daemon refuses
+any Binance host that is not `testnet.binance.vision`.
+
+1. **Create testnet keys** at <https://testnet.binance.vision/> (log in with GitHub, "Generate
+   HMAC_SHA256 Key"). They only work on the testnet. The testnet is reset about once a month:
+   balances and orders vanish and keys may need regenerating.
+2. **Put them in the settings file**, in the main checkout, and lock it down:
+
+   ```bash
+   cat >> /Users/mike/code/crypto-moonshot/.env <<'EOF'
+   MOONSHOT_BINANCE_TESTNET_API_KEY=...
+   MOONSHOT_BINANCE_TESTNET_API_SECRET=...
+   MOONSHOT_API_TOKEN=...            # any long random string, for the dashboard and API
+   EOF
+   chmod 600 /Users/mike/code/crypto-moonshot/.env
+   ```
+
+   The file is gitignored; never commit it or paste keys into a config, a chat or a log. The
+   variable names matter: `MOONSHOT_BINANCE_TESTNET_API_KEY` and `_SECRET` (the mainnet names
+   `MOONSHOT_BINANCE_API_KEY` are not read). `--env-file PATH` loads that file's variables for one
+   process only (variables already in the environment win). Without the option, testnet commands
+   read `./.env` if it exists; paper mode never reads an env file.
+3. **Check the connection** (read-only, places no order):
+
+   ```bash
+   uv run moonshot exchange check --env-file /Users/mike/code/crypto-moonshot/.env
+   uv run moonshot exchange check --env-file /Users/mike/code/crypto-moonshot/.env --symbol ETHUSDT --json
+   ```
+
+   It shows the server time and your clock offset (fix NTP if it is over a second), whether the
+   key is valid and may trade, your USDT and base-asset balances, the symbol's tick, step and
+   minimum notional and the open-order count. Exit 0 ok, 1 failure (rejected key, no network), 2
+   usage (keys missing, mainnet URL).
+4. **Run** the example config (tiny stakes on BTCUSDT and ETHUSDT; edit `capital` and `stake` to
+   taste, but keep `stake` above the minimum notional and `capital` within your testnet USDT):
+
+   ```bash
+   uv run moonshot live run --config examples/testnet.toml \
+       --env-file /Users/mike/code/crypto-moonshot/.env
+   ```
+
+   It refuses to start (exit 2) without both keys, with a REST or WebSocket URL that is not the
+   testnet, with an exit plan Binance cannot hold (a `stop` tighter than `trailing`, or
+   `tp_fill = "close"`) or when the free testnet USDT is below the strategies' capital. Symbols
+   the testnet does not list are dropped with a warning event; a strategy left with none refuses
+   the start.
+5. **Watch** the dashboard (`http://127.0.0.1:8765/`, token from `MOONSHOT_API_TOKEN`) and
+   `uv run moonshot live status`. The overview's **Exchange** card must show the user data stream
+   *connected*, the broker *placing orders* (not `halted`), a clean last reconcile and a small
+   clock offset. Dust (a few units left after a sale; commission rounding) and commissions paid in
+   BNB are listed there too. Alerts to act on: `broker_halted` (the key was rejected or the IP is
+   banned; fix and restart), `unprotected_position:<symbol>` (a position without its stop/take
+   profit; the daemon retries), `orphan_order` and `balance_mismatch` (the exchange differs from
+   the state file: entries pause until you resume them). Fills happen at the testnet's prices, not
+   the mainnet candles', so results will differ from paper (see architecture, "Exchange broker").
+6. **Flatten and stop.** `uv run moonshot live flatten` sells every open position at market and
+   pauses entries; then stop the daemon with Ctrl-C (SIGINT) or SIGTERM. Open brackets stay on the
+   exchange if you stop without flattening, and are adopted again at the next start.
+7. **After a testnet reset** (balances back to the start, orders gone): stop the daemon, regenerate
+   the keys if they stopped working, and start with a fresh state file (change `state` in the
+   config, or move `state/testnet.sqlite` aside): the old file still believes in positions the
+   exchange no longer has, and the start-up reconciliation would flag them.
+
+With Docker, put the two testnet variables in `moonshot.env` (see `moonshot.env.example`);
+`compose.yaml` passes the file to the container as environment variables, so no `.env` is needed
+inside it, and the same mainnet guard applies. Mount a config with `mode = "testnet"` (start from
+`examples/testnet.toml` with container paths) and use a separate `state` file.
+
 ## Opening the dashboard
 
 Browse to `http://<host-ip>:8765/` from a machine on the LAN and paste the token from
@@ -109,6 +182,9 @@ it resolves and fires again; it never silences the rule.
 | `stale_symbols:<interval>` (warning) | Over 20% of that interval's traded symbols have no recent candle. | Often a feed problem right after a start or reconnect; if it persists, check the logs for the symbols. |
 | `backup_failed` (error) | The last automatic backup failed. | Check free disk space and that `./state` is writable by uid 10001. Run `live backup` by hand (below). |
 | `disk_low` (warning) | Under 1 GB free where the state file lives. | Free space on the host (old backups, Docker images: `docker system prune`). |
+| `orphan_order` (warning, exchange modes) | At start-up the exchange had open orders with the daemon's ID prefixes that the state file does not know. | The daemon leaves them alone. Look at them on the exchange and cancel them by hand if they are not yours to keep. |
+| `balance_mismatch` (error, exchange modes) | At start-up the exchange held less of an asset than the open positions need; entries are paused. | Find out where the coins went (a manual trade, a restore of an old state file). Resume entries only once the account and the state file agree. |
+| `unprotected_position:<symbol>` (error, exchange modes) | An open position has no bracket (take profit / stop) at the exchange. | The broker retries every tick. If it lasts, flatten the position or place the exits by hand. |
 
 ## The watchdog and restarts
 

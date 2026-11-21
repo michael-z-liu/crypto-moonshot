@@ -1,19 +1,24 @@
 """The trading engine: ticks in; batches, books, checks, orders and the state file out.
 
 One asyncio component with an injected clock, driven by any `Feed` (live or replay). It owns
-the paper broker and the strategy books and writes everything to the `StateStore` (used from
-the event-loop thread only). See `docs/architecture.md`, "Engine", for the design; the exact
-rules are here.
+the broker (an `ExecutionBroker`: the paper broker behind `PaperExecution` unless another is
+given) and the strategy books and writes everything to the `StateStore` (used from the
+event-loop thread only, and never inside a transaction across an `await`). See
+`docs/architecture.md`, "Engine", for the design; the exact rules are here.
 
 Per tick (interval *I*, candle *T*, entry time *E = T + I*)
 ----------------------------------------------------------
-1. **Broker** (one transaction). Every series the broker needs on *I* (a position from its
-   entry candle, a pending order from its time) gets its candles: the tick's candle when the
-   previous one was handed over, else the feed's window since the last `HISTORY_SLACK`
-   candles (so late candles that filled a hole are picked up). Then `advance(E, interval=I)`;
-   every event is recorded (fills, positions, bracket order rows, cancellations), and pending
-   buys whose entry candle has still not closed `entry_grace` after it should have are
-   cancelled (`no_candle`).
+1. **Broker.** Orders left `unknown` are resolved with `query` first. A broker that
+   `needs_candles` gets them for every series it needs on *I* (a position from its entry
+   candle, a pending order from its time): the tick's candle when the previous one was handed
+   over, else the feed's window since the last `HISTORY_SLACK` candles (so late candles that
+   filled a hole are picked up). Then `events(E, interval=I)`, and every event is recorded in
+   one transaction (fills, positions, bracket order rows, cancellations, rejections). For a
+   `needs_candles` broker, pending buys whose entry candle has still not closed `entry_grace`
+   after it should have are cancelled (`no_candle`). For a broker that does not manage time
+   exits, every open position on *I* whose `entry time + max_hold` is at or before *E* is sold
+   now: its bracket is cancelled, and only once the cancel is confirmed (a fill that raced it
+   wins) a market sell with reason `time` is placed.
 2. **Signals.** Tick listeners run (M6 broadcasts the tick to external providers). In-process
    plugins get their windows (read on the event-loop thread: the traded symbols, minus those
    whose latest candle is more than `stale_after` intervals old, as `rolling_signals` does,
@@ -39,12 +44,29 @@ Per tick (interval *I*, candle *T*, entry time *E = T + I*)
    `max_total_exposure` (open cost over realised equity, both summed over the books).
 
    An accepted entry is a market buy for *E* with a deterministic client order ID, carrying
-   the strategy's exit plan with the signal's partial override; its order row and pending
-   position (stake reserved, `placed_at = E`) are written before the broker is called.
+   the strategy's exit plan with the signal's partial override. Entries are placed one at a
+   time, in that order, so a rejected one frees its slot and cash for the next.
+
+Every order goes **intent, then action, then outcome**: its row (`new`, deterministic client
+order ID) and, for an entry, its pending position (stake reserved, `placed_at = E`) and the
+signal's outcome are committed before `broker.submit` is awaited (`Step.BEFORE_BROKER_CALL`);
+the result is recorded in a second transaction (`Step.AFTER_BROKER_CALL` lies between):
+accepted (`pending`, plus any immediate fill), rejected (the order `rejected`, an entry's
+position cancelled and its signal `rejected` with `broker_<reason>`), or unknown (the order
+`unknown`, resolved by `query` at the next broker step). A whole-position sell (an exit
+signal, a flatten, a time exit) cancels the position's bracket first when the broker's sell
+does not (`sell_cancels_bracket`). The decision step is therefore several transactions; the
+last one writes the tick's refusal summary and the tick marker.
 
 Books are kept in memory for the decisions and re-derived from the state file
 (`StateStore.derive_book`) after every step that changed it and whenever the UTC day changes,
 so they always equal `derive_book` and a restarted engine computes exactly the same numbers.
+
+**Between ticks** a broker that does not need candles (an exchange) is drained every
+`engine.drain_interval`: while no tick is being processed, `events(now)` is called and the
+events are recorded in their own transaction, so a fill reaches the state file (and the
+dashboard) within seconds instead of at the next tick. The paper broker is never drained
+between ticks.
 
 A batch for a candle already processed is *late*: it is recorded, its entries are expired and
 its exits become market sells for the next candle open. Duplicates are refused.
@@ -52,16 +74,23 @@ its exits become market sells for the next candle open. Duplicates are refused.
 Recovery
 --------
 At start the engine checks the config against the stored strategies (a changed capital or
-initial cash, or a removed strategy with open positions, is refused), restores the broker from
-`StateStore.broker_snapshot` and derives the books. On the first tick of each interval it gives
-the broker every candle it needs from each position's entry (and each pending order's time):
-the feed's window if it reaches back far enough, else the `history` fetcher. The tick's
-`advance` then applies exits that happened while the engine was down at their real times.
-Ticks missed while down are recorded as an event; their signals are not replayed. Because
-every step is one transaction, client order IDs are deterministic and the tick marker commits
-with the last step, a restart after a crash at any point neither loses nor duplicates an order
-or a position: a tick whose marker was not committed is processed again (its broker step finds
-nothing new, recorded batches are reused).
+initial cash, or a removed strategy with open positions, is refused), restores a paper broker
+from `StateStore.broker_snapshot` (which holds orders a crash left `new`: the paper broker is
+deterministic) and derives the books. Then (`run`, before the first tick) every `new` or
+`unknown` order is resolved with `broker.query`: one the broker holds is accepted; one it never
+placed is rejected (`not_placed`: an entry's position is cancelled, so only a later tick may
+enter that symbol again), except a sell, which finishes the exit it was meant for (its bracket
+cancelled first); `reconcile` then compares the broker with the state file (orphaned orders
+and balance mismatches become events and alerts, and a mismatch pauses entries). On the first
+tick of each interval the engine gives a `needs_candles` broker every candle it needs from each
+position's entry (and each pending order's time): the feed's window if it reaches back far
+enough, else the `history` fetcher. The tick's broker step then applies exits that happened
+while the engine was down at their real times. Ticks missed while down are recorded as an
+event; their signals are not replayed. Because every write is in a transaction, client order
+IDs are deterministic, intents are committed before the broker is called and the tick marker
+commits last, a restart after a crash at any point neither loses nor duplicates an order or a
+position: a tick whose marker was not committed is processed again (its broker step finds
+nothing new, recorded batches and signal outcomes are reused).
 """
 
 from __future__ import annotations
@@ -73,7 +102,7 @@ import logging
 import re
 from collections import Counter, defaultdict
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import UTC, datetime, timedelta
 from enum import Enum, StrEnum
 from pathlib import Path
@@ -84,17 +113,31 @@ import polars as pl
 from crypto_moonshot.broker.base import (
     ExitPlan,
     Order,
-    OrderRejected,
+    OrderType,
     Side,
     child_order_id,
     client_order_id,
 )
 from crypto_moonshot.broker.candles import Candles
-from crypto_moonshot.broker.paper import (
+from crypto_moonshot.broker.execution import (
+    BracketFailed,
+    BracketPlaced,
     BrokerEvent,
+    BrokerHalted,
+    CancelStatus,
     EntryFilled,
+    ExecutionBroker,
     ExitFilled,
-    PaperBroker,
+    OrderCancelled,
+    OrderRejection,
+    OrderState,
+    PaperExecution,
+    Reconciliation,
+    ReportsExchange,
+    RestoresState,
+    SubmitResult,
+    SubmitStatus,
+    WorkingOrder,
 )
 from crypto_moonshot.live.config import ConfigError, RunConfig, StrategyConfig
 from crypto_moonshot.live.contract import ExitPlanIn, SignalBatch, SignalIn, frame_to_batch
@@ -118,6 +161,7 @@ from crypto_moonshot.live.state import (
     Controls,
     EventLevel,
     OrderRecord,
+    OrderStatus,
     PositionRecord,
     PositionStatus,
     ProviderRecord,
@@ -153,9 +197,13 @@ class Step(StrEnum):
     AFTER_SIGNALS = "after_signals"
     """Every batch is in (or the deadline passed); nothing of step 3 is written yet."""
     BEFORE_BROKER_CALL = "before_broker_call"
-    """Inside step 3: an order's intent is written, the broker not yet called."""
+    """An order's intent is committed; the broker is not called yet (for a sell, not even to
+    cancel the bracket)."""
+    AFTER_BROKER_CALL = "after_broker_call"
+    """`submit` returned; its outcome is not recorded yet."""
     BEFORE_TICK_MARKER = "before_tick_marker"
-    """Inside step 3: every decision is written, the tick marker not yet."""
+    """Inside the last transaction of step 3: every decision is written, the tick marker not
+    yet."""
     TICK_DONE = "tick_done"
     """The tick is committed and the books re-derived."""
 
@@ -312,6 +360,8 @@ class EngineStatus:
     last_ticks: dict[str, datetime]
     providers: list[ProviderRecord]
     health: dict[str, Any]
+    exchange: dict[str, Any] | None = None
+    """An exchange broker's state (testnet mode; `None` for paper): see `exchange_state`."""
 
     def to_json(self) -> dict[str, Any]:
         """The snapshot as JSON-ready values (ISO times, plain numbers and strings)."""
@@ -359,6 +409,23 @@ def _signal_row(signal: SignalIn) -> SignalRow:
     )
 
 
+def time_exit_id(entry_order_id: str, when: datetime) -> str:
+    """The client order ID of the engine's time exit of a position for `when` (one per tick, so
+    a failed attempt can be retried at the next)."""
+    return child_order_id(entry_order_id, f"time:{as_utc(when).isoformat()}")
+
+
+def needs_bracket(plan: ExitPlan | None) -> bool:
+    """Whether `plan` has a price exit an exchange must hold as an order."""
+    return plan is not None and (
+        plan.take_profit is not None or plan.stop is not None or plan.trailing is not None
+    )
+
+
+def _is_market_sell(order: OrderRecord) -> bool:
+    return order.side is Side.SELL and order.type is OrderType.MARKET
+
+
 def _effective(plan: ExitPlan | None) -> ExitPlan | None:
     """`None` for a plan without any exit (no bracket is opened for it)."""
     if plan is None or plan == ExitPlan(tp_fill=plan.tp_fill):
@@ -379,6 +446,8 @@ class Engine:
         history: fetches candles a restarted broker needs that the feed's windows lack (a
             REST client live, the Parquet store in replay).
         step_hook: called at each `Step` boundary (tests inject crashes there).
+        broker: the broker to trade through (default: a `PaperExecution` restored from the
+            state file).
     """
 
     def __init__(
@@ -391,8 +460,12 @@ class Engine:
         replay: bool = False,
         history: KlineFetcher | None = None,
         step_hook: StepHook | None = None,
+        broker: ExecutionBroker | None = None,
     ) -> None:
         config.require_runnable()
+        if broker is None and config.mode == "testnet":
+            msg = "testnet mode trades through an exchange broker; none was given"
+            raise ConfigError(msg)
         names = [s.name for s in specs]
         if sorted(names) != sorted(s.name for s in config.strategies):
             msg = "the specs must be exactly the config's strategies"
@@ -410,7 +483,11 @@ class Engine:
             self._by_interval[spec.interval].append(spec)
         self._listeners: list[TickListener] = []
         self._feed: Feed | None = None
-        self._broker = PaperBroker(config.account.initial_cash, self._costs)
+        self._broker: ExecutionBroker = (
+            broker if broker is not None else PaperExecution.create(config.paper_cash, self._costs)
+        )
+        self._reconciliation: Reconciliation | None = None
+        self._recovered = False
         self._books: dict[str, Book] = {}
         self._book_day: dict[str, int] = {}
         self._dirty: set[str] = set()
@@ -430,6 +507,11 @@ class Engine:
         self._last_tick_at: datetime | None = None
         self._tick_done_at: dict[Interval, datetime] = {}
         self._error: str | None = None
+        self._tick_lock = asyncio.Lock()
+        """Held while a tick is processed (and while the between-ticks drain runs)."""
+        self._drain_task: asyncio.Task[None] | None = None
+        self._drain_failure: BaseException | None = None
+        self._halt: BrokerHalted | None = None
 
     # -- public API ---------------------------------------------------------------------------
 
@@ -439,8 +521,34 @@ class Engine:
         return dict(self._books)
 
     @property
-    def broker(self) -> PaperBroker:
+    def broker(self) -> ExecutionBroker:
         return self._broker
+
+    @property
+    def reconciliation(self) -> Reconciliation | None:
+        """The latest reconciliation report (at start-up, or from the broker after a
+        reconnect); `None` before the first."""
+        return self._reconciliation
+
+    @property
+    def broker_halt(self) -> BrokerHalted | None:
+        """Set once the broker reported that it stopped placing orders."""
+        return self._halt
+
+    def unprotected_positions(self) -> list[PositionRecord]:
+        """Open positions whose exit plan needs a bracket the broker does not hold (it failed,
+        or was cancelled for a sell that did not happen), with no sell working."""
+        store = self.store
+        working = {o.id: o for o in store.pending_orders()}
+        selling = {o.symbol for o in working.values() if _is_market_sell(o)}
+        return [
+            p
+            for p in store.live_positions()
+            if p.status is PositionStatus.OPEN
+            and needs_bracket(p.exit_plan)
+            and (p.bracket_id is None or p.bracket_id not in working)
+            and p.symbol not in selling
+        ]
 
     @property
     def running(self) -> bool:
@@ -476,9 +584,10 @@ class Engine:
         store = self.store
         stored = {s.name: s for s in store.strategies()}
         restart = bool(stored) or bool(store.last_ticks())
-        initial = self.config.account.initial_cash
+        paper = self.config.mode != "testnet"
+        initial = self.config.paper_cash if paper else 0.0
         known = store.meta("initial_cash")
-        if known is not None and float(known) != initial:
+        if paper and known is not None and float(known) != initial:
             msg = (
                 f"account.initial_cash is {initial:g} but the state file {store.path} was "
                 f"started with {float(known):g}; use a new state file to change it"
@@ -503,7 +612,8 @@ class Engine:
                 )
                 raise ConfigError(msg)
         with store.transaction():
-            store.set_meta("initial_cash", repr(initial))
+            if paper:  # a testnet account is the exchange's: there is no initial cash
+                store.set_meta("initial_cash", repr(initial))
             for spec in self.specs.values():
                 store.upsert_strategy(spec.name, spec.config.model_dump(mode="json"), spec.capital)
             if restart:
@@ -511,7 +621,16 @@ class Engine:
                 self._event(
                     EventLevel.INFO, "restart", "engine restarted from the state file", ticks
                 )
-        self._broker = PaperBroker.restore(store.broker_snapshot(initial), self._costs)
+        if isinstance(self._broker, PaperExecution):
+            self._broker.restore(store.broker_snapshot(initial))
+        elif isinstance(self._broker, RestoresState):
+            self._broker.load(
+                [
+                    WorkingOrder(o.to_order(), o.interval, o.strategy)
+                    for o in store.pending_orders()
+                ],
+                [p.to_paper() for p in store.live_positions() if p.status is PositionStatus.OPEN],
+            )
         self._last_ticks = store.last_ticks()
         self._derive(self.specs, self.clock())
         self._started = True
@@ -523,18 +642,62 @@ class Engine:
         self.start()
         self._running = True
         try:
+            await self._recover()
+            if self._drains():
+                self._drain_task = asyncio.create_task(self._drain_loop(), name="engine-drain")
             async for tick in feed.ticks():
-                await self._process(tick)
+                async with self._tick_lock:
+                    await self._process(tick)
                 if self._stopping:
                     break
+            if self._drain_failure is not None:
+                raise self._drain_failure
         except BaseException as exc:
             self._error = f"{type(exc).__name__}: {exc}"
             raise
         finally:
             self._running = False
+            drain, self._drain_task = self._drain_task, None
+            if drain is not None:
+                drain.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await drain
             for task in self._busy.values():
                 task.cancel()
             await feed.aclose()
+
+    def _drains(self) -> bool:
+        return not self._broker.needs_candles and self.config.engine.drain_interval is not None
+
+    async def _drain_loop(self) -> None:
+        """Between ticks: record what the broker heard (see the module docstring)."""
+        interval = self.config.engine.drain_interval
+        assert interval is not None
+        wait = interval.total_seconds()
+        try:
+            while not self._stopping:
+                await asyncio.sleep(wait)
+                if self._tick_lock.locked():
+                    continue  # a tick is being processed: its broker step reads the events
+                async with self._tick_lock:
+                    await self.drain()
+        except asyncio.CancelledError:
+            raise
+        except BaseException as exc:
+            self._drain_failure = exc
+            await self.stop()
+
+    async def drain(self) -> int:
+        """Read the broker's events now and record them (one transaction); returns how many.
+        The engine calls it between ticks for brokers that do not need candles."""
+        events = await self._broker.events(self.clock())
+        if events:
+            with self.store.transaction():
+                for event in events:
+                    self._record(event)
+            if self._dirty:
+                self._derive(sorted(self._dirty), self.clock())
+        return len(events)
 
     async def stop(self) -> None:
         """Stop after the tick in progress."""
@@ -621,7 +784,26 @@ class Engine:
             last_ticks={i.value: t for i, t in store.last_ticks().items()},
             providers=store.providers(),
             health=health,
+            exchange=self.exchange_state(),
         )
+
+    def exchange_state(self) -> dict[str, Any] | None:
+        """The exchange broker's facts plus the last reconciliation (`None` for paper)."""
+        if not isinstance(self._broker, ReportsExchange):
+            return None
+        state = self._broker.exchange_status()
+        report = self._reconciliation
+        state["last_reconcile"] = (
+            None
+            if report is None
+            else {
+                "time": report.time.isoformat(),
+                "clean": report.clean,
+                "orphans": len(report.orphans),
+                "mismatches": len(report.mismatches),
+            }
+        )
+        return state
 
     async def submit_batch(
         self, batch: SignalBatch, received_at: datetime | None = None
@@ -652,7 +834,7 @@ class Engine:
         if existing is not None and existing.status is not BatchStatus.MISSED:
             return BatchOutcome("duplicate", "a batch for this candle was already received")
         if existing is not None or self._processed(interval, time):
-            record = self._record_late(spec, batch, received, existing)
+            record = await self._record_late(spec, batch, received, existing)
             return BatchOutcome("late", None, record.id, record.lateness)
         record = self._record_on_time(spec, batch, received, external=True)
         return BatchOutcome("on_time", None, record.id, record.lateness)
@@ -670,14 +852,14 @@ class Engine:
             return  # already processed (a resumed replay, or a repeated tick)
         if interval not in self._caught_up:
             await self._catch_up(tick)
-        self._broker_step(tick)
+        await self._broker_step(tick)
         self._step(Step.AFTER_BROKER, tick)
         specs = self._by_interval.get(interval, [])
         await self._collect(tick, specs)
         if self._stopping:
             return  # abandoned: decided again after a restart (its batches are kept)
         self._step(Step.AFTER_SIGNALS, tick)
-        self._decide(tick, specs)
+        await self._decide(tick, specs)
         self._last_tick_at = self._tick_done_at[interval] = self.clock()
         self._step(Step.TICK_DONE, tick)
 
@@ -695,14 +877,10 @@ class Engine:
                 f"{count} {interval.value} tick(s) missed while down",
                 {"interval": interval.value, "from": first.isoformat(), "to": time.isoformat()},
             )
-        needs: dict[str, datetime] = {}
-        for symbol, iv, start in self._broker.required_history():
-            if iv is interval:
-                needs[symbol] = min(needs.get(symbol, start), start)
-        for pending in self._broker.pending:
-            if pending.interval is interval and pending.order.time <= time:
-                start = pending.order.time
-                needs[pending.order.symbol] = min(needs.get(pending.order.symbol, start), start)
+        if not self._broker.needs_candles:
+            return
+        # A restored broker holds no candles: every series it needs from its start.
+        needs = {s: t for s, t in self._broker.candle_needs(interval).items() if t <= time}
         if not needs:
             return
         feed = self._feed
@@ -759,32 +937,36 @@ class Engine:
             self._broker.add_candles(symbol, Candles.from_frame(frame, interval, ended=False))
             self._handed[key] = frame["open_time"][-1]
 
-    def _broker_step(self, tick: Tick) -> None:
+    async def _broker_step(self, tick: Tick) -> None:
         interval, time = tick.interval, tick.open_time
-        needed: dict[str, datetime] = {}
-        for position in self._broker.positions.values():
-            if position.interval is interval:
-                start = position.entry_time
-                needed[position.symbol] = min(needed.get(position.symbol, start), start)
-        for pending in self._broker.pending:
-            if pending.interval is interval:
-                start = pending.order.time
-                needed[pending.order.symbol] = min(needed.get(pending.order.symbol, start), start)
-        for symbol, start in needed.items():
-            self._hand_over(tick, symbol, start)
-        for key in [k for k in self._handed if k[1] is interval and k[0] not in needed]:
-            del self._handed[key]
+        for order in self.store.pending_orders():
+            if order.status is OrderStatus.UNKNOWN:
+                await self._resolve(order, tick)
+        broker = self._broker
+        if broker.needs_candles:
+            needed = broker.candle_needs(interval)
+            for symbol, start in needed.items():
+                self._hand_over(tick, symbol, start)
+            for key in [k for k in self._handed if k[1] is interval and k[0] not in needed]:
+                del self._handed[key]
+        events = await broker.events(time + interval.length, interval=interval)
         with self.store.transaction():
-            for event in self._broker.advance(time + interval.length, interval=interval):
+            for event in events:
                 self._record(event)
-            self._cancel_overdue(interval)
+        if broker.needs_candles:
+            await self._cancel_overdue(interval)
+        if not broker.manages_time_exits:
+            await self._time_exits(tick)
         if self._dirty:
             self._derive(sorted(self._dirty), self.clock())
 
     def _record(self, event: BrokerEvent) -> None:
-        """Write one broker event to the state file (inside the broker step's transaction)."""
+        """Write one broker event to the state file (inside the caller's transaction). An event
+        for an order already final there (reported twice) is ignored."""
         store = self.store
         if isinstance(event, EntryFilled):
+            if not self._still_working(event.fill.order_id, event):
+                return
             position = store.position_for_order(event.fill.order_id)
             assert position is not None
             store.mark_order_filled(event.fill.order_id)
@@ -804,10 +986,13 @@ class Engine:
                 cost=paper.cost,
                 bracket_id=paper.bracket_id,
             )
+            self._dirty.add(position.strategy)
         elif isinstance(event, ExitFilled):
             if not event.closed:  # pragma: no cover - the engine only sells whole positions
                 msg = f"unexpected partial sell of {event.fill.symbol}"
                 raise AssertionError(msg)
+            if not self._still_working(event.fill.order_id, event):
+                return
             position = store.live_position(event.fill.symbol)
             assert position is not None
             assert position.status is PositionStatus.OPEN
@@ -815,46 +1000,115 @@ class Engine:
             assert order is not None
             store.mark_order_filled(order.id)
             store.record_fill(event.fill)
-            bracket_id = event.position.bracket_id
+            bracket_id = position.bracket_id
             if bracket_id is not None and bracket_id != order.id:
-                store.mark_order_cancelled(bracket_id, "position_sold")
-            if event.fill.reason is not None:
-                reason = event.fill.reason.value
-            else:
-                reason = "signal" if order.signal_id is not None else "flatten"
+                held = store.order(bracket_id)
+                if held is not None and held.status.working:
+                    store.mark_order_cancelled(bracket_id, "position_sold")
             store.close_position(
                 position.id,
                 exit_time=event.fill.time,
                 exit_price=event.fill.price,
-                exit_reason=reason,
+                exit_reason=self._exit_reason(event, order, position),
                 proceeds=event.proceeds,
             )
             self._dirty.add(position.strategy)
-        else:
+        elif isinstance(event, OrderCancelled):
+            if not self._still_working(event.order.id, event):
+                return
             store.mark_order_cancelled(event.order.id, event.reason.value)
             if event.order.side is Side.BUY:
                 position = store.position_for_order(event.order.id)
                 assert position is not None
                 store.cancel_position(position.id, event.time, event.reason.value)
                 self._dirty.add(position.strategy)
+        elif isinstance(event, OrderRejection):
+            order = store.order(event.order_id)
+            if order is None or not self._still_working(event.order_id, event):
+                return
+            self._rejected(order, event.reason, event.time)
+            self._event(
+                EventLevel.WARNING,
+                "order_rejected",
+                f"{order.symbol}: the broker rejected {order.side.value} order {order.id} "
+                f"after accepting it: {event.reason}",
+                {"order_id": order.id, "symbol": order.symbol, "reason": event.reason},
+            )
+        elif isinstance(event, BracketFailed):
+            self._event(
+                EventLevel.ERROR,
+                "bracket_failed",
+                f"{event.symbol}: the bracket could not be placed ({event.reason}); the "
+                "position is unprotected until it is",
+                {"symbol": event.symbol, "entry_order_id": event.entry_order_id},
+            )
+        elif isinstance(event, BracketPlaced):
+            position = store.position_for_order(event.position.entry_order_id)
+            bracket = event.position.bracket()
+            if position is None or position.status is not PositionStatus.OPEN or bracket is None:
+                logger.warning("ignored a bracket for %s: no open position", event.position)
+                return
+            if store.order(bracket.id) is None:
+                store.insert_order(
+                    OrderRecord.from_order(bracket, position.strategy, position.interval)
+                )
+            store.set_position_bracket(position.id, bracket.id)
+            self._event(
+                EventLevel.INFO,
+                "bracket_placed",
+                f"{position.symbol}: bracket {bracket.id} placed",
+                {"symbol": position.symbol, "bracket_id": bracket.id},
+            )
+        elif isinstance(event, BrokerHalted):
+            self._halt = event
+            self._event(
+                EventLevel.ERROR,
+                "broker_halted",
+                f"the broker stopped placing orders ({event.reason}): {event.detail}",
+                {"reason": event.reason},
+            )
+        else:
+            self._apply_reconciliation(event)
 
-    def _cancel_overdue(self, interval: Interval) -> None:
+    def _still_working(self, order_id: str, event: BrokerEvent) -> bool:
+        order = self.store.order(order_id)
+        if order is not None and order.status.working:
+            return True
+        logger.warning("ignored a broker event for an order that is not working: %s", event)
+        return False
+
+    def _exit_reason(self, event: ExitFilled, order: OrderRecord, position: PositionRecord) -> str:
+        if event.fill.reason is not None:
+            return event.fill.reason.value
+        if order.signal_id is not None:
+            return "signal"
+        if order.id == time_exit_id(position.entry_order_id, order.time):
+            return "time"
+        return "flatten"
+
+    async def _cancel_overdue(self, interval: Interval) -> None:
         """Cancel pending buys whose entry candle is overdue by more than `entry_grace`."""
         now = self.clock()
         grace = self.config.engine.entry_grace
         cancelled: list[str] = []
-        for pending in self._broker.pending:
-            order = pending.order
-            if pending.interval is not interval or order.side is not Side.BUY:
+        for order in self.store.pending_orders():
+            if order.interval is not interval or order.side is not Side.BUY:
+                continue
+            if order.status is not OrderStatus.PENDING:
                 continue
             if now < order.time + interval.length + grace:
                 continue
-            self._broker.cancel_order(order.id)
-            self.store.mark_order_cancelled(order.id, "no_candle")
-            position = self.store.position_for_order(order.id)
-            assert position is not None
-            self.store.cancel_position(position.id, now, "no_candle")
-            self._dirty.add(position.strategy)
+            result = await self._broker.cancel(order.to_order())
+            with self.store.transaction():
+                for event in result.events:
+                    self._record(event)
+                if result.status is not CancelStatus.CANCELLED:
+                    continue
+                self.store.mark_order_cancelled(order.id, "no_candle")
+                position = self.store.position_for_order(order.id)
+                assert position is not None
+                self.store.cancel_position(position.id, now, "no_candle")
+                self._dirty.add(position.strategy)
             cancelled.append(order.symbol)
         if cancelled:
             self._event(
@@ -863,6 +1117,210 @@ class Engine:
                 f"{len(cancelled)} pending entr(ies) cancelled: no candle after the grace",
                 {"symbols": cancelled},
             )
+
+    async def _time_exits(self, tick: Tick) -> None:
+        """For a broker without time exits: sell every open position on the tick's interval
+        whose holding time is up by the entry time *E*."""
+        interval = tick.interval
+        when = tick.open_time + interval.length
+        for position in self.store.live_positions():
+            plan = position.exit_plan
+            if position.status is not PositionStatus.OPEN or position.interval is not interval:
+                continue
+            if plan is None or plan.max_hold is None:
+                continue
+            assert position.entry_time is not None
+            if when < position.entry_time + plan.max_hold or self._sell_pending(position.symbol):
+                continue
+            order = Order(
+                position.symbol,
+                Side.SELL,
+                when,
+                id=time_exit_id(position.entry_order_id, when),
+            )
+            if self.store.order(order.id) is not None:
+                continue  # tried at this tick already
+            record = replace(
+                OrderRecord.from_order(order, position.strategy, position.interval),
+                status=OrderStatus.NEW,
+            )
+            self.store.insert_order(record)
+            await self._sell(record, tick)
+
+    # -- orders: intent, action, outcome ------------------------------------------------------
+
+    async def _submit(self, record: OrderRecord, tick: Tick | None) -> SubmitResult:
+        """Submit an order whose intent is committed, and record the outcome."""
+        result = await self._broker.submit(record.to_order(), interval=record.interval)
+        self._step(Step.AFTER_BROKER_CALL, tick)
+        with self.store.transaction():
+            if result.status is SubmitStatus.ACCEPTED:
+                self.store.mark_order_accepted(record.id)
+                for event in result.events:
+                    self._record(event)
+            elif result.status is SubmitStatus.REJECTED:
+                self._rejected(record, result.reason or "rejected", self.clock())
+                if record.side is Side.SELL:
+                    self._event(
+                        EventLevel.WARNING,
+                        "order_rejected",
+                        f"{record.symbol}: the broker rejected sell {record.id}: {result.reason}",
+                        {"order_id": record.id, "symbol": record.symbol, "reason": result.reason},
+                    )
+            else:
+                self.store.mark_order_unknown(record.id)
+                self._event(
+                    EventLevel.WARNING,
+                    "order_unknown",
+                    f"{record.symbol}: no answer for {record.side.value} order {record.id}; "
+                    "it is queried at the next tick",
+                    {"order_id": record.id, "symbol": record.symbol},
+                )
+        return result
+
+    def _rejected(self, order: OrderRecord, reason: str, time: datetime) -> None:
+        """The order was refused (at submit or later): an entry's position is cancelled (its
+        stake released) and its signal rejected with `broker_<reason>`."""
+        store = self.store
+        store.mark_order_rejected(order.id, reason)
+        if order.side is Side.BUY:
+            position = store.position_for_order(order.id)
+            if position is not None and position.status is PositionStatus.PENDING:
+                store.cancel_position(position.id, time, f"broker_{reason}")
+                self._dirty.add(position.strategy)
+        if order.signal_id is not None:
+            store.set_signal_outcome(order.signal_id, SignalOutcome.REJECTED, f"broker_{reason}")
+
+    async def _sell(self, record: OrderRecord, tick: Tick | None) -> None:
+        """Sell a whole position, its intent (`record`) committed: cancel the bracket first if
+        the broker's sell does not, then submit."""
+        self._step(Step.BEFORE_BROKER_CALL, tick)
+        store = self.store
+        if not self._broker.sell_cancels_bracket:
+            position = store.live_position(record.symbol)
+            bracket = self._live_bracket(position)
+            if bracket is not None:
+                result = await self._broker.cancel(bracket.to_order())
+                with store.transaction():
+                    for event in result.events:
+                        self._record(event)
+                    if result.status is CancelStatus.CANCELLED:
+                        store.mark_order_cancelled(bracket.id, "position_sold")
+                position = store.live_position(record.symbol)
+                if position is None or position.status is not PositionStatus.OPEN:
+                    with store.transaction():
+                        store.mark_order_cancelled(record.id, "position_closed")
+                    return  # the bracket filled first: nothing left to sell
+                if self._live_bracket(position) is not None:
+                    with store.transaction():
+                        self._rejected(record, "bracket_open", self.clock())
+                        self._event(
+                            EventLevel.WARNING,
+                            "bracket_cancel_failed",
+                            f"{record.symbol}: the bracket could not be cancelled "
+                            f"({result.status.value}); not sold",
+                            {"order_id": record.id, "symbol": record.symbol},
+                        )
+                    return
+        await self._submit(record, tick)
+
+    def _live_bracket(self, position: PositionRecord | None) -> OrderRecord | None:
+        if position is None or position.bracket_id is None:
+            return None
+        if position.status is not PositionStatus.OPEN:
+            return None
+        bracket = self.store.order(position.bracket_id)
+        return bracket if bracket is not None and bracket.status.working else None
+
+    async def _resolve(self, order: OrderRecord, tick: Tick | None) -> None:
+        """Find out what became of a `new` or `unknown` order (`broker.query`)."""
+        store = self.store
+        result = await self._broker.query(order.to_order())
+        if result.state is OrderState.NOT_FOUND and _is_market_sell(order):
+            position = store.live_position(order.symbol)
+            if (
+                position is not None
+                and position.status is PositionStatus.OPEN
+                and position.strategy == order.strategy
+            ):
+                self._event(
+                    EventLevel.WARNING,
+                    "order_resubmitted",
+                    f"{order.symbol}: sell {order.id} was never placed; placing it now",
+                    {"order_id": order.id, "symbol": order.symbol},
+                )
+                await self._sell(order, tick)  # finish the exit it was meant for
+                return
+        with store.transaction():
+            state = result.state
+            if state in (OrderState.OPEN, OrderState.FILLED, OrderState.CANCELLED):
+                store.mark_order_accepted(order.id)
+                for event in result.events:
+                    self._record(event)
+            elif state is OrderState.REJECTED:
+                self._rejected(order, result.reason or "rejected", self.clock())
+            elif state is OrderState.NOT_FOUND:
+                self._rejected(order, "not_placed", self.clock())
+                self._event(
+                    EventLevel.WARNING,
+                    "order_not_placed",
+                    f"{order.symbol}: {order.side.value} order {order.id} was never placed",
+                    {"order_id": order.id, "symbol": order.symbol},
+                )
+            elif order.status is OrderStatus.NEW:
+                store.mark_order_unknown(order.id)
+        if self._dirty:
+            self._derive(sorted(self._dirty), self.clock())
+
+    async def _recover(self) -> None:
+        """Before the first tick: resolve orders a crash or a lost answer left `new` or
+        `unknown`, then reconcile the broker with the state file."""
+        if self._recovered:
+            return
+        self._recovered = True
+        store = self.store
+        for order in store.pending_orders():
+            if order.status in (OrderStatus.NEW, OrderStatus.UNKNOWN):
+                await self._resolve(order, None)
+        working = [
+            WorkingOrder(o.to_order(), o.interval, o.strategy)
+            for o in store.pending_orders()
+            if o.status is OrderStatus.PENDING
+        ]
+        positions = [
+            p.to_paper() for p in store.live_positions() if p.status is PositionStatus.OPEN
+        ]
+        report = await self._broker.reconcile(working, positions, now=self.clock())
+        with store.transaction():
+            self._apply_reconciliation(report)
+
+    def _apply_reconciliation(self, report: Reconciliation) -> None:
+        """Record a reconciliation's findings (inside a transaction); a balance mismatch pauses
+        entries. The health monitor raises the alerts while the latest report has them."""
+        self._reconciliation = report
+        for orphan in report.orphans:
+            self._event(
+                EventLevel.WARNING,
+                "orphan_order",
+                f"{orphan.symbol}: open {orphan.side.value} order {orphan.order_id} on the "
+                f"exchange is not in the state file; left alone",
+                {"order_id": orphan.order_id, "symbol": orphan.symbol, "detail": orphan.detail},
+            )
+        for mismatch in report.mismatches:
+            self._event(
+                EventLevel.ERROR,
+                "balance_mismatch",
+                f"{mismatch.asset}: the exchange holds {mismatch.actual:g}, the open positions "
+                f"need {mismatch.expected:g}; entries paused",
+                {
+                    "asset": mismatch.asset,
+                    "expected": mismatch.expected,
+                    "actual": mismatch.actual,
+                },
+            )
+        if report.mismatches and not self.store.controls().paused:
+            self.store.set_control(Control.PAUSED, True)
+            self._event(EventLevel.WARNING, "paused", "entries paused: balance mismatch")
 
     # -- signals ------------------------------------------------------------------------------
 
@@ -1035,7 +1493,7 @@ class Engine:
         self._arrived.set()
         return record
 
-    def _record_late(
+    async def _record_late(
         self,
         spec: StrategySpec,
         batch: SignalBatch,
@@ -1043,11 +1501,13 @@ class Engine:
         missed: BatchRecord | None,
     ) -> BatchRecord:
         """Record a late batch (filling in its `missed` record if there is one): entries
-        expire, exits become market sells for the next candle open."""
+        expire, exits become market sells for the next candle open (their intents are written
+        with the batch, then submitted)."""
         interval, time = spec.interval, batch.candle_time
         when = interval.ceil(received)
         lateness = received - (time + interval.length)
         rows = [_signal_row(s) for s in batch.signals]
+        sells: list[OrderRecord] = []
         with self.store.transaction():
             if missed is not None:
                 record = self.store.fill_missed_batch(
@@ -1068,8 +1528,10 @@ class Engine:
                 if signal.action == "enter":
                     self.store.set_signal_outcome(signal.id, SignalOutcome.EXPIRED, "late")
                 else:
-                    outcome, reason = self._place_exit(spec, signal, time, when, None)
+                    outcome, reason, order = self._exit_intent(spec, signal, time, when)
                     self.store.set_signal_outcome(signal.id, outcome, reason)
+                    if order is not None:
+                        sells.append(order)
             self._event(
                 EventLevel.WARNING,
                 "batch_late",
@@ -1080,17 +1542,18 @@ class Engine:
                     "lateness_s": (received - (time + interval.length)).total_seconds(),
                 },
             )
+        for order in sells:
+            await self._sell(order, None)
         return record
 
     # -- decisions ----------------------------------------------------------------------------
 
-    def _decide(self, tick: Tick, specs: Sequence[StrategySpec]) -> None:
+    async def _decide(self, tick: Tick, specs: Sequence[StrategySpec]) -> None:
         store = self.store
         interval, time = tick.interval, tick.open_time
         entry_time = time + interval.length
         feed = self._feed
         assert feed is not None
-        refused: Counter[str] = Counter()
         with store.transaction():
             batches = store.batches_for(interval, time)
             have = {b.strategy for b in batches}
@@ -1105,35 +1568,46 @@ class Engine:
                     {"strategies": missing, "candle_time": time.isoformat()},
                 )
             controls = store.controls()
-            paused = controls.paused
-            if controls.flatten_requested:
-                self._flatten(tick, time, entry_time)
-                store.set_control(Control.PAUSED, True)
-                store.set_control(Control.FLATTEN_REQUESTED, False)
-                paused = True
-            self._derive_for(entry_time)
-            on_time = [b for b in batches if b.status is BatchStatus.ON_TIME]
-            for batch in on_time:
-                spec = self.specs[batch.strategy]
-                for signal in batch.signals:
-                    if signal.action == "exit" and signal.outcome is None:
-                        outcome, reason = self._place_exit(spec, signal, time, entry_time, tick)
+        paused = controls.paused
+        if controls.flatten_requested:
+            await self._flatten(tick, time, entry_time)
+            paused = True
+        self._derive_for(entry_time)
+        on_time = [b for b in batches if b.status is BatchStatus.ON_TIME]
+        self._resume_entries(on_time, time, entry_time)
+        for batch in on_time:
+            spec = self.specs[batch.strategy]
+            for signal in batch.signals:
+                if signal.action == "exit" and signal.outcome is None:
+                    with store.transaction():
+                        outcome, reason, order = self._exit_intent(spec, signal, time, entry_time)
                         store.set_signal_outcome(signal.id, outcome, reason)
-            entries = sorted(
-                (
-                    (signal.priority, batch.strategy, signal.symbol, signal.id, signal)
-                    for batch in on_time
-                    for signal in batch.signals
-                    if signal.action == "enter" and signal.outcome is None
-                ),
-                key=lambda e: e[:4],
+                    if order is not None:
+                        await self._sell(order, tick)
+        entries = sorted(
+            (
+                (signal.priority, batch.strategy, signal.symbol, signal.id, signal)
+                for batch in on_time
+                for signal in batch.signals
+                if signal.action == "enter" and signal.outcome is None
+            ),
+            key=lambda e: e[:4],
+        )
+        stale = feed.stale_symbols(interval, self.clock(), self.config.account.stale_after)
+        for _, name, _, _, signal in entries:
+            reason = await self._enter(self.specs[name], signal, tick, paused, stale)
+            if reason is not None:
+                store.set_signal_outcome(signal.id, SignalOutcome.REJECTED, reason)
+        with store.transaction():
+            # The refusals of this tick's entries, read back so a decision step resumed after
+            # a crash still sums all of them.
+            refused: Counter[str] = Counter(
+                signal.reason or ""
+                for batch in store.batches_for(interval, time)
+                if batch.status is BatchStatus.ON_TIME
+                for signal in batch.signals
+                if signal.action == "enter" and signal.outcome is SignalOutcome.REJECTED
             )
-            stale = feed.stale_symbols(interval, self.clock(), self.config.account.stale_after)
-            for _, name, _, _, signal in entries:
-                reason = self._enter(self.specs[name], signal, tick, paused, stale)
-                if reason is not None:
-                    refused[reason] += 1
-                    store.set_signal_outcome(signal.id, SignalOutcome.REJECTED, reason)
             if refused:
                 self._event(
                     EventLevel.INFO,
@@ -1149,23 +1623,55 @@ class Engine:
         if self._dirty:
             self._derive(sorted(self._dirty), entry_time)
 
-    def _place_exit(
+    def _resume_entries(
+        self, batches: Sequence[BatchRecord], time: datetime, entry_time: datetime
+    ) -> None:
+        """A decision step resumed after a crash finds some of the tick's entries placed: give
+        each such book exactly the numbers the interrupted step had (derived without those
+        entries, which are then opened one by one in decision order), so the remaining entries
+        are sized to the last bit as in an uninterrupted run."""
+        placed = sorted(
+            (signal.priority, batch.strategy, signal.symbol, signal.id)
+            for batch in batches
+            for signal in batch.signals
+            if signal.action == "enter" and signal.outcome is SignalOutcome.PLACED
+        )
+        held: dict[str, list[PositionRecord]] = {}
+        for _, name, symbol, _ in placed:
+            position = self.store.position_for_order(client_order_id(name, symbol, time, Side.BUY))
+            if position is not None and position.status in (
+                PositionStatus.PENDING,
+                PositionStatus.OPEN,
+            ):
+                held.setdefault(name, []).append(position)
+        for name, positions in held.items():
+            spec = self.specs[name]
+            book = self.store.derive_book(
+                name, spec.capital, entry_time, exclude={p.id for p in positions}
+            )
+            for position in positions:
+                book.open(position.symbol, position.cost, entry_time)
+            self._books[name] = book
+            self._book_day[name] = utc_day(entry_time)
+            self._dirty.add(name)
+
+    def _exit_intent(
         self,
         spec: StrategySpec,
         signal: SignalRecord,
         time: datetime,
         when: datetime,
-        tick: Tick | None,
-    ) -> tuple[SignalOutcome, str | None]:
-        """A market sell of the strategy's position in the signal's symbol for `when`."""
+    ) -> tuple[SignalOutcome, str | None, OrderRecord | None]:
+        """The intent of a market sell of the strategy's position in the signal's symbol for
+        `when` (written; the caller sells it), or why there is none."""
         store = self.store
         position = store.live_position(signal.symbol)
         if position is None or position.strategy != spec.name:
-            return SignalOutcome.IGNORED, "not_held"
+            return SignalOutcome.IGNORED, "not_held", None
         if position.status is PositionStatus.PENDING:
-            return SignalOutcome.IGNORED, "entry_pending"
+            return SignalOutcome.IGNORED, "entry_pending", None
         if self._sell_pending(signal.symbol):
-            return SignalOutcome.IGNORED, "sell_pending"
+            return SignalOutcome.IGNORED, "sell_pending", None
         order = Order(
             signal.symbol,
             Side.SELL,
@@ -1173,57 +1679,75 @@ class Engine:
             id=client_order_id(spec.name, signal.symbol, time, Side.SELL),
         )
         if store.order(order.id) is not None:
-            return SignalOutcome.IGNORED, "duplicate"
-        store.insert_order(OrderRecord.from_order(order, spec.name, position.interval, signal.id))
-        self._step(Step.BEFORE_BROKER_CALL, tick)
-        try:
-            self._broker.place_order(order, interval=position.interval)
-        except OrderRejected as exc:
-            store.mark_order_rejected(order.id, exc.reason.value)
-            return SignalOutcome.REJECTED, f"broker_{exc.reason.value}"
-        return SignalOutcome.PLACED, None
+            return SignalOutcome.IGNORED, "duplicate", None
+        record = replace(
+            OrderRecord.from_order(order, spec.name, position.interval, signal.id),
+            status=OrderStatus.NEW,
+        )
+        store.insert_order(record)
+        return SignalOutcome.PLACED, None, record
 
     def _sell_pending(self, symbol: str) -> bool:
-        return any(
-            p.order.symbol == symbol and p.order.side is Side.SELL for p in self._broker.pending
-        )
+        """Whether a market sell of `symbol` is working (new, pending or unknown)."""
+        return any(o.symbol == symbol and _is_market_sell(o) for o in self.store.pending_orders())
 
-    def _flatten(self, tick: Tick, time: datetime, entry_time: datetime) -> None:
+    async def _flatten(self, tick: Tick, time: datetime, entry_time: datetime) -> None:
+        """Cancel pending entries and sell every open position at market; then pause and clear
+        the request (the last transaction, so a crash in between flattens again)."""
         store = self.store
         sold: list[str] = []
         cancelled: list[str] = []
         for position in store.live_positions():
             if position.status is PositionStatus.PENDING:
-                self._broker.cancel_order(position.entry_order_id)
-                store.mark_order_cancelled(position.entry_order_id, "flatten")
-                store.cancel_position(position.id, entry_time, "flatten")
-                self._dirty.add(position.strategy)
-                cancelled.append(position.symbol)
-                continue
+                entry = store.order(position.entry_order_id)
+                assert entry is not None
+                if entry.status is not OrderStatus.PENDING:
+                    continue  # new or unknown: resolved first, flattened again then
+                result = await self._broker.cancel(entry.to_order())
+                with store.transaction():
+                    for event in result.events:
+                        self._record(event)
+                    if result.status is CancelStatus.CANCELLED:
+                        store.mark_order_cancelled(position.entry_order_id, "flatten")
+                        store.cancel_position(position.id, entry_time, "flatten")
+                        self._dirty.add(position.strategy)
+                        cancelled.append(position.symbol)
+                current = store.position(position.id)
+                if current is None or current.status is not PositionStatus.OPEN:
+                    continue
+                position = current  # it filled before the cancel: sell it too
             if self._sell_pending(position.symbol):
                 continue
             base = client_order_id(position.strategy, position.symbol, time, Side.SELL)
             order = Order(
                 position.symbol, Side.SELL, entry_time, id=child_order_id(base, "flatten")
             )
-            store.insert_order(OrderRecord.from_order(order, position.strategy, position.interval))
-            self._step(Step.BEFORE_BROKER_CALL, tick)
-            self._broker.place_order(order, interval=position.interval)
+            if store.order(order.id) is not None:
+                continue  # tried at this tick already
+            record = replace(
+                OrderRecord.from_order(order, position.strategy, position.interval),
+                status=OrderStatus.NEW,
+            )
+            store.insert_order(record)
+            await self._sell(record, tick)
             sold.append(position.symbol)
-        self._event(
-            EventLevel.WARNING,
-            "flatten",
-            f"flatten: {len(sold)} sell(s) for {entry_time.isoformat()}, "
-            f"{len(cancelled)} pending entr(ies) cancelled; entries paused",
-            {"sold": sold, "cancelled": cancelled},
-        )
+        with store.transaction():
+            self._event(
+                EventLevel.WARNING,
+                "flatten",
+                f"flatten: {len(sold)} sell(s) for {entry_time.isoformat()}, "
+                f"{len(cancelled)} pending entr(ies) cancelled; entries paused",
+                {"sold": sold, "cancelled": cancelled},
+            )
+            store.set_control(Control.PAUSED, True)
+            store.set_control(Control.FLATTEN_REQUESTED, False)
 
     def _entry_plan(self, spec: StrategySpec, signal: SignalRecord) -> ExitPlan | None:
         if not signal.exit_override:
             return spec.exit
         return _effective(ExitPlanIn.model_validate(signal.exit_override).to_plan(spec.exit))
 
-    def _enter(
+    async def _enter(
         self,
         spec: StrategySpec,
         signal: SignalRecord,
@@ -1231,7 +1755,8 @@ class Engine:
         paused: bool,
         stale: set[str],
     ) -> str | None:
-        """Place an entry, or return the first check that refuses it."""
+        """Place an entry, or return the first check that refuses it (or the broker's
+        `broker_<reason>` when it rejects the order)."""
         store = self.store
         symbol = signal.symbol
         time = tick.open_time
@@ -1277,29 +1802,32 @@ class Engine:
             exit_plan=plan,
             id=client_order_id(spec.name, symbol, time, Side.BUY),
         )
-        record = OrderRecord.from_order(order, spec.name, spec.interval, signal.id)
-        try:
-            with store.transaction():
-                store.insert_order(record)
-                store.insert_position(
-                    spec.name,
-                    symbol,
-                    spec.interval,
-                    entry_time,
-                    order.id,
-                    stake,
-                    exit_plan=plan,
-                    signal_info=signal.info or None,
-                )
-                store.set_signal_outcome(signal.id, SignalOutcome.PLACED)
-                self._step(Step.BEFORE_BROKER_CALL, tick)
-                self._broker.place_order(order, interval=spec.interval)
-        except OrderRejected as exc:
+        record = replace(
+            OrderRecord.from_order(order, spec.name, spec.interval, signal.id),
+            status=OrderStatus.NEW,
+        )
+        with store.transaction():
             store.insert_order(record)
-            store.mark_order_rejected(order.id, exc.reason.value)
-            return f"broker_{exc.reason.value}"
-        book.open(symbol, stake, entry_time)
-        self._dirty.add(spec.name)
+            store.insert_position(
+                spec.name,
+                symbol,
+                spec.interval,
+                entry_time,
+                order.id,
+                stake,
+                exit_plan=plan,
+                signal_info=signal.info or None,
+            )
+            store.set_signal_outcome(signal.id, SignalOutcome.PLACED)
+        self._step(Step.BEFORE_BROKER_CALL, tick)
+        result = await self._submit(record, tick)
+        if result.status is SubmitStatus.REJECTED:
+            return f"broker_{result.reason or 'rejected'}"
+        if result.events:
+            self._derive([spec.name], entry_time)  # it filled already: its real cost
+        else:
+            book.open(symbol, stake, entry_time)
+            self._dirty.add(spec.name)
         return None
 
     # -- books and events ---------------------------------------------------------------------

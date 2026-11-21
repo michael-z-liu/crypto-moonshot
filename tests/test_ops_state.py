@@ -2,17 +2,22 @@
 
 from __future__ import annotations
 
+import sqlite3
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
 from ops_fakes import add_batch, add_position
 
+from crypto_moonshot.broker.base import Fill, Order, Side
 from crypto_moonshot.live.state import (
     MIGRATIONS,
     SCHEMA_VERSION,
     BatchStatus,
     EventLevel,
+    OrderRecord,
+    OrderStatus,
     SignalOutcome,
     SignalRow,
     StateStore,
@@ -43,8 +48,7 @@ def test_a_version_1_file_migrates_to_version_2_keeping_its_data(tmp_path: Path)
         old.add_event(T0, EventLevel.WARNING, "kept", "an event from before")
         tables = {r[0] for r in old._db.execute("SELECT name FROM sqlite_master")}
         assert "alerts" not in tables
-    with StateStore.open(path) as new:
-        assert SCHEMA_VERSION == 2
+    with StateStore.open(path, migrations=MIGRATIONS[:2]) as new:
         assert new.schema_version == 2
         assert [s.name for s in new.strategies()] == ["alpha"]
         assert [e.kind for e in new.events_since()] == ["kept"]
@@ -53,7 +57,7 @@ def test_a_version_1_file_migrates_to_version_2_keeping_its_data(tmp_path: Path)
         assert new.acknowledge_alert("disk_low", T0)
         indexes = {r[1] for r in new._db.execute("SELECT * FROM sqlite_master WHERE type='index'")}
         assert {"events_kind", "batches_time"} <= indexes
-    with StateStore.open(path) as again:  # nothing left to migrate
+    with StateStore.open(path, migrations=MIGRATIONS[:2]) as again:  # nothing left to migrate
         assert again.schema_version == 2
         assert again.alert("disk_low") is not None
 
@@ -61,7 +65,7 @@ def test_a_version_1_file_migrates_to_version_2_keeping_its_data(tmp_path: Path)
 def test_a_version_1_file_is_refused_by_the_read_only_open(tmp_path: Path) -> None:
     path = tmp_path / "old.sqlite"
     StateStore.open(path, migrations=MIGRATIONS[:1]).close()
-    with pytest.raises(Exception, match="schema version 1; this build reads 2"):
+    with pytest.raises(Exception, match=f"schema version 1; this build reads {SCHEMA_VERSION}"):
         StateStore.open_readonly(path)
 
 
@@ -187,3 +191,38 @@ def test_event_queries(store: StateStore) -> None:
     assert store.count_events(("seed_failed", "backfill_failed"), at(0)) == 1
     assert store.count_events(("seed_failed",), at(4)) == 0
     assert store.count_events(("alert", "other"), at(1)) == 2
+
+
+def test_a_version_2_file_migrates_to_version_3_keeping_its_orders(tmp_path: Path) -> None:
+    path = tmp_path / "old.sqlite"
+    with StateStore.open(path, migrations=MIGRATIONS[:2]) as old:
+        old.upsert_strategy("alpha", {}, 1000.0)
+        closed = add_position(old, "alpha", "AAAUSDT", at(1), pnl=5.0, exit_time=at(3))
+        pending = add_position(old, "alpha", "BBBUSDT", at(4))
+        old.add_event(T0, EventLevel.INFO, "kept", "an event from before")
+        rows = old._db.execute("SELECT rowid, * FROM orders ORDER BY rowid").fetchall()
+        before = [tuple(r) for r in rows]
+        with pytest.raises(sqlite3.IntegrityError):  # v2 knows no `new` orders
+            old._db.execute("UPDATE orders SET status = 'new'")
+    with StateStore.open(path) as new:
+        assert new.schema_version == SCHEMA_VERSION == 3
+        rows = new._db.execute("SELECT rowid, * FROM orders ORDER BY rowid").fetchall()
+        assert [tuple(r) for r in rows] == before  # rowids and every column kept
+        assert new._db.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+        assert new._db.execute("PRAGMA foreign_key_check").fetchall() == []
+        assert [p.id for p in new.closed_positions()] == [closed.id]
+        assert [o.id for o in new.pending_orders()] == [pending.entry_order_id]
+        assert [e.kind for e in new.events_since()] == ["kept"]
+        indexes = {r[1] for r in new._db.execute("SELECT * FROM sqlite_master WHERE type='index'")}
+        assert {"orders_pending", "orders_signal"} <= indexes
+        # the new states work, and the foreign keys still point at the rebuilt table
+        order = Order("CCCUSDT", Side.BUY, at(5), quote_amount=10.0, id="intent")
+        new.insert_order(
+            replace(OrderRecord.from_order(order, "alpha", Interval.H1), status=OrderStatus.NEW)
+        )
+        new.mark_order_unknown("intent")
+        assert new.order("intent").status is OrderStatus.UNKNOWN  # type: ignore[union-attr]
+        with pytest.raises(sqlite3.IntegrityError):
+            new.record_fill(Fill("missing", "CCCUSDT", Side.BUY, at(5), 1.0, 1.0, 0.0))
+    with StateStore.open_readonly(path) as again:
+        assert again.schema_version == 3

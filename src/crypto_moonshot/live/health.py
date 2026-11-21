@@ -23,6 +23,13 @@ Rules (thresholds: `live.config.HealthConfig`):
 - `stale_symbols:<interval>`: more than `stale_fraction` of an interval's traded symbols is stale.
 - `backup_failed`: the last automatic backup failed.
 - `disk_low`: less than `min_free_gb` GB free where the state file lives.
+- `orphan_order` and `balance_mismatch`: the latest reconciliation with the broker found open
+  orders the state file does not know (warning), or balances that do not cover the open
+  positions (error; the engine paused entries).
+- `unprotected_position:<symbol>`: an open position whose exit plan needs a bracket the broker
+  does not hold (exchange brokers: placing it failed).
+- `broker_halted`: the broker stopped placing orders (the exchange refused the keys or banned
+  the IP); it lasts until the daemon is restarted.
 
 In a replay the clock is simulated, so the rules about wall-clock time (`feed_disconnected`,
 `no_ticks`, the start-up grace of `stale_symbols`) are off; the others run.
@@ -124,6 +131,9 @@ class HealthMonitor:
             (("stale_symbols",), self._stale_symbols),
             (("backup_failed",), self._backup_failed),
             (("disk_low",), self._disk_low),
+            (("orphan_order", "balance_mismatch"), self._reconciliation),
+            (("unprotected_position",), self._unprotected),
+            (("broker_halted",), self._broker_halted),
         ]
         findings: dict[str, Finding] = {}
         failed: set[str] = set()
@@ -296,6 +306,48 @@ class HealthMonitor:
                 "disk_low",
                 EventLevel.WARNING,
                 f"only {free / GB:.2f} GB free where the state file lives",
+            )
+
+    def _reconciliation(self, now: datetime) -> Iterator[Finding]:
+        report = self._engine.reconciliation
+        if report is None:
+            return
+        if report.orphans:
+            ids = ", ".join(o.order_id for o in report.orphans)
+            yield Finding(
+                "orphan_order",
+                "orphan_order",
+                EventLevel.WARNING,
+                f"{len(report.orphans)} open order(s) on the exchange not in the state file: {ids}",
+            )
+        if report.mismatches:
+            assets = ", ".join(
+                f"{m.asset} (holds {m.actual:g}, needs {m.expected:g})" for m in report.mismatches
+            )
+            yield Finding(
+                "balance_mismatch",
+                "balance_mismatch",
+                EventLevel.ERROR,
+                f"balances do not cover the open positions: {assets}; entries paused",
+            )
+
+    def _unprotected(self, now: datetime) -> Iterator[Finding]:
+        for position in self._engine.unprotected_positions():
+            yield Finding(
+                f"unprotected_position:{position.symbol}",
+                "unprotected_position",
+                EventLevel.ERROR,
+                f"{position.symbol} ({position.strategy}) has no bracket at the broker",
+            )
+
+    def _broker_halted(self, now: datetime) -> Iterator[Finding]:
+        halt = self._engine.broker_halt
+        if halt is not None:
+            yield Finding(
+                "broker_halted",
+                "broker_halted",
+                EventLevel.ERROR,
+                f"the broker stopped placing orders ({halt.reason}); restart once fixed",
             )
 
 

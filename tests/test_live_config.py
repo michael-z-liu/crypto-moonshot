@@ -114,12 +114,30 @@ sizing = {{ slots = 2 }}
     assert strategy.exit_plan(ExitPlan()) is None
 
 
-@pytest.mark.parametrize("mode", ["testnet", "live"])
-def test_testnet_and_live_parse_but_are_refused(mode: str) -> None:
-    config = parse_config(GOOD.replace('mode = "paper"', f'mode = "{mode}"'))
-    assert config.mode == mode
-    with pytest.raises(ConfigError, match=f"mode '{mode}' is not available.*only 'paper'"):
-        config.require_runnable()
+def test_live_parses_but_is_refused_and_testnet_runs_but_not_as_a_replay() -> None:
+    live = parse_config(GOOD.replace('mode = "paper"', 'mode = "live"'))
+    assert live.mode == "live"
+    with pytest.raises(ConfigError, match=r"mode 'live' is not available.*only 'paper' and"):
+        live.require_runnable()
+    testnet = parse_config(GOOD.replace('mode = "paper"', 'mode = "testnet"'))
+    testnet.require_runnable()
+    with pytest.raises(ConfigError, match="a replay is paper-only"):
+        testnet.require_runnable(replay=True)
+    parse_config(GOOD).require_runnable(replay=True)
+
+
+def test_initial_cash_is_required_for_paper_and_ignored_for_testnet() -> None:
+    no_cash = GOOD.replace("initial_cash = 10000\n", "")
+    assert no_cash != GOOD
+    with pytest.raises(ConfigError, match=r"account\.initial_cash is required"):
+        parse_config(no_cash)
+    config = parse_config(no_cash.replace('mode = "paper"', 'mode = "testnet"'))
+    assert config.account.initial_cash is None
+    # the paper check of the capital against the cash does not apply on an exchange
+    big = GOOD.replace('mode = "paper"', 'mode = "testnet"').replace(
+        "initial_cash = 10000", "initial_cash = 1"
+    )
+    assert parse_config(big).mode == "testnet"
 
 
 def _swap(old: str, new: str) -> str:

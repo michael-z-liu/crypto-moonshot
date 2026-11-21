@@ -2,7 +2,8 @@
 
 Commands:
 
-- `live run --config FILE`: the daemon (paper only; `MOONSHOT_API_TOKEN` is required).
+- `live run --config FILE [--env-file PATH]`: the daemon (paper or testnet; `MOONSHOT_API_TOKEN`
+  is required; testnet mode also needs the testnet keys, see `docs/runbook.md`).
 - `live replay --config FILE --start --end`: the engine over stored candles; prints the metrics
   like `moonshot backtest`; `--serve` keeps the API up so external providers can trade it.
 - `live status`, `live pause`, `live resume`, `live flatten`: talk to a running daemon through
@@ -39,7 +40,7 @@ from crypto_moonshot.cli_output import (
     print_table,
     stdout_is_tty,
 )
-from crypto_moonshot.config import Settings
+from crypto_moonshot.config import EnvFileError, Settings, load_settings
 from crypto_moonshot.data.store import KlineStore
 from crypto_moonshot.data_cli import parse_when, resolve_settings
 from crypto_moonshot.live.backup import BackupError, make_backup, restore_backup
@@ -63,7 +64,7 @@ from crypto_moonshot.provider import ProviderError, run_provider
 
 live_app = typer.Typer(
     no_args_is_help=True,
-    help="Run, replay and control the paper trading daemon (paper mode only).",
+    help="Run, replay and control the trading daemon (paper, or testnet for `run`).",
 )
 provider_app = typer.Typer(
     no_args_is_help=True, help="Run a strategy plugin as an external provider."
@@ -99,6 +100,15 @@ LogFormatOpt = Annotated[
     ),
 ]
 LogLevelOpt = Annotated[LogLevel | None, typer.Option(help="Log level (default: info for run).")]
+EnvFileOpt = Annotated[
+    Path | None,
+    typer.Option(
+        "--env-file",
+        help="Testnet mode: read MOONSHOT_* variables (the testnet keys) from this env file, "
+        "e.g. /Users/mike/code/crypto-moonshot/.env, for this process only (default: ./.env "
+        "if it exists). Paper mode never reads an env file.",
+    ),
+]
 
 
 class SignalsMode(StrEnum):
@@ -115,9 +125,9 @@ def _log_to_stderr(level: int = logging.INFO) -> None:
     configure_logging(LogFormat.TEXT, level)
 
 
-def _logging(fmt: LogFormat, level: LogLevel | None, default: LogLevel, secrets: str = "") -> None:
+def _logging(fmt: LogFormat, level: LogLevel | None, default: LogLevel, *secrets: str) -> None:
     """Set up logging for a long-running command; `secrets` are masked in every line."""
-    configure_logging(fmt, level or default, secrets=[secrets])
+    configure_logging(fmt, level or default, secrets=secrets)
 
 
 def _config(path: Path) -> RunConfig:
@@ -145,22 +155,41 @@ def run_command(
     data_dir: DataDirOpt = None,
     log_format: LogFormatOpt = LogFormat.TEXT,
     log_level: LogLevelOpt = None,
+    env_file: EnvFileOpt = None,
 ) -> None:
-    """Run the paper trading daemon until SIGINT or SIGTERM.
+    """Run the trading daemon (paper or testnet) until SIGINT or SIGTERM.
 
     Follows live Binance candles (public market data, no keys), runs the config's strategies
     (in-process plugins, and external providers that connect to the API), keeps its state in the
-    config's `state` file and serves the API on HOST:PORT. Needs MOONSHOT_API_TOKEN. Only one
-    daemon (or replay) can use a state file at a time. Exits with 3 when its watchdog stops it.
+    config's `state` file and serves the API on HOST:PORT. Needs MOONSHOT_API_TOKEN. In testnet
+    mode (`mode = "testnet"`) it also trades on the Binance spot testnet with the keys in
+    MOONSHOT_BINANCE_TESTNET_API_KEY / _SECRET; it refuses to start without them, with a mainnet
+    URL, or when the testnet account cannot cover the strategies' capital. Only one daemon (or
+    replay) can use a state file at a time. Exits with 3 when its watchdog stops it.
     """
     run = _config(config)
-    settings = resolve_settings(data_dir)
-    token = _token(settings)
     try:
         run.require_runnable()
     except ConfigError as exc:
         raise _fail(str(exc), EXIT_USAGE) from None
-    _logging(log_format, log_level, LogLevel.INFO, token)
+    testnet = run.mode == "testnet"
+    if env_file is not None and not testnet:
+        typer.echo("warning: --env-file is ignored: paper mode never reads an env file", err=True)
+    settings = resolve_settings(data_dir)
+    if testnet:
+        try:
+            settings = load_settings(env_file=env_file, search_cwd=True)
+        except EnvFileError as exc:
+            raise _fail(str(exc), EXIT_USAGE) from None
+        if data_dir is not None:
+            settings = settings.model_copy(update={"data_dir": data_dir})
+    token = _token(settings)
+    secrets = [token]
+    if testnet:
+        for secret in (settings.binance_testnet_api_key, settings.binance_testnet_api_secret):
+            if secret is not None:
+                secrets.append(secret.get_secret_value())
+    _logging(log_format, log_level, LogLevel.INFO, *secrets)
     try:
         asyncio.run(run_daemon(run, settings, host=host, port=port))
     except (ConfigError, PluginError) as exc:

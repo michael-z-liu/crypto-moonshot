@@ -371,7 +371,7 @@ def prepare_replay(
     strategy name; `precomputed` supplies signals by strategy name (as `signals="backtest"`
     does from `backtest_signals`). `step_hook` and `lookback` are for tests.
     """
-    config.require_runnable()
+    config.require_runnable(replay=True)
     start, end = as_utc(start), as_utc(end)
     config.state.parent.mkdir(parents=True, exist_ok=True)
     lock = StateLock(config.state)
@@ -563,7 +563,7 @@ def replay_outputs(
     """The trade list, equity curve, metrics and `metrics.json` document of a replay's state."""
     trades = trade_frame(store)
     source = ParquetCandleSource(data_root, until=end)
-    initial = config.account.initial_cash
+    initial = config.paper_cash
     equity = _equity(store, source, initial, end)
     metrics, yearly = summarize(trades, equity, initial)
     open_positions = sum(1 for p in store.live_positions() if p.entry_time is not None)

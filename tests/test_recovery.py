@@ -116,6 +116,9 @@ def test_the_baseline_trades_and_competes(baseline: Final) -> None:
         (Step.BEFORE_BROKER_CALL, 1),
         (Step.BEFORE_BROKER_CALL, 17),
         (Step.BEFORE_BROKER_CALL, 40),
+        (Step.AFTER_BROKER_CALL, 1),
+        (Step.AFTER_BROKER_CALL, 23),
+        (Step.AFTER_BROKER_CALL, 41),
         (Step.BEFORE_TICK_MARKER, 6),
         (Step.BEFORE_TICK_MARKER, 190),
         (Step.TICK_DONE, 100),
@@ -140,6 +143,7 @@ def test_crash_after_crash_still_matches(
         (Step.AFTER_BROKER, 30),
         (Step.BEFORE_TICK_MARKER, 1),
         (Step.BEFORE_BROKER_CALL, 9),
+        (Step.AFTER_BROKER_CALL, 12),
         (Step.AFTER_SIGNALS, 60),
     ]:
         with pytest.raises(Crash):
@@ -147,7 +151,7 @@ def test_crash_after_crash_still_matches(
     resumed = replay(path, replay_root, replay_signals)
     assert_same(final(path, resumed), baseline)
     with StateStore.open(path) as store:
-        assert [e.kind for e in store.events_since()].count("restart") == 5
+        assert [e.kind for e in store.events_since()].count("restart") == 6
 
 
 def test_a_resume_fetches_old_positions_candles_from_the_store(
@@ -210,7 +214,12 @@ sys.exit(0)
 
 
 @pytest.mark.parametrize(
-    ("point", "n"), [(Step.BEFORE_TICK_MARKER, 150), (Step.BEFORE_BROKER_CALL, 20)]
+    ("point", "n"),
+    [
+        (Step.BEFORE_TICK_MARKER, 150),
+        (Step.BEFORE_BROKER_CALL, 20),
+        (Step.AFTER_BROKER_CALL, 30),
+    ],
 )
 def test_a_killed_process_resumes_to_the_same_result(
     replay_root: Path, replay_signals: Signals, tmp_path: Path, baseline: Final, point: str, n: int

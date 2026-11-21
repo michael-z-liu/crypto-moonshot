@@ -222,11 +222,8 @@ async def test_it_refuses_to_start_without_a_token(
     assert not (tmp_path / "state").exists()  # nothing was opened
 
 
-@pytest.mark.parametrize("mode", ["testnet", "live"])
-async def test_it_refuses_modes_that_would_place_orders(
-    tmp_path: Path, server: FakeStreamServer, mode: str
-) -> None:
-    config = make_config(tmp_path, mode=mode)
+async def test_it_refuses_the_mainnet_mode(tmp_path: Path, server: FakeStreamServer) -> None:
+    config = make_config(tmp_path, mode="live")
     with pytest.raises(ConfigError, match="not available in this build"):
         await run_daemon(config, make_settings(server, tmp_path), port=0, install_signals=False)
     assert not (tmp_path / "state").exists()

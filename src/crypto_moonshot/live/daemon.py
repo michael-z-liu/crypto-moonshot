@@ -1,8 +1,10 @@
 """The daemon: wires the config, state file, engine, feed and API into one process.
 
-`run_daemon` is `moonshot live run` (paper only): it loads the strategies, opens the state file,
-builds the engine and a `LiveFeed` over Binance's public market data (no keys), serves the API on
-uvicorn in the same event loop and runs until SIGINT/SIGTERM (or its `stop` event). Shutdown is
+`run_daemon` is `moonshot live run` (paper or testnet): it loads the strategies, opens the state
+file, builds the engine and a `LiveFeed` over Binance's public market data (no keys), serves the
+API on uvicorn in the same event loop and runs until SIGINT/SIGTERM (or its `stop` event). In
+testnet mode it also connects the `BinanceBroker` to the spot testnet (`live.testnet`: keys,
+symbol and balance checks, mainnet guard) and the engine trades through it. Shutdown is
 graceful: the engine stops after the tick in progress (a tick still collecting is decided again
 on the next start), the feed and the API close, then the state file.
 
@@ -50,6 +52,13 @@ from crypto_moonshot.live.health import DiskFree, HealthMonitor, disk_free_bytes
 from crypto_moonshot.live.lock import StateLock
 from crypto_moonshot.live.replay import ReplayResult, ReplayRun
 from crypto_moonshot.live.state import EventLevel, StateStore
+from crypto_moonshot.live.testnet import (
+    ExchangeOptions,
+    ExchangeSession,
+    TestnetError,
+    check_testnet_config,
+    open_exchange,
+)
 from crypto_moonshot.live.watchdog import EXIT_WATCHDOG, LoopWatchdog, StallWatchdog
 from crypto_moonshot.models import Interval
 
@@ -180,13 +189,16 @@ async def run_daemon(
     disk_free: DiskFree = disk_free_bytes,
     loop_exit: Callable[[int], object] = os._exit,
     stop_grace: float = STOP_GRACE_S,
+    exchange_options: ExchangeOptions | None = None,
 ) -> None:
-    """Run the live paper daemon until SIGINT/SIGTERM or `stop` is set.
+    """Run the live daemon (paper, or testnet through `BinanceBroker`) until SIGINT/SIGTERM or
+    `stop` is set.
 
     `client` replaces the Binance REST client and `stream_config` the WebSocket settings (the
     tests point them at fakes); `on_ready` is called with the API's port once it listens;
     `disk_free`, `loop_exit` (what the blocked-loop watchdog calls) and `stop_grace` (how long
-    a stopping engine may take before it is cancelled) are for tests.
+    a stopping engine may take before it is cancelled) and `exchange_options` (a mock HTTP
+    transport and client, stream and broker arguments for the testnet wiring) are for tests.
     Raises `DaemonError` (no token, port taken, a watchdog exit with `code` 3),
     `StateLockedError` (another process uses the state file), `ConfigError` or `PluginError`
     before anything runs, and re-raises whatever stopped the engine after shutting everything
@@ -196,12 +208,18 @@ async def run_daemon(
     config.require_runnable()
     data_root = settings.data_dir if settings.data_dir.is_dir() else None
     specs = build_specs(config, data_root)
+    if config.mode == "testnet":
+        try:
+            check_testnet_config(config, settings, specs)
+        except TestnetError as exc:
+            raise DaemonError(str(exc), usage=exc.usage) from None
     config.state.parent.mkdir(parents=True, exist_ok=True)
     stop = stop if stop is not None else asyncio.Event()
     lock = StateLock(config.state)
     lock.acquire()
     own_client: BinanceClient | None = None
     store: StateStore | None = None
+    session: ExchangeSession | None = None
     remove_signals: Callable[[], None] | None = None
     try:
         if client is None:
@@ -209,12 +227,27 @@ async def run_daemon(
             client = own_client
         store = StateStore.open(config.state)
         remove_signals = install_stop_signals(stop) if install_signals else None
-        engine = (
-            Engine(config, specs, store, history=client)
-            if clock is None
-            else Engine(config, specs, store, clock=clock, history=client)
+        now = _utc_now if clock is None else clock
+        if config.mode == "testnet":
+            try:
+                session = await open_exchange(
+                    config, settings, specs, store, clock=now, options=exchange_options
+                )
+            except TestnetError as exc:
+                raise DaemonError(str(exc), usage=exc.usage) from None
+            specs = session.specs
+        engine = Engine(
+            config,
+            specs,
+            store,
+            clock=now,
+            history=client,
+            broker=None if session is None else session.broker,
         )
         engine.start()
+        if session is not None:
+            for kind, message in session.warnings:
+                engine.record_event(EventLevel.WARNING, kind, message)
         feed = LiveFeed(
             feed_subscriptions(specs, store.live_positions()),
             feed_warmups(specs),
@@ -224,7 +257,7 @@ async def run_daemon(
             tick_timeout=config.engine.tick_timeout.total_seconds(),
             on_event=engine.on_feed_event,
             stale_after=config.account.stale_after,
-            clock=_utc_now if clock is None else clock,
+            clock=now,
         )
         health = config.health
         scheduler = BackupScheduler(
@@ -286,6 +319,8 @@ async def run_daemon(
     finally:
         if remove_signals is not None:
             remove_signals()
+        if session is not None:
+            await session.aclose()
         if own_client is not None:
             await own_client.aclose()
         if store is not None:
