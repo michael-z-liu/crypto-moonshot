@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `feat/testnet-broker` (stacked on PR #19, `feat/live-operations`)
 - **PR:**
-- **Updated:** 2026-11-21T03:35Z
+- **Updated:** 2026-11-21T04:20Z
 
 ## Goal
 
@@ -82,6 +82,17 @@ explicit go-ahead.
 - **Worker:** sonnet
 - **Commits:**
 
+### M6: Real testnet check (todo)
+
+- **Delivers:** a scripted check and a short `live run` in testnet mode against the real spot
+  testnet with the user's keys from `.env`: a tiny market buy on a major pair, the OCO bracket,
+  user data stream fills, a restart mid-run with reconciliation, flatten; confirm request weights,
+  -2010 message wording and order-count headers, and update `docs/binance-spot-api.md`.
+- **Done when:** each step observed on the testnet and recorded; no key in any file, log or
+  commit. Needs the user's explicit go-ahead right before the first real testnet request.
+- **Worker:** master
+- **Commits:**
+
 ## Decisions
 
 - 2026-11-21: Binance retired the spot REST `listenKey` user data stream (removal 2026-02-20); use
@@ -112,6 +123,9 @@ explicit go-ahead.
   exchange fill could reach the state file up to one interval late; M4 adds a drain between ticks.
 - 2026-11-21: If the user provides testnet keys, add an M6: a small real testnet run (stop and ask
   for the go-ahead first).
+- 2026-11-21: The user shared testnet keys in chat. Not stored anywhere by the agent; the user was
+  asked to put (preferably regenerated) keys in `.env` themselves, since the agent may not read or
+  write `.env`. M6 added; it still needs an explicit go-ahead right before it runs.
 
 ## Blocked on
 
