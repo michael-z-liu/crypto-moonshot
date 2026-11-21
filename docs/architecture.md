@@ -1272,8 +1272,11 @@ against a fake exchange; mainnet stays refused until P4. The API facts it relies
   `unknown_symbol`, `not_holding`, `bracket_open`), and an authentication error (`-1022`,
   `-2014`, `-2015`) or a ban (HTTP 418) halts order placement for good: `BrokerHalted` once,
   then every order is rejected `auth` / `banned` without a request. Read-only failures inside
-  `events` are logged and retried at the next call. `reconcile` at start-up may raise (the
-  engine then stops and the daemon restarts).
+  `events` are logged and retried at the next call (an order whose trades cannot be fetched
+  is reported once they can). A cancel retried after a lost answer finds the order already
+  cancelled and reports `cancelled`; cancelling a bracket the exchange has never heard of (a
+  testnet reset) is `not_open` with an `OrderCancelled`, so the position can still be sold.
+  `reconcile` at start-up may raise (the engine then stops and the daemon restarts).
 - **As built (M4).** `broker/binance.py` (`BinanceBroker(client, rules=, stream=, clock=,
   poll_interval=, poll_interval_down=, retry_base=, retry_max=, plans=)`; `start()` /
   `aclose()`), `exchange/ws_api.py`. Tests run against `tests/fake_exchange.py`, a simulator
