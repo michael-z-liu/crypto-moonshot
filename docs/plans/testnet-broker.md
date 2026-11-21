@@ -3,7 +3,7 @@
 - **Status:** building
 - **Branch:** `feat/testnet-broker` (stacked on PR #19, `feat/live-operations`)
 - **PR:**
-- **Updated:** 2026-11-21T02:40Z
+- **Updated:** 2026-11-21T03:35Z
 
 ## Goal
 
@@ -44,7 +44,7 @@ explicit go-ahead.
 - **Worker:** sonnet
 - **Commits:** 1eba174, 28d30cd, 55a6f93, 2cbfa5c
 
-### M3: Execution layer refactor (in progress)
+### M3: Execution layer refactor (done)
 
 - **Delivers:** an async execution interface both brokers satisfy (submit, cancel, events,
   reconcile; whether the broker needs candles and manages time exits); the engine commits each
@@ -54,9 +54,9 @@ explicit go-ahead.
   tests drive the engine with a fake exchange-style broker (async fills, rejections, timeouts,
   engine-run time exits) and crash recovery between intent and acknowledgement.
 - **Worker:** opus
-- **Commits:**
+- **Commits:** edccfce, 7df02e6, 5590e40, 0331ec4, 659e603, 6ee614b, a507820
 
-### M4: BinanceBroker (todo)
+### M4: BinanceBroker (in progress)
 
 - **Delivers:** market entries by quote amount, brackets as OCO (take-profit `LIMIT_MAKER` plus
   `STOP_LOSS`, trailing via `trailingDelta`), single-leg exits, immediate-trigger fallbacks,
@@ -101,6 +101,15 @@ explicit go-ahead.
   httpx logs signed URLs at INFO, so the client filters any record containing `signature=`.
   Unverified until a real testnet run: request weights, exact -2010 message wording, order-count
   header behaviour.
+- 2026-11-21 (M3): `ExecutionBroker` (submit/cancel/query/events/reconcile; flags `needs_candles`,
+  `manages_time_exits`, `sell_cancels_bracket`); `PaperExecution` adapter; state schema v3 order
+  states `new` -> `pending`|`unknown` -> final. Unknown outcomes are queried at the next broker
+  step; a never-placed entry is rejected (`not_placed`), a never-placed sell is re-submitted under
+  the same ID. A reconcile mismatch pauses entries until resumed by hand. New alerts:
+  `orphan_order`, `balance_mismatch`, `unprotected_position:<symbol>`. All paper/replay/recovery
+  expectations unchanged; the real-data F2 replay still equals the backtest exactly.
+- 2026-11-21 (M3 review): the engine reads broker events only in each tick's broker step, so an
+  exchange fill could reach the state file up to one interval late; M4 adds a drain between ticks.
 - 2026-11-21: If the user provides testnet keys, add an M6: a small real testnet run (stop and ask
   for the go-ahead first).
 
