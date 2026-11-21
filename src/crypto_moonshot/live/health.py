@@ -28,6 +28,8 @@ Rules (thresholds: `live.config.HealthConfig`):
   positions (error; the engine paused entries).
 - `unprotected_position:<symbol>`: an open position whose exit plan needs a bracket the broker
   does not hold (exchange brokers: placing it failed).
+- `broker_halted`: the broker stopped placing orders (the exchange refused the keys or banned
+  the IP); it lasts until the daemon is restarted.
 
 In a replay the clock is simulated, so the rules about wall-clock time (`feed_disconnected`,
 `no_ticks`, the start-up grace of `stale_symbols`) are off; the others run.
@@ -131,6 +133,7 @@ class HealthMonitor:
             (("disk_low",), self._disk_low),
             (("orphan_order", "balance_mismatch"), self._reconciliation),
             (("unprotected_position",), self._unprotected),
+            (("broker_halted",), self._broker_halted),
         ]
         findings: dict[str, Finding] = {}
         failed: set[str] = set()
@@ -335,6 +338,16 @@ class HealthMonitor:
                 "unprotected_position",
                 EventLevel.ERROR,
                 f"{position.symbol} ({position.strategy}) has no bracket at the broker",
+            )
+
+    def _broker_halted(self, now: datetime) -> Iterator[Finding]:
+        halt = self._engine.broker_halt
+        if halt is not None:
+            yield Finding(
+                "broker_halted",
+                "broker_halted",
+                EventLevel.ERROR,
+                f"the broker stopped placing orders ({halt.reason}); restart once fixed",
             )
 
 

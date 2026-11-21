@@ -62,6 +62,12 @@ Books are kept in memory for the decisions and re-derived from the state file
 (`StateStore.derive_book`) after every step that changed it and whenever the UTC day changes,
 so they always equal `derive_book` and a restarted engine computes exactly the same numbers.
 
+**Between ticks** a broker that does not need candles (an exchange) is drained every
+`engine.drain_interval`: while no tick is being processed, `events(now)` is called and the
+events are recorded in their own transaction, so a fill reaches the state file (and the
+dashboard) within seconds instead of at the next tick. The paper broker is never drained
+between ticks.
+
 A batch for a candle already processed is *late*: it is recorded, its entries are expired and
 its exits become market sells for the next candle open. Duplicates are refused.
 
@@ -117,6 +123,7 @@ from crypto_moonshot.broker.execution import (
     BracketFailed,
     BracketPlaced,
     BrokerEvent,
+    BrokerHalted,
     CancelStatus,
     EntryFilled,
     ExecutionBroker,
@@ -126,6 +133,7 @@ from crypto_moonshot.broker.execution import (
     OrderState,
     PaperExecution,
     Reconciliation,
+    RestoresState,
     SubmitResult,
     SubmitStatus,
     WorkingOrder,
@@ -495,6 +503,11 @@ class Engine:
         self._last_tick_at: datetime | None = None
         self._tick_done_at: dict[Interval, datetime] = {}
         self._error: str | None = None
+        self._tick_lock = asyncio.Lock()
+        """Held while a tick is processed (and while the between-ticks drain runs)."""
+        self._drain_task: asyncio.Task[None] | None = None
+        self._drain_failure: BaseException | None = None
+        self._halt: BrokerHalted | None = None
 
     # -- public API ---------------------------------------------------------------------------
 
@@ -512,6 +525,11 @@ class Engine:
         """The latest reconciliation report (at start-up, or from the broker after a
         reconnect); `None` before the first."""
         return self._reconciliation
+
+    @property
+    def broker_halt(self) -> BrokerHalted | None:
+        """Set once the broker reported that it stopped placing orders."""
+        return self._halt
 
     def unprotected_positions(self) -> list[PositionRecord]:
         """Open positions whose exit plan needs a bracket the broker does not hold (it failed,
@@ -599,6 +617,14 @@ class Engine:
                 )
         if isinstance(self._broker, PaperExecution):
             self._broker.restore(store.broker_snapshot(initial))
+        elif isinstance(self._broker, RestoresState):
+            self._broker.load(
+                [
+                    WorkingOrder(o.to_order(), o.interval, o.strategy)
+                    for o in store.pending_orders()
+                ],
+                [p.to_paper() for p in store.live_positions() if p.status is PositionStatus.OPEN],
+            )
         self._last_ticks = store.last_ticks()
         self._derive(self.specs, self.clock())
         self._started = True
@@ -611,18 +637,60 @@ class Engine:
         self._running = True
         try:
             await self._recover()
+            if self._drains():
+                self._drain_task = asyncio.create_task(self._drain_loop(), name="engine-drain")
             async for tick in feed.ticks():
-                await self._process(tick)
+                async with self._tick_lock:
+                    await self._process(tick)
                 if self._stopping:
                     break
+            if self._drain_failure is not None:
+                raise self._drain_failure
         except BaseException as exc:
             self._error = f"{type(exc).__name__}: {exc}"
             raise
         finally:
             self._running = False
+            drain, self._drain_task = self._drain_task, None
+            if drain is not None:
+                drain.cancel()
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await drain
             for task in self._busy.values():
                 task.cancel()
             await feed.aclose()
+
+    def _drains(self) -> bool:
+        interval = self.config.engine.drain_interval
+        return not self._broker.needs_candles and interval > timedelta(0)
+
+    async def _drain_loop(self) -> None:
+        """Between ticks: record what the broker heard (see the module docstring)."""
+        wait = self.config.engine.drain_interval.total_seconds()
+        try:
+            while not self._stopping:
+                await asyncio.sleep(wait)
+                if self._tick_lock.locked():
+                    continue  # a tick is being processed: its broker step reads the events
+                async with self._tick_lock:
+                    await self.drain()
+        except asyncio.CancelledError:
+            raise
+        except BaseException as exc:
+            self._drain_failure = exc
+            await self.stop()
+
+    async def drain(self) -> int:
+        """Read the broker's events now and record them (one transaction); returns how many.
+        The engine calls it between ticks for brokers that do not need candles."""
+        events = await self._broker.events(self.clock())
+        if events:
+            with self.store.transaction():
+                for event in events:
+                    self._record(event)
+            if self._dirty:
+                self._derive(sorted(self._dirty), self.clock())
+        return len(events)
 
     async def stop(self) -> None:
         """Stop after the tick in progress."""
@@ -964,6 +1032,14 @@ class Engine:
                 "bracket_placed",
                 f"{position.symbol}: bracket {bracket.id} placed",
                 {"symbol": position.symbol, "bracket_id": bracket.id},
+            )
+        elif isinstance(event, BrokerHalted):
+            self._halt = event
+            self._event(
+                EventLevel.ERROR,
+                "broker_halted",
+                f"the broker stopped placing orders ({event.reason}): {event.detail}",
+                {"reason": event.reason},
             )
         else:
             self._apply_reconciliation(event)

@@ -40,7 +40,9 @@ the last call and was not reported yet (in a `SubmitResult`, `CancelResult` or `
 - `BracketFailed` / `BracketPlaced`: an entry filled but its bracket could not be placed (the
   position is unprotected; the broker retries), then it was;
 - `Reconciliation`: a report from a reconciliation the broker ran by itself (after a
-  reconnect).
+  reconnect);
+- `BrokerHalted`: the broker stopped placing orders (the exchange refused its keys, or banned
+  it); every later order is rejected with the same reason.
 
 Every change of an order the engine knows must be reported exactly once; a duplicate is
 ignored. `until` bounds a simulated broker (it decides only on candles closed by then); an
@@ -53,7 +55,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from crypto_moonshot.broker.base import Costs, Order, OrderRejected, Side
 from crypto_moonshot.broker.candles import Candles
@@ -73,6 +75,7 @@ __all__ = [
     "BracketFailed",
     "BracketPlaced",
     "BrokerEvent",
+    "BrokerHalted",
     "CancelReason",
     "CancelResult",
     "CancelStatus",
@@ -87,6 +90,7 @@ __all__ = [
     "Position",
     "QueryResult",
     "Reconciliation",
+    "RestoresState",
     "SubmitResult",
     "SubmitStatus",
     "WorkingOrder",
@@ -133,6 +137,17 @@ class BracketPlaced:
 
 
 @dataclass(frozen=True, slots=True)
+class BrokerHalted:
+    """The broker stopped placing orders (`reason`: `auth` when the exchange refuses the keys,
+    `banned` after an IP ban); every later order is rejected with that reason. Needs an
+    operator."""
+
+    time: datetime
+    reason: str
+    detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class OrphanOrder:
     """An open order on the exchange with one of our ID prefixes that the state file does not
     know. Reported and left alone."""
@@ -175,6 +190,7 @@ BrokerEvent = (
     | BracketFailed
     | BracketPlaced
     | Reconciliation
+    | BrokerHalted
 )
 """Everything `ExecutionBroker.events` (and the `events` of a result) can report."""
 
@@ -255,7 +271,8 @@ class QueryResult:
 
 @dataclass(frozen=True, slots=True)
 class WorkingOrder:
-    """An order the state file holds as accepted and not final (for `reconcile`)."""
+    """An order the state file holds as working (for `reconcile`: accepted and not final; for
+    `RestoresState.load`: also `new` and `unknown` ones)."""
 
     order: Order
     interval: Interval
@@ -330,6 +347,18 @@ class ExecutionBroker(Protocol):
         order was resolved): bring each working order up to date (its changes come from the
         next `events` call), and report orphaned orders and balances that do not cover the
         open positions. Places and cancels nothing."""
+        ...
+
+
+@runtime_checkable
+class RestoresState(Protocol):
+    """An exchange broker that must know the state file's orders and positions before the
+    engine resolves anything (a whole-position sell has no quantity: the broker sells what the
+    position holds). The engine calls `load` at start, before `query` and `reconcile`."""
+
+    def load(self, orders: Sequence[WorkingOrder], positions: Sequence[Position]) -> None:
+        """Adopt the state file's working orders (new, pending or unknown) and open
+        positions. Contacts nothing."""
         ...
 
 
