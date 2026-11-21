@@ -446,6 +446,7 @@ class BinanceBroker:
         self._started = False
         self._last_poll: datetime | None = None
         self._force_poll = False
+        self._closing = False
         self._reconcile_due = False
         self._halted: str | None = None
         self.balances: dict[str, tuple[Decimal, Decimal]] = {}
@@ -504,6 +505,7 @@ class BinanceBroker:
         await self._rules.refresh()
 
     async def aclose(self) -> None:
+        self._closing = True
         if self._stream is not None:
             await self._stream.aclose()
 
@@ -520,7 +522,10 @@ class BinanceBroker:
                 self._reconcile_due = True
             return
         if isinstance(message, StreamDown):
-            logger.warning("user data stream down (%s): polling over REST", message.reason)
+            if self._closing:  # our own shutdown, not an outage
+                logger.info("user data stream closed")
+            else:
+                logger.warning("user data stream down (%s): polling over REST", message.reason)
             return
         self._inbox.append(message)
 
