@@ -221,6 +221,11 @@ class SignedClient:
         symbols = [SymbolRules.from_json(s) for s in body.get("symbols", ())]
         return ExchangeInfo(from_ms(int(body["serverTime"])), {s.symbol: s for s in symbols})
 
+    async def ticker_price(self, symbol: str) -> Decimal:
+        """`GET /api/v3/ticker/price` (weight 2): the symbol's last traded price."""
+        body = await self._request("GET", "/api/v3/ticker/price", {"symbol": symbol}, weight=2)
+        return Decimal(str(body["price"]))
+
     async def account(self) -> Account:
         """`GET /api/v3/account` (weight 20)."""
         return Account.from_json(await self._signed("GET", "/api/v3/account", {}, weight=20))
