@@ -1230,7 +1230,7 @@ class BinanceBroker:
             qty = rules.round_quantity(qty, market=True)
         if qty <= 0:
             return SubmitResult.rejected("quantity")
-        holding.protect = False  # a sell is under way: no bracket retries
+        protect, holding.protect = holding.protect, False  # a sell is under way
         sell = _Sell(order, _Progress(order.id, order.symbol))
         self._sells[order.id] = sell
         try:
@@ -1243,6 +1243,7 @@ class BinanceBroker:
             return await self._submit_from_query(order)
         except ExchangeError as exc:
             del self._sells[order.id]
+            holding.protect = protect
             return SubmitResult.rejected(self._rejection(exc))
         sell.progress.apply(response)
         await self._settle()
@@ -1343,7 +1344,14 @@ class BinanceBroker:
                 tracked.cancel_requested = False
                 return CancelResult(CancelStatus.UNKNOWN)
             await self._settle()
-            return CancelResult(CancelStatus.NOT_OPEN, tuple(self._take(order.id)))
+            events = self._take(order.id)
+            progress = tracked.progress
+            if events or progress.executed > 0:
+                return CancelResult(CancelStatus.NOT_OPEN, tuple(events))
+            if tracked.done:  # cancelled by an earlier cancel whose answer was lost
+                return CancelResult(CancelStatus.CANCELLED)
+            tracked.cancel_requested = False
+            return CancelResult(CancelStatus.UNKNOWN)
         except (AuthError, Banned) as exc:
             self._halt(exc)
             tracked.cancel_requested = False

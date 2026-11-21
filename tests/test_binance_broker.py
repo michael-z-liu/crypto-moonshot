@@ -833,3 +833,32 @@ async def test_keys_and_signatures_never_reach_logs_or_reprs(
 
 def test_broker_types_are_exported() -> None:
     assert OrderType.BRACKET.value == "bracket"
+
+
+async def test_cancelling_a_resting_market_order_and_a_lost_cancel_answer(rig: BrokerRig) -> None:
+    rig.fake.hold_market.add(SYMBOL)
+    first, second = buy(), buy(symbol="BBBUSDT", n=2)
+    rig.fake.hold_market.add("BBBUSDT")
+    for order in (first, second):
+        await rig.broker.submit(order, interval=H1)
+    result = await rig.broker.cancel(first)
+    assert (result.status, result.events) == (CancelStatus.CANCELLED, ())
+    rig.fake.timeout("/api/v3/order", method="DELETE", placed=True)
+    result = await rig.broker.cancel(second)
+    assert result.status is CancelStatus.UNKNOWN
+    result = await rig.broker.cancel(second)  # it was cancelled: the retry says so
+    assert (result.status, result.events) == (CancelStatus.CANCELLED, ())
+    assert await drain(rig) == []
+    assert rig.fake.balance("USDT") == (D(10_000), D(0))
+
+
+async def test_a_partly_filled_market_order_cancelled_reports_its_fill(rig: BrokerRig) -> None:
+    rig.fake.hold_market.add(SYMBOL)
+    order = buy()
+    await rig.broker.submit(order, interval=H1)
+    rig.fake.fill_part(order.id, D("0.5"))
+    result = await rig.broker.cancel(order)
+    assert result.status is CancelStatus.NOT_OPEN
+    (entry, *_) = result.events
+    assert isinstance(entry, EntryFilled)
+    assert entry.fill.quantity == pytest.approx(5.0)
