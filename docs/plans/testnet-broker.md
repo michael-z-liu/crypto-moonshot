@@ -2,7 +2,7 @@
 
 - **Status:** blocked
 - **Branch:** `feat/testnet-broker` (stacked on PR #19, `feat/live-operations`)
-- **PR:**
+- **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/20 (draft until M6)
 - **Updated:** 2026-11-21T14:55Z
 
 ## Goal
