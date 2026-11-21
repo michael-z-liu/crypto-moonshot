@@ -328,6 +328,8 @@ tick_timeout = "10s"               # wait this long after a close for every symb
 signal_deadline = "30s"            # after a candle closes, wait this long for signal batches
 entry_grace = "5m"                 # cancel a pending buy whose candle is this overdue
 replay_timeout = "1h"              # replay: longest real wait for a candle's batches
+drain_interval = "5s"              # exchange brokers: record fills this often between ticks
+                                   # ("none": only at ticks; the paper broker never drains)
 
 [health]                           # all optional; see Operations
 health_every = "15s"               # how often the health rules are evaluated
@@ -586,6 +588,17 @@ transaction across an `await`. For each tick (interval *I*, candle *T*, entry ti
    (a fill that raced the cancel wins, and nothing is sold) places a market sell with reason
    `time` (client ID `time_exit_id(entry ID, E)`, so a failed attempt is retried at the next
    tick).
+
+- **Between ticks** (`engine.drain_interval`, default 5 s; exchange brokers only): while no tick
+  is being processed (`Engine.drain`, under the same lock as a tick), `events(now)` is called
+  and its events recorded in their own transaction, so an exchange fill reaches the state file
+  and the dashboard within seconds instead of at the next tick. The paper broker
+  (`needs_candles`) is never drained between ticks, so paper and replay are unchanged. A broker
+  that `RestoresState` (the exchange broker) is given the state file's working orders and open
+  positions at start (`load`), before any `query` or `reconcile`: a whole-position sell carries
+  no quantity, so the broker must know what each position holds. A `BrokerHalted` event (the
+  exchange refused the keys or banned the IP) is written as a `broker_halted` error and raises
+  the `broker_halted` alert until a restart.
 
 - **Intent, then action, then outcome.** Every order (entry, exit signal, flatten, time exit)
   is written first: its row as `new` (with its deterministic client order ID) and, for an
@@ -994,9 +1007,11 @@ channel). The runbook (`docs/runbook.md`) is the operator's guide; this section 
   | `orphan_order` | the latest reconciliation found open orders on the exchange that the state file does not know | warning |
   | `balance_mismatch` | the latest reconciliation found balances that do not cover the open positions (the engine paused entries) | error |
   | `unprotected_position:<symbol>` | an open position's exit plan needs a bracket the broker does not hold, and no sell is working | error |
+  | `broker_halted` | the broker stopped placing orders (the exchange refused the keys, or banned the IP); lasts until a restart | error |
 
   Thresholds are the `[health]` settings of the run config. Rule inputs are public accessors:
-  `Engine.tick_times()` / `last_tick_at`, `Engine.reconciliation` / `unprotected_positions()`,
+  `Engine.tick_times()` / `last_tick_at`, `Engine.reconciliation` / `unprotected_positions()` /
+  `broker_halt`,
   `Feed.health()` / `stale_symbols()`, the store's
   `recent_batch_statuses`, `derive_book`, `count_events` and `alerts`, and injected callables for
   the disk (`disk_free`) and the backup scheduler's last error. **In a served replay** the clock
@@ -1117,8 +1132,9 @@ against a fake exchange; mainnet stays refused until P4. The API facts it relies
   - `events(until, *, interval) -> list[BrokerEvent]`: in time order, everything not reported
     yet: `EntryFilled`, `ExitFilled`, `OrderCancelled` (the paper broker's, shared; `CancelReason`
     gains `cancelled` and `expired`), `OrderRejection` (accepted, then rejected), `BracketFailed`
-    and `BracketPlaced` (an unprotected position, then protected again), and `Reconciliation`
-    (a report from a reconciliation the broker ran itself, after a reconnect). Each change of a
+    and `BracketPlaced` (an unprotected position, then protected again), `Reconciliation`
+    (a report from a reconciliation the broker ran itself, after a reconnect) and
+    `BrokerHalted` (the broker stopped placing orders: refused keys or a ban). Each change of a
     known order is reported once; the engine ignores a duplicate. `until` bounds a simulated
     broker; an exchange broker returns everything it has received;
   - `reconcile(orders, positions, *, now) -> Reconciliation`: at start-up, after the engine
@@ -1133,7 +1149,9 @@ against a fake exchange; mainnet stays refused until P4. The API facts it relies
     Binance the OCO holds the balance, so the engine cancels it first). `cancel` and `query`
     take the engine's `Order`, because Binance needs the symbol and a bracket is an order list.
   `PaperExecution` puts `PaperBroker` behind it (and is restored from the state file instead of
-  reconciling), so paper mode, replay and their parity and recovery tests did not change.
+  reconciling), so paper mode, replay and their parity and recovery tests did not change. An
+  exchange broker that `RestoresState` gets the state file's working orders and open
+  positions from the engine at start (`load`), before anything is queried (built in M4).
   `tests/execution_fakes.py` has `FakeExchangeBroker`, an exchange-style fake the engine tests
   use (asynchronous fills, rejections, unknown outcomes, bracket races, reconcile reports).
 - **Intent, then action, then outcome** (built, see Engine). The engine commits the order row
@@ -1144,13 +1162,20 @@ against a fake exchange; mainnet stays refused until P4. The API facts it relies
   signal is stale; only a later tick may enter the symbol), a sell is placed (it finishes an
   exit that was provably intended). An `unknown` submit result is resolved the same way at the
   next broker step. Nothing is ever retried blind.
-- **Entries.** A market buy by `quoteOrderQty` (the stake in USDT, fee included, as in the book).
-  The fill's average price becomes the position's reference price: exit levels are relative to
-  where the testnet actually filled, because testnet prices drift from the mainnet candles that
-  drive the signals. The base quantity bought minus a commission charged in the base asset, rounded
-  down to the step size, is what the bracket sells; the rest is *dust*, recorded on the position
-  and never sold by the broker. Cost = USDT spent; proceeds = USDT received minus USDT
-  commission; a commission in another asset (BNB) is recorded, not converted.
+- **Entries.** A market buy by `quoteOrderQty` (the stake in USDT, fee included, as in the book;
+  rounded down to 8 decimals), refused below the symbol's minimum notional (`min_notional`,
+  before any request). The fill's average price (`cummulativeQuoteQty / executedQty`) becomes
+  the position's reference price: exit levels are relative to where the testnet actually
+  filled, because testnet prices drift from the mainnet candles that drive the signals. The base
+  quantity bought minus a commission charged in the base asset, rounded down to the lot step, is
+  the position's quantity (what the bracket sells); the rest is *dust*: it stays on the account,
+  is never sold, and is derivable from the state file (the fill's executed quantity minus the
+  position's quantity and the commission) and kept in `BinanceBroker.dust`. The entry fill's
+  `fee` is the commission's USDT value. Cost = USDT spent; proceeds = USDT received minus USDT
+  commission; a commission in another asset (BNB) is logged and kept in
+  `BinanceBroker.other_commissions`, not converted. The position's entry time is the order's
+  time (the engine's entry time *E*), not the fill's, so time exits fall on the same tick as in
+  paper mode; the fill keeps the exchange's time.
 - **Brackets.** Take profit and stop become one OCO sell list: `LIMIT_MAKER` above at
   `ref x (1 + take_profit)` and `STOP_LOSS` below at `ref x (1 - stop)` (a market order once
   triggered), prices rounded to the tick size (take profit up, stop down, so neither is tighter
@@ -1159,12 +1184,23 @@ against a fake exchange; mainnet stays refused until P4. The API facts it relies
   plan with both is accepted when `stop >= trailing` (the trailing level is never below the fixed
   one, so the trailing leg alone is equivalent) and refused at start-up otherwise. A plan with
   only a take profit or only a stop places that single order; `tp_fill = "close"` cannot be
-  mirrored (a resting limit fills on touch) and is refused in exchange modes. IDs: the list's
-  `listClientOrderId` and its legs' IDs are `child_order_id`s of the entry, so a restart finds
-  them.
+  mirrored (a resting limit fills on touch) and is refused in exchange modes
+  (`broker.binance.exit_plan_problems` / `check_exit_plan`, also checked by the constructor's
+  `plans` and by `submit`, which rejects `unsupported_exit_plan`). IDs: the bracket ID is the
+  list's `listClientOrderId` (or the single order's client ID), `child_order_id(entry,
+  "bracket")` for the first attempt and `child_order_id(entry, "bracket:<n>")` after one whose
+  outcome was unknown; the legs are `child_order_id(bracket, "take_profit")` and
+  `child_order_id(bracket, "stop")`. A restart finds them, and a reconciliation adopts a bracket
+  the state file lost (a `BracketPlaced` that was never recorded) by looking for those IDs among
+  the open orders.
 - **Levels already crossed.** If the price is already beyond the take profit when the bracket is
   placed (the `LIMIT_MAKER` would match at once) or below the stop, the broker sells at market at
-  once with the corresponding reason, as the backtest fills a gap at the open.
+  once with the corresponding reason, as the backtest fills a gap at the open. It learns so from
+  the exchange: `-2010` "would immediately match and take" (take profit), `-2021` "would trigger
+  immediately" (stop), or the OCO price relationship refused (or another unnamed rejection)
+  while the last price (`GET /api/v3/ticker/price`) is beyond a level. The market sell uses the
+  bracket ID as its client ID, so the engine sees `EntryFilled` with that bracket ID and then an
+  `ExitFilled` of the bracket with the level's reason.
 - **Time exits** (engine, built in M3, for brokers that do not manage them): at the first tick
   at or after `entry time + max_hold`, cancel the position's order list, then sell its quantity
   at market, reason `time`. A fill that races the cancel wins; the engine checks before selling
@@ -1175,20 +1211,40 @@ against a fake exchange; mainnet stays refused until P4. The API facts it relies
   `PERCENT_PRICE_BY_SIDE`, a balance or rate-limit error), the broker reports `EntryFilled`
   without a bracket ID and `BracketFailed`; the engine writes a `bracket_failed` event and the
   `unprotected_position:<symbol>` error alert fires (any open position whose plan has a take
-  profit, stop or trailing stop and no working bracket or sell) until the broker, retrying every
-  tick, reports `BracketPlaced` (a new client ID for every bracket that reached the exchange).
-  Flatten still works.
+  profit, stop or trailing stop and no working bracket or sell) until the broker, retrying in
+  `events` with backoff (5 s, doubling, at most 5 min), reports `BracketPlaced` (a new client
+  ID after an attempt whose outcome was unknown; one the exchange refused never existed, so its
+  ID is reused). Flatten still works. A bracket the engine cancelled to sell is not re-placed
+  (the sell follows); one cancelled or expired by anything else (or gone after a testnet reset)
+  is reported `OrderCancelled` and not re-placed either: the alert asks for an operator.
 - **Fills.** The user data stream on a WebSocket API connection
-  (`userDataStream.subscribe.signature`): `executionReport` events become fills and cancellations,
-  matched to positions by client order ID (`c`, or `C` for cancels); `listStatus` closes an OCO.
-  While the stream is down (and after every reconnect, at least once a minute regardless) the
-  broker polls open orders over REST, so a missed event only delays a fill, never loses it.
-- **Reconciliation.** At start-up and after a reconnect: every local pending or open order is
-  queried by client ID and brought up to date; open orders on the exchange with our ID prefixes
-  but unknown locally are reported (`orphan_order` event and alert) and left alone; each open
-  position's base balance (free plus locked) must cover its quantity, otherwise a
-  `balance_mismatch` error event and alert, and the engine pauses entries (resuming is the
-  operator's call). Reconciliation never places or cancels orders on its own; the engine
+  (`exchange/ws_api.py`, `UserDataStream`: `userDataStream.subscribe.signature`, resubscribe on
+  `eventStreamTerminated`, reconnect on `serverShutdown` and after any failure with backoff,
+  rotation before 24 h): `executionReport` events become fills and cancellations, matched by
+  client order ID (`c`, or `C` for cancels); `listStatus` closes an OCO. The stream only fills
+  an inbox; each async call of the broker processes it first. An order's progress only moves
+  forward: executed quantity and quote are the cumulative `z`/`Z` (or REST `executedQty` /
+  `cummulativeQuoteQty`), commissions are kept per trade ID, so the same change heard from the
+  stream, a FULL response and a poll counts once; an order is reported once, when it is final
+  (missing commissions are fetched with `myTrades` first). While the stream is down (every
+  10 s), after every reconnect, and at least once a minute regardless, `events` polls every
+  working order and bracket over REST, so a missed event only delays a fill, never loses it.
+  After a reconnect it also runs a reconciliation and reports it (`Reconciliation`).
+- **Partial fills.** An entry is reported once its market order is final (split fills
+  averaged). A bracket leg that fills in parts closes the position only when it is filled, or
+  when its list is done (what did not sell then stays as dust). When the engine cancels a
+  partly filled bracket (time exit, exit signal, flatten) the cancel is `cancelled`, and what
+  the leg sold is carried into the market sell that follows, whose `ExitFilled` covers the
+  whole exit (quantity, average price, fees). The engine therefore only ever sees whole exits.
+- **Reconciliation.** At start-up and after a reconnect: the account and the open orders and
+  order lists are read first, every local working order and bracket is queried by client ID
+  and brought up to date (its changes come from the next `events`); open orders on the
+  exchange with our ID prefixes (`cmb-`, `cms-`, `cmx-`) but unknown locally are reported (one
+  per order, or one per OCO list; `orphan_order` event and alert) and left alone; each open
+  position's base balance (free plus locked, read before the updates, so a position closed by
+  an update is not counted) must cover its remaining quantity within one lot step per
+  position, otherwise a `balance_mismatch` error event and alert, and the engine pauses entries
+  (resuming is the operator's call). Reconciliation never places or cancels orders on its own; the engine
   finishes an exit it can prove was intended (a never-placed sell, a time exit past its
   deadline). The engine runs it at start-up (M3); the broker runs it after reconnects and
   reports through `events` (M4).
@@ -1209,10 +1265,32 @@ against a fake exchange; mainnet stays refused until P4. The API facts it relies
   environment or `.env`) are `SecretStr`s, required only in testnet mode, sent only in the
   `X-MBX-APIKEY` header and signatures, and never logged, echoed or stored. Mainnet keys will use
   `MOONSHOT_BINANCE_API_KEY` / `_SECRET` (P4), so the two cannot be mixed up.
+- **Failures are results.** No broker method raises for an order outcome: a placing request
+  without an answer is `unknown` (queried by client ID later), a duplicate client ID is queried,
+  a filter or balance rejection is `rejected` with a reason (`filter_<name>` in lower case,
+  `insufficient_balance`, `rate_limited`, `min_notional`, `symbol_not_trading`,
+  `unknown_symbol`, `not_holding`, `bracket_open`), and an authentication error (`-1022`,
+  `-2014`, `-2015`) or a ban (HTTP 418) halts order placement for good: `BrokerHalted` once,
+  then every order is rejected `auth` / `banned` without a request. Read-only failures inside
+  `events` are logged and retried at the next call. `reconcile` at start-up may raise (the
+  engine then stops and the daemon restarts).
+- **As built (M4).** `broker/binance.py` (`BinanceBroker(client, rules=, stream=, clock=,
+  poll_interval=, poll_interval_down=, retry_base=, retry_max=, plans=)`; `start()` /
+  `aclose()`), `exchange/ws_api.py`. Tests run against `tests/fake_exchange.py`, a simulator
+  serving REST (an `httpx.MockTransport` handler) and the WebSocket API (a `websockets` server
+  on 127.0.0.1) from one matching engine: market fills with slippage and split fills,
+  commissions, `LIMIT_MAKER`, `STOP_LOSS` and trailing stops, OCO lists, partial fills,
+  balances, filters, signatures, user data events, and faults (errors before or after an order
+  took effect, timeouts, bans, dropped connections, held or lost events,
+  `eventStreamTerminated`, `serverShutdown`, testnet reset). `tests/test_binance_broker.py`,
+  `tests/test_ws_api.py` and `tests/test_engine_binance.py` (the real engine over the
+  simulator, including crashes at every step boundary) use it. M5 wires `mode = "testnet"`.
 - **Known differences from paper.** Fills happen at the testnet's prices, not the mainnet candles;
   a stop fills at market after it triggers (slippage beyond the level); take profits fill on touch;
   dust stays behind; time exits happen at the first tick after the deadline rather than exactly at
-  it.
+  it. In an OCO, the first partial fill of one leg expires the other (the simulator does so; as
+  Binance documents for OCOs), so the rest of a partly filled take profit has no stop until it
+  fills or the engine sells it.
 
 ## Run modes
 
@@ -1239,8 +1317,8 @@ src/crypto_moonshot/
 ├── strategy/           # base.py, features.py, compute.py, capitulation.py, scores.py
 ├── portfolio.py        # the book and position sizing
 ├── risk.py
-├── exchange/           # client.py (SignedClient: signing, time offset, pacing), pacing.py, rules.py (exchangeInfo filters, Decimal rounding), errors.py (typed Binance errors), models.py (parsed responses) (P3)
-├── broker/             # base.py (orders, ExitPlan, Costs), candles.py, simulated.py, paper.py, execution.py (ExecutionBroker, PaperExecution); binance.py (P3)
+├── exchange/           # client.py (SignedClient: signing, time offset, pacing), pacing.py, rules.py (exchangeInfo filters, Decimal rounding), errors.py (typed Binance errors), models.py (parsed responses), ws_api.py (UserDataStream: the WebSocket API user data stream) (P3)
+├── broker/             # base.py (orders, ExitPlan, Costs), candles.py, simulated.py, paper.py, execution.py (ExecutionBroker, PaperExecution); binance.py (BinanceBroker) (P3)
 ├── backtest/           # engine.py, metrics.py, results.py (result files), source.py (candle windows)
 ├── live/               # config.py (TOML run config), contract.py (signal batches), plugin.py (Strategy,
 │                       # loader, RuleStrategy), feed.py (ticks, windows), state.py (SQLite), engine.py,

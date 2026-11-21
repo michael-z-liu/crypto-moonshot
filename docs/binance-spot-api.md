@@ -74,8 +74,11 @@ Sources:
   price (the general trailing-stop FAQ suggests so); we never send both.
 
 Queries: `GET /api/v3/order` (by `origClientOrderId`, weight 4), `GET /api/v3/openOrders` (weight 6
-per symbol), `GET /api/v3/orderList`, `GET /api/v3/openOrderList`, `GET /api/v3/account` (weight 20;
-`balances[]{asset, free, locked}`), `GET /api/v3/myTrades` (by `orderId`, weight 5).
+per symbol), `GET /api/v3/orderList` (by `origClientOrderId`, which is the list's
+`listClientOrderId`), `GET /api/v3/openOrderList`, `GET /api/v3/account` (weight 20;
+`balances[]{asset, free, locked}`), `GET /api/v3/myTrades` (by `orderId`, weight 5),
+`GET /api/v3/ticker/price` (public, weight 2: the last price; the broker reads it only to tell
+which level a refused bracket crossed).
 `GET /api/v3/exchangeInfo` gives each symbol's status and filters (`PRICE_FILTER` tick size,
 `LOT_SIZE` / `MARKET_LOT_SIZE` step and bounds, `MIN_NOTIONAL` / `NOTIONAL`, `PERCENT_PRICE_BY_SIDE`,
 `TRAILING_DELTA`, `MAX_NUM_ORDERS`).
@@ -132,3 +135,28 @@ WebSocket API connection instead:
   - `balanceUpdate`, `externalLockUpdate`, `eventStreamTerminated` (the subscription ended:
     resubscribe), and `serverShutdown` (no `subscriptionId`: reconnect).
 - Events can be missed while disconnected: after every reconnect the broker reconciles over REST.
+- Requests on the connection are `{"id", "method", "params"}` frames; the answer carries the
+  same `id` with `"status": 200, "result": ...` or an `"error": {"code", "msg"}` (codes as in
+  REST). `exchange/ws_api.py` implements this.
+
+## Assumptions to check on the real testnet
+
+The broker is built so that none of these is load-bearing for correctness (each has a fallback),
+but each is *unverified* until a real testnet run (M6 in the plan):
+
+- The order of a REST answer and the stream's reports for the same order is not fixed: the
+  broker accepts either and counts each change once (cumulative `z`/`Z`, trade IDs).
+- An OCO leg's first partial fill expires the other leg (and `listStatus` is `ALL_DONE` only
+  once no leg can fill). The simulator does this; the broker closes a position only when a leg
+  is `FILLED` or every leg is final either way.
+- The OCO price-relationship rejection is `-1013` "The relationship of the prices for the
+  orders is not correct." (an unnamed filter failure); the broker then reads the last price to
+  tell which level was crossed, so the code or wording may differ without harm.
+- A `STOP_LOSS` sell with only `trailingDelta` starts trailing at once from the price at
+  placement (no activation price).
+- `quoteOrderQty` is accepted with 8 decimals for USDT pairs (the broker rounds down to 8).
+- A market buy's commission is charged in the base asset unless BNB pays fees; the broker
+  handles base, USDT and any other asset.
+- The `userDataStream.subscribe.signature` timestamp must be within `recvWindow` of the server
+  clock like a REST request: the stream must be given a clock corrected by the REST client's
+  server-time offset when the local clock is off.
