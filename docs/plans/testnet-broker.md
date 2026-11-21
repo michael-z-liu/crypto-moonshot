@@ -1,9 +1,9 @@
 # Binance testnet broker (built against mocks)
 
-- **Status:** building
+- **Status:** blocked
 - **Branch:** `feat/testnet-broker` (stacked on PR #19, `feat/live-operations`)
 - **PR:**
-- **Updated:** 2026-11-21T05:05Z
+- **Updated:** 2026-11-21T14:55Z
 
 ## Goal
 
@@ -70,7 +70,7 @@ explicit go-ahead.
 - **Worker:** opus
 - **Commits:** 0abb9eb, f1825b7, a49b0fe, 505ea7a, 46ce80d, b00f886, e31bf7a, 4194bbd, 7e657cb, 1c57cb5, a67dad6
 
-### M5: Testnet mode (in progress)
+### M5: Testnet mode (done)
 
 - **Delivers:** `mode = "testnet"` runnable: keys from `MOONSHOT_BINANCE_TESTNET_API_KEY` /
   `_SECRET` (environment or `.env`, never logged), testnet URLs configurable, start-up checks
@@ -80,7 +80,7 @@ explicit go-ahead.
   replayed candle path) trades consistently with paper on the same candles; testnet refuses to
   start without keys; mainnet still refused; keys never in logs, events, status or errors.
 - **Worker:** sonnet
-- **Commits:**
+- **Commits:** e69a42f, 7cbc864, 4921177, 593cde6, 9276477, 93fb813
 
 ### M6: Real testnet check (todo)
 
@@ -134,7 +134,20 @@ explicit go-ahead.
   (rare): a partly filled bracket's sold quantity before an engine cancel; BNB commissions.
 - 2026-11-21: Keys live in one file, `/Users/mike/code/crypto-moonshot/.env` (main checkout,
   gitignored); M5 adds `--env-file` so runs from worktrees use it.
+- 2026-11-21 (M5): mainnet guard in the `SignedClient` / `UserDataStream` constructors (any host
+  naming binance other than `testnet.binance.vision` is refused); `live run --env-file` (testnet
+  only; paper never reads `.env`); `moonshot exchange check` (read-only); `initial_cash` optional
+  (required in paper, ignored in testnet); free USDT must cover the books' derived cash; symbols
+  not trading are dropped with a warning; exchange card on the dashboard; `examples/testnet.toml`.
+  End to end vs paper on the same candles: same entries and exit reasons; exchange fills differ
+  (lot steps, commissions, stops at market). F2 real-data replay still equals the backtest.
 
 ## Blocked on
+
+M6 (real testnet check) needs, from the user: (1) confirmation that testnet keys are in
+`/Users/mike/code/crypto-moonshot/.env` (preferably regenerated, since the first pair was pasted
+in chat), and (2) an explicit go-ahead to send real requests to the Binance spot testnet: first
+the read-only `moonshot exchange check`, then a short `live run` with `examples/testnet.toml`
+(about 10 USDT test stakes on BTCUSDT/ETHUSDT), a restart, and a flatten.
 
 ## Follow-ups
