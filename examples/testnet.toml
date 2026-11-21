@@ -1,0 +1,35 @@
+# Example run config for the Binance spot TESTNET (fake money):
+#   moonshot exchange check --env-file /Users/mike/code/crypto-moonshot/.env
+#   moonshot live run --config examples/testnet.toml --env-file /Users/mike/code/crypto-moonshot/.env
+# Run it from the repository root (the plugin path below is relative to the working directory).
+# Keys come from MOONSHOT_BINANCE_TESTNET_API_KEY / _SECRET (environment or --env-file), never
+# from this file. See docs/runbook.md, "First testnet run".
+
+mode = "testnet"                    # orders go to testnet.binance.vision; mainnet hosts are refused
+state = "state/testnet.sqlite"      # relative to this file's folder; never share it with paper
+
+[account]
+# No initial_cash: the testnet account is the account. The free USDT must cover the capital below.
+max_order_usdt = 30                 # an entry's stake above this is refused
+max_total_exposure = 0.5            # open cost basis at most half the books' equity
+stale_after = 2
+
+[engine]
+tick_timeout = "10s"
+signal_deadline = "30s"
+entry_grace = "5m"
+drain_interval = "5s"               # record exchange fills this often between candles
+
+# A deliberately tiny trial: BTC and ETH, stakes just above the exchange's minimum order value
+# (5 USDT on BTCUSDT/ETHUSDT; check with `moonshot exchange check --symbol ETHUSDT`).
+# The exit plan is one the exchange can hold: a take profit and a stop (OCO), a time limit,
+# tp_fill = "touch", no trailing stop tighter than the stop.
+[[strategies]]
+name = "cross"
+source = "examples/strategies/ma_cross.py:MaCross"
+params = { fast = 12, slow = 48 }
+symbols = ["BTCUSDT", "ETHUSDT"]
+capital = 100
+sizing = { stake = 10 }
+risk = { max_positions = 2 }
+exit = { take_profit = 0.03, stop = 0.02, max_hold = "2d" }

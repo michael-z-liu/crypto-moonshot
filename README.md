@@ -5,8 +5,8 @@ Personal toolkit for researching, backtesting and trading crypto on Binance.
 Scope:
 
 - **Research**: download historical data from Binance and analyse strategies.
-- **Trading**: a paper trading daemon that runs strategies on live Binance candles (orders on the
-  Binance testnet and mainnet come later).
+- **Trading**: a daemon that runs strategies on live Binance candles, as paper trading or with
+  orders on the Binance spot testnet (mainnet comes later).
 
 ## Setup
 
@@ -92,7 +92,7 @@ the design is in [docs/architecture.md](docs/architecture.md).
 
 The trading daemon follows live Binance candles (public market data, no API keys), runs your
 strategies and keeps simulated positions in a SQLite state file. It places no orders anywhere:
-only paper mode runs (`testnet` and `live` are refused). The design is in
+in paper mode (`testnet` is described below; `live` is refused). The design is in
 [docs/architecture.md](docs/architecture.md); writing a strategy is covered in
 [docs/strategy-plugins.md](docs/strategy-plugins.md).
 
@@ -175,8 +175,24 @@ Commits follow Conventional Commits. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Safety
 
-This repository is public. API keys go in `.env`, which is gitignored; the daemon's `MOONSHOT_API_TOKEN` is read from the
-environment only and is never logged. Use the Binance spot testnet until a strategy has been proven.
+This repository is public. API keys go in `.env`, which is gitignored; keys and the daemon's
+`MOONSHOT_API_TOKEN` are never logged. Use the Binance spot testnet until a strategy has been proven.
+
+### Testnet (fake money)
+
+Create keys at <https://testnet.binance.vision/>, put `MOONSHOT_BINANCE_TESTNET_API_KEY` and
+`MOONSHOT_BINANCE_TESTNET_API_SECRET` in `/Users/mike/code/crypto-moonshot/.env` (`chmod 600`;
+see `.env.example`), then, from any checkout or worktree:
+
+```bash
+uv run moonshot exchange check --env-file /Users/mike/code/crypto-moonshot/.env   # read-only
+uv run moonshot live run --config examples/testnet.toml \
+    --env-file /Users/mike/code/crypto-moonshot/.env
+```
+
+`--env-file` loads that file's variables for the one process (paper mode never reads an env file;
+without the option testnet reads `./.env` if present). The daemon refuses any Binance host other
+than the testnet. Step by step: [docs/runbook.md](docs/runbook.md#first-testnet-run).
 
 ## Running in Docker
 

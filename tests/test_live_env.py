@@ -138,3 +138,26 @@ def test_the_logs_mask_the_keys(
     keys.write_text(KEYS + f"MOONSHOT_API_TOKEN={TOKEN}\n")
     assert run("--config", str(config(tmp_path, "testnet")), "--env-file", str(keys)).exit_code == 0
     assert set(masked[0]) == {TOKEN, API_KEY, API_SECRET}
+
+
+def test_the_example_testnet_config_loads_and_its_exit_plans_fit_the_exchange() -> None:
+    from crypto_moonshot.broker.binance import check_exit_plan
+    from crypto_moonshot.live.config import load_config
+    from crypto_moonshot.live.engine import build_specs
+
+    root = Path(__file__).resolve().parent.parent
+    run = load_config(root / "examples" / "testnet.toml")
+    run.require_runnable()
+    assert run.mode == "testnet"
+    assert run.account.initial_cash is None
+    specs = build_specs(run, None)
+    for spec in specs:
+        check_exit_plan(spec.exit)
+    assert sum(s.capital for s in specs) <= 100
+
+
+def test_the_env_example_names_the_two_testnet_variables() -> None:
+    text = (Path(__file__).resolve().parent.parent / ".env.example").read_text()
+    assert "MOONSHOT_BINANCE_TESTNET_API_KEY=" in text
+    assert "MOONSHOT_BINANCE_TESTNET_API_SECRET=" in text
+    assert "testnet.binance.vision" in text

@@ -9,7 +9,8 @@ services:
     restart: unless-stopped
     init: true                       # tini as PID 1: forwards SIGTERM, reaps children
     stop_grace_period: 60s           # longer than a tick's candle collection
-    env_file: moonshot.env           # MOONSHOT_API_TOKEN (not committed)
+    env_file: moonshot.env           # MOONSHOT_API_TOKEN, and for testnet mode the two
+                                     # MOONSHOT_BINANCE_TESTNET_* keys (not committed)
     # The image's default command runs `moonshot live run --config /config/paper.toml`.
     volumes:
       - ./config:/config:ro          # paper.toml (start from deploy/config/paper.toml)

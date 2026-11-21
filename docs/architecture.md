@@ -313,7 +313,7 @@ account-wide limits and each strategy instance. Secrets never go in it: the API 
 (later) exchange keys come from the environment.
 
 ```toml
-mode = "paper"                     # paper | testnet | live (only paper runs in P1)
+mode = "paper"                     # paper | testnet | live (paper and testnet run; live is P4)
 state = "state/paper.sqlite"       # relative to the config file's folder
 
 [account]
@@ -371,12 +371,15 @@ exit = { max_hold = "2h" }
 - **Validation.** Every error names its field (`strategies[1] (cnn).warmup: ...`). Names are
   unique; exactly one sizing key; an external strategy needs `interval` and `warmup`, takes
   no `params` and may list `context_symbols` (an in-process plugin declares its own, so the
-  field is refused there); the strategies' capital may not exceed `initial_cash`; durations are strings
+  field is refused there); in paper mode `initial_cash` is required and the strategies' capital may not exceed it (in testnet
+  mode it is ignored and may be left out); durations are strings
   (`models.parse_duration`).
 - **Health.** `[health]` (`HealthConfig`) holds every threshold of the health rules, the
   watchdogs and the automatic backups; omitted keys keep the defaults above.
-- **Mode.** `testnet` and `live` parse, but `RunConfig.require_runnable` (and the engine)
-  refuse them with a clear message: P1 places no exchange orders.
+- **Mode.** `paper` and `testnet` run (`RunConfig.require_runnable`, also called by the engine);
+  `live` parses but is refused with a clear message until P4. A replay is paper only
+  (`require_runnable(replay=True)`), so `testnet` is for `live run` alone. An engine in testnet
+  mode refuses to start without an exchange broker.
 - **Costs** are account-wide: the paper broker is one simulated exchange with one fee schedule.
 - **In-process plugins.** `interval`, if given, must match the plugin's; `warmup` replaces the
   plugin's window length. `exit` overrides fields of the plugin's plan (a plan without any exit
@@ -950,7 +953,7 @@ contract above (see [strategy-plugins.md](strategy-plugins.md)).
 
 #### Daemon
 
-`live/daemon.py` wires everything into one process (`moonshot live run`, paper only). `run_daemon`
+`live/daemon.py` wires everything into one process (`moonshot live run`, paper or testnet). `run_daemon`
 checks the token (`MOONSHOT_API_TOKEN`) and the mode first, loads the strategies (`build_specs`),
 opens the state file, builds the `Engine`, the `BinanceClient` and the `LiveFeed`
 (`feed_subscriptions` and `feed_warmups`, `tick_timeout`, `stale_after`, `on_event =
@@ -958,6 +961,30 @@ engine.on_feed_event`, the stream URL from `MOONSHOT_STREAM_URL`), and serves th
 the same event loop (a bound socket, so a taken port fails first; uvicorn's own signal handling
 is replaced by the daemon's).
 
+- **Testnet mode** (`live/testnet.py`). Before anything is opened `check_testnet_config` refuses a
+  missing key (the message names `MOONSHOT_BINANCE_TESTNET_API_KEY` and `_SECRET`, never a value),
+  a REST or WebSocket URL that is not the spot testnet and an exit plan the exchange cannot hold
+  (`ExitPlanError`); all are usage errors (exit 2). After the state file is open `open_exchange`
+  builds the `SignedClient` (and syncs the clock), an `ExchangeRules` cache and the
+  `BinanceBroker` with its `UserDataStream` (WebSocket API URL from
+  `MOONSHOT_BINANCE_TESTNET_WS_API_URL`, timestamps corrected by the client's server-time offset),
+  drops the symbols the exchange does not list as trading (a `symbols_dropped` warning event per
+  strategy; a strategy left with none refuses the start), checks the key (`account()`, can
+  trade) and that the free USDT covers the books' cash (each strategy's capital, or its derived
+  book cash on a restart), then the engine trades through the broker. Shutdown closes the broker
+  (stream) and the client. The status gains `exchange` (stream connected, halt reason, ban, dust,
+  commissions in other assets, clock offset, request weight, last reconciliation), shown on the
+  dashboard overview; the `mode` is `testnet`.
+- **Mainnet guard** (`exchange/guard.py`). `SignedClient` and `UserDataStream` refuse, in their
+  constructors, any URL whose host names Binance but is not `testnet.binance.vision` or a
+  sub-domain (`api.binance.com`, `ws-api.binance.com`, `data-api.binance.vision`, look-alikes).
+  A configured URL can therefore never send a signed request to a production host; local fakes
+  and proxies pass.
+- **Keys and env files.** Paper mode never reads an env file. In testnet mode
+  `moonshot live run --env-file PATH` (and `moonshot exchange check --env-file PATH`) loads that
+  file's `MOONSHOT_*` variables for this process only (`config.load_settings`); without the
+  option `./.env` is read if it exists. Real environment variables win over the file. The log
+  masks the token, key and secret (`configure_logging(secrets=...)`).
 - **A long-running REST client.** `BinanceClient` aborts for good after `max_rate_limit_hits` HTTP
   429s (right for a one-off `data sync`); the daemon builds it with a limit of a million, so
   backfill keeps waiting out each `Retry-After` instead. An HTTP 418 (IP ban) still makes the
@@ -1287,7 +1314,12 @@ against a fake exchange; mainnet stays refused until P4. The API facts it relies
   took effect, timeouts, bans, dropped connections, held or lost events,
   `eventStreamTerminated`, `serverShutdown`, testnet reset). `tests/test_binance_broker.py`,
   `tests/test_ws_api.py` and `tests/test_engine_binance.py` (the real engine over the
-  simulator, including crashes at every step boundary) use it. M5 wires `mode = "testnet"`.
+  simulator, including crashes at every step boundary) use it. M5 wires `mode = "testnet"`
+  (`tests/test_testnet_daemon.py` runs the daemon over the simulator against a paper run).
+- **`moonshot exchange check`** (`exchange_cli.py`): a read-only connectivity check for the
+  operator (server time and clock offset, key validity and `canTrade`, USDT and base-asset
+  balances, the symbol's tick, step and minimum notional, its open-order count); it places
+  nothing. Exit 0 ok, 1 failure (key rejected, network), 2 usage (no keys, mainnet URL).
 - **Known differences from paper.** Fills happen at the testnet's prices, not the mainnet candles;
   a stop fills at market after it triggers (slippage beyond the level); take profits fill on touch;
   dust stays behind; time exits happen at the first tick after the deadline rather than exactly at
@@ -1302,7 +1334,7 @@ against a fake exchange; mainnet stays refused until P4. The API facts it relies
 | `backtest` (built)             | Stored history      | `SimulatedBroker`                     |
 | `replay`                       | Stored history      | `PaperBroker`, simulated clock        |
 | `paper`                        | Live mainnet stream | `PaperBroker`                         |
-| `testnet` (default for orders) | Live mainnet stream | Binance spot testnet                  |
+| `testnet` (`live run` only)    | Live mainnet stream | Binance spot testnet                  |
 | `live`                         | Live mainnet stream | Binance mainnet; requires `--mainnet` |
 
 `replay` and `paper` need no API keys: candles come from the public market-data hosts.
@@ -1314,18 +1346,20 @@ src/crypto_moonshot/
 ├── cli.py              # Typer app (`python -m crypto_moonshot` too); data_cli.py `data`, backtest_cli.py `backtest`, live_cli.py `live` and `provider`
 ├── cli_output.py       # summary, status and backtest tables (rich in a terminal, plain text otherwise)
 ├── progress.py         # sync progress renderers: bars and lines
-├── config.py           # settings from MOONSHOT_* environment variables (data dir, API token, later keys)
+├── config.py           # settings from MOONSHOT_* environment variables (data dir, API token, testnet keys and URLs); load_settings reads an env file on request
+├── exchange_cli.py     # `moonshot exchange check` (read-only testnet check)
 ├── models.py           # Interval, kline schema
 ├── data/               # binance.py (REST), store.py, sync.py, importer.py, status.py, universe.py, stream.py (WebSocket)
 ├── strategy/           # base.py, features.py, compute.py, capitulation.py, scores.py
 ├── portfolio.py        # the book and position sizing
 ├── risk.py
-├── exchange/           # client.py (SignedClient: signing, time offset, pacing), pacing.py, rules.py (exchangeInfo filters, Decimal rounding), errors.py (typed Binance errors), models.py (parsed responses), ws_api.py (UserDataStream: the WebSocket API user data stream) (P3)
+├── exchange/           # client.py (SignedClient: signing, time offset, pacing), pacing.py, rules.py (exchangeInfo filters, Decimal rounding), errors.py (typed Binance errors), models.py (parsed responses), ws_api.py (UserDataStream: the WebSocket API user data stream), guard.py (mainnet guard) (P3)
 ├── broker/             # base.py (orders, ExitPlan, Costs), candles.py, simulated.py, paper.py, execution.py (ExecutionBroker, PaperExecution); binance.py (BinanceBroker) (P3)
 ├── backtest/           # engine.py, metrics.py, results.py (result files), source.py (candle windows)
 ├── live/               # config.py (TOML run config), contract.py (signal batches), plugin.py (Strategy,
 │                       # loader, RuleStrategy), feed.py (ticks, windows), state.py (SQLite), engine.py,
-│                       # replay.py (replay feed and runs), api.py (HTTP + WebSocket), daemon.py (wires them together)
+│                       # replay.py (replay feed and runs), api.py (HTTP + WebSocket), daemon.py (wires them together),
+│                       # testnet.py (testnet start-up checks, exchange wiring)
 │                       # health.py (health rules, alerts), watchdog.py (stall and blocked-loop exits), lock.py (state
 │                       # file lock), backup.py (backups, restore), web/ (dashboard, P2)
 ├── logs.py             # text / JSON logging for the long-running commands
