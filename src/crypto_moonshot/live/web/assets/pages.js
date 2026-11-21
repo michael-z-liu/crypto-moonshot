@@ -122,9 +122,13 @@ function signalsTable(signals) {
 export function overview(root, ctx) {
   const facts = h("dl", { class: "facts", "aria-label": "Daemon state" });
   const rows = h("div");
+  const exchangeFacts = h("dl", { class: "facts", "aria-label": "Exchange state" });
+  const exchangeCard = card("Exchange", exchangeFacts);
+  exchangeCard.hidden = true;
   root.append(
     h("h1", null, "Overview"),
     card("Daemon", facts),
+    exchangeCard,
     card("Strategies", rows),
   );
   return {
@@ -152,6 +156,23 @@ export function overview(root, ctx) {
         ]),
         fact("Unacknowledged alerts", String(ctx.alerts.unacknowledged)),
       );
+      const ex = st.exchange;
+      exchangeCard.hidden = !ex;
+      if (ex) {
+        const list = (obj) => Object.keys(obj).length
+          ? Object.entries(obj).map(([k, v]) => `${k} ${v}`).join(", ") : "none";
+        const rec = ex.last_reconcile;
+        replace(exchangeFacts,
+          fact("User data stream", ex.stream_connected ? badge("info", "connected") : badge("error", "disconnected")),
+          fact("Broker", ex.halted ? badge("error", `halted: ${ex.halted}`) : badge("info", "placing orders")),
+          fact("Dust", list(ex.dust)),
+          fact("Other commissions", list(ex.other_commissions)),
+          fact("Clock offset", `${ex.time_offset_ms} ms`),
+          fact("Last reconcile", rec
+            ? [timeEl(rec.time), " ", rec.clean ? badge("info", "clean") : badge("warning", `${rec.orphans} orphans, ${rec.mismatches} mismatches`)]
+            : "not yet"),
+        );
+      }
       const stats = Object.fromEntries(providers.providers.map((p) => [p.strategy, p]));
       replace(rows, table("Strategies",
         [["Strategy"], ["Capital (USDT)", 1], ["Equity (USDT)", 1], ["Realised P&L", 1], ["Unrealised P&L", 1],
