@@ -139,6 +139,36 @@ WebSocket API connection instead:
   same `id` with `"status": 200, "result": ...` or an `"error": {"code", "msg"}` (codes as in
   REST). `exchange/ws_api.py` implements this.
 
+## Observed on the real spot testnet (2026-11-21)
+
+A short run (P3 M6: `moonshot exchange check`, then `live run` with 10 USDT test stakes on
+BTCUSDT and ETHUSDT, a restart, time exits and a flatten) confirmed:
+
+- `userDataStream.subscribe.signature` with an HMAC key works on
+  `wss://ws-api.testnet.binance.vision/ws-api/v3` (subscription id 0), with the stream's clock
+  corrected by the REST server-time offset (offsets seen: 16-148 ms).
+- Account and rules: a fresh testnet account held 10,000 USDT, 1 BTC and 1 ETH (and more assets);
+  BTCUSDT tick 0.01, step 0.00001, min notional 5; ETHUSDT tick 0.01, step 0.0001, min notional 5.
+- A market buy with `quoteOrderQty=10` bought `floor(10 / price / step) x step` (0.00017 BTC for
+  9.58 USDT): the executed quantity is rounded down to the lot step, so less than the quote amount
+  is spent. The book records the USDT actually spent.
+- No commission was charged on these testnet trades (no base-asset deduction; no dust); the
+  account's commission rates on the testnet may be zero, so real fee handling is still only
+  covered by the simulator.
+- An OCO SELL with `aboveType=LIMIT_MAKER` and `belowType=STOP_LOSS` is accepted (two open orders
+  locking the quantity), and so is a single `STOP_LOSS` sell with only `trailingDelta` (one open
+  order). Cancelling the order list and the single order, then selling at market, worked for both
+  the engine's time exits and a flatten.
+- Restarting the daemon mid-position reconciled cleanly (no orphans, no mismatches) and kept the
+  brackets; the testnet USDT balance changed by exactly the recorded P&L.
+- Request weight peaked at 194 per minute over a session with start-up, reconcile, polling and
+  four orders.
+
+Still not observed (no take profit, stop or trailing stop triggered in the short run, and no
+rejection was provoked): the `-2010` and OCO-relationship wording, the order-count headers,
+partial fills, and how a trailing stop with no stop price starts. They remain covered by the
+simulator only.
+
 ## Assumptions to check on the real testnet
 
 The broker is built so that none of these is load-bearing for correctness (each has a fallback),
@@ -153,8 +183,10 @@ but each is *unverified* until a real testnet run (M6 in the plan):
   orders is not correct." (an unnamed filter failure); the broker then reads the last price to
   tell which level was crossed, so the code or wording may differ without harm.
 - A `STOP_LOSS` sell with only `trailingDelta` starts trailing at once from the price at
-  placement (no activation price).
+  placement (no activation price). Placement is confirmed on the testnet; the trigger was not
+  observed.
 - `quoteOrderQty` is accepted with 8 decimals for USDT pairs (the broker rounds down to 8).
+  Confirmed for `10` on the testnet; the executed quantity is rounded down to the lot step.
 - A market buy's commission is charged in the base asset unless BNB pays fees; the broker
   handles base, USDT and any other asset.
 - The `userDataStream.subscribe.signature` timestamp must be within `recvWindow` of the server
