@@ -1,9 +1,9 @@
 # Binance testnet broker (built against mocks)
 
-- **Status:** building
+- **Status:** review
 - **Branch:** `feat/testnet-broker` (stacked on PR #19, `feat/live-operations`)
 - **PR:** https://github.com/michael-z-liu/crypto-moonshot/pull/20 (draft until M6)
-- **Updated:** 2026-11-21T16:10Z
+- **Updated:** 2026-11-21T16:45Z
 
 ## Goal
 
@@ -82,7 +82,7 @@ explicit go-ahead.
 - **Worker:** sonnet
 - **Commits:** e69a42f, 7cbc864, 4921177, 593cde6, 9276477, 93fb813
 
-### M6: Real testnet check (in progress)
+### M6: Real testnet check (done)
 
 - **Delivers:** a scripted check and a short `live run` in testnet mode against the real spot
   testnet with the user's keys from `.env`: a tiny market buy on a major pair, the OCO bracket,
@@ -91,7 +91,7 @@ explicit go-ahead.
 - **Done when:** each step observed on the testnet and recorded; no key in any file, log or
   commit. Needs the user's explicit go-ahead right before the first real testnet request.
 - **Worker:** master
-- **Commits:**
+- **Commits:** de8d80a, 14855b6, 5af4a29
 
 ## Decisions
 
@@ -144,6 +144,15 @@ explicit go-ahead.
 - 2026-11-21: User confirmed testnet keys are in `/Users/mike/code/crypto-moonshot/.env`; taken as
   the go-ahead for M6 as described (testnet only, ~10 USDT test stakes, exchange check, short
   run, restart, flatten).
+- 2026-11-21 (M6, on the real spot testnet): `exchange check` ok (offset 16-148 ms, can trade, min
+  notional 5 on BTCUSDT/ETHUSDT); entries filled (quantity rounded down to the lot step, so less
+  than the quote amount is spent; no commission charged on testnet); OCO and trailing stop placed;
+  restart mid-position reconciled clean; engine time exits and a flatten cancelled the brackets
+  and sold; a 0.1% run saw the OCO take profit and the trailing stop trigger, fills arriving over
+  the user data stream; USDT balance moved by exactly the recorded P&L; peak weight 194/min; keys
+  found in no log, state file, backup or API output. Not observed: rejection wording, order-count
+  headers, partial fills, a fixed stop leg triggering. Fixed: a normal shutdown logged the stream
+  closing as an outage warning.
 
 ## Blocked on
 
