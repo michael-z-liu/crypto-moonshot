@@ -217,6 +217,44 @@ def test_the_overview_shows_the_daemon_alerts_and_one_row_per_strategy(dash: Pag
     assert str(stamp.get_attribute("title")).endswith(" UTC")
 
 
+def test_the_overview_has_no_exchange_section_in_paper_mode(dash: Page) -> None:
+    expect(dash.get_by_label("Daemon state")).to_contain_text("paper")
+    expect(dash.get_by_label("Exchange state")).to_be_hidden()
+
+
+def test_the_overview_shows_the_exchange_state_in_testnet_mode(dash: Page) -> None:
+    exchange = {
+        "kind": "binance",
+        "stream_connected": False,
+        "halted": "auth",
+        "banned": False,
+        "dust": {"AAAUSDT": "0.00100000"},
+        "other_commissions": {"BNB": "0.01000000"},
+        "time_offset_ms": 12,
+        "max_used_weight": 40,
+        "last_reconcile": {
+            "time": "2024-03-01T00:00:00+00:00",
+            "clean": False,
+            "orphans": 1,
+            "mismatches": 0,
+        },
+    }
+
+    def with_exchange(route: Route, request: Request) -> None:
+        body = route.fetch().json()
+        route.fulfill(json={**body, "mode": "testnet", "exchange": exchange})
+
+    dash.route("**/api/v1/status", with_exchange)
+    dash.reload()
+    section = dash.get_by_label("Exchange state")
+    expect(section).to_be_visible()
+    expect(section).to_contain_text("disconnected")
+    expect(section).to_contain_text("halted: auth")
+    expect(section).to_contain_text("AAAUSDT 0.00100000")
+    expect(section).to_contain_text("BNB 0.01000000")
+    expect(section).to_contain_text("1 orphans")
+
+
 def test_a_strategy_page_has_the_chart_positions_trades_and_signals(dash: Page) -> None:
     dash.get_by_role("link", name="ext", exact=True).first.click()
     expect(dash.get_by_role("heading", name="ext", exact=True)).to_be_visible()
