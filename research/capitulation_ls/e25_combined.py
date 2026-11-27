@@ -18,7 +18,10 @@ m = meta()
 
 
 def sleeve_long(q: float = 0.995, tp: float = 0.2, hold: int = 4320, score: str = "day5", cost: float = 0.004, delay: int = 0) -> pl.DataFrame:
-    pct = scores(score)
+    if "+" in score:  # an ensemble: the minimum percentile of the members ("all agree")
+        pct = np.nanmin(np.stack([scores(s) for s in score.split("+")]), 0)
+    else:
+        pct = scores(score)
     yr = m["year"].to_numpy()
     idx = np.flatnonzero((yr >= 2022) & np.isfinite(pct) & (pct >= q))
     c = pl.DataFrame({"row": idx, "side": 1, "prio": pct[idx]})

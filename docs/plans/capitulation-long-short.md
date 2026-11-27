@@ -212,6 +212,13 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
 - 15:25Z E25: LMC (longs + weak listing shorts + crash shorts, no pump shorts), 10 slots:
   +1158 bp a trade, +62/+81/+156/+625/+51% in 2022-26, DD -17%, worst concurrent adverse 26%.
   8 slots: +1123 bp, min +59%, DD -22%. LQMC 10 slots: +967 bp, min +66%, DD -36%.
+- 15:30Z E43: LMC stresses: 2x costs +1125 bp (min +48%); L one candle late +1071 bp (min
+  +42%); C variants +1066..+1320 bp (min +37..+49%); other score sets for L +1094..+1141 bp
+  (min +29..+35%). DSR 0.98 (1000 trials) / 0.90 (5000), annualised Sharpe 2.16, skew 11.8.
+- 15:35Z tp20day (CNN with the realistic TP20/72h target via target_offset, day weights, 3 seeds,
+  2 fixed epochs): much worse than day5 (q 0.995 +517 vs +1064 bp; q 0.98 -26 vs +247 bp). The
+  long-horizon target is too noisy; the 1h path target learns a cleaner bounce signal that
+  carries to 72h. Ensembles (min of day/day5/volday5) do not improve LMC either.
 
 ## Idea backlog
 
