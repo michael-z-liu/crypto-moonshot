@@ -304,6 +304,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   minutes after 28 bp higher. Entering within 1-2 minutes of the spike close costs at most
   ~0.3%; a full 5m candle late costs ~2.7% (E21).
 
+- 17:35Z sleeve weights (stake multipliers L/M/C): every tilt lowers the worst year (+39..+49%
+  vs +51% equal); tilting to M inflates 2025 but raises DD and worst concurrent adverse (38%).
+  Equal weights stay. Hour of day: C is weak 12-18 UTC (+54 bp, n=46) vs +419..+973 bp other
+  hours, too few trades to filter on; M entry hours are set by Binance's listing times.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
@@ -328,7 +333,7 @@ are in-sample only.
 1. Done: forward read-out (0 trades). To refresh later: sync spot candles, then
    `forward_signals.py day5` and `lmc_forward.py day5`.
 2. Done: day10b = day5 within noise.
-3. Queue: (a) done (fill realism); (b) hour-of-day of C and M entries; (c) sleeve weights by quality (Kelly-lite);
+3. Queue: (a) done (fill realism); (b), (c) done;
    (d) refresh the report with every finding after the draft.
 4. Keep searching the idea backlog until 2026-11-28T09:46Z; then final report, check command, PR.
 

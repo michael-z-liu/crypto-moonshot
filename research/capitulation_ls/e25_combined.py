@@ -162,6 +162,7 @@ def book(
     trades_out: list | None = None,
     start: float = 10_000.0,
     caps: dict | None = None,
+    weights: dict | None = None,
 ) -> pl.DataFrame:
     tr = tr.with_columns(year=pl.from_epoch("t_in").dt.year()).sort(
         ["t_in", "prio"], descending=[False, True]
@@ -191,7 +192,8 @@ def book(
                 and sum(1 for p in pos if p[5] == r["sleeve"]) >= caps[r["sleeve"]]
             ):
                 continue
-            stake = min(gross * eq / slots, cash, r["qv"] * 0.005)
+            w = weights.get(r["sleeve"], 1.0) if weights else 1.0
+            stake = min(w * gross * eq / slots, cash, r["qv"] * 0.005)
             if stake < 1:
                 continue
             cash -= stake
