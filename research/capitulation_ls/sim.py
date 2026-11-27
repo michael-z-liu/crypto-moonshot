@@ -204,6 +204,10 @@ def simulate(
     adv_max = np.maximum.accumulate(advp, axis=1)[
         np.arange(len(t_exit)), np.minimum(t_exit, p.shape[2] - 1)
     ]
+    favp = np.nan_to_num(np.where(side[:, None] > 0, p[:, 0], -p[:, 1]), nan=0.0)
+    mfe_max = np.maximum.accumulate(favp, axis=1)[
+        np.arange(len(t_exit)), np.minimum(t_exit, p.shape[2] - 1)
+    ]
     fund = np.zeros(len(rows))
     if "fund_day" in cand.columns:  # funding paid by this side per day held, fraction of notional
         fund = cand["fund_day"].fill_null(0).to_numpy() * hold_min / 1440.0
@@ -260,6 +264,7 @@ def simulate(
         net=pl.Series(net), ret=pl.Series(ret), kind=pl.Series(kind),
         hold_min=pl.Series(hold_min), stake=pl.Series(stake_arr), taken=pl.Series(taken),
         fund=pl.Series(fund), adv=pl.Series(adv_max.astype(np.float64)),
+        mfe=pl.Series(mfe_max.astype(np.float64)),
     ).filter(pl.col("taken"))  # fmt: skip
     tr = tr.with_columns(
         pnl=pl.col("stake") * pl.col("net"),
