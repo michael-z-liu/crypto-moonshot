@@ -279,6 +279,12 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   min year +50..+54%, DD -35..-45%; the cap does not remove the squeeze drawdown (it clusters).
   LMC stays the better balance (+1158 bp, DD -17%).
 
+- 16:35Z fragility: LMC without each year's best long-sleeve flush day: +1056 bp, years +21/+55/
+  +128/+522/+32%; without the best 2 days: +1034 bp, min +17%; without each year's top 3 listing
+  shorts: +1001 bp, min +32%. The per-trade target survives; >= +50% every year depends on
+  catching the one or two biggest flush days a year (an outage on such a day costs the year's
+  target).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
