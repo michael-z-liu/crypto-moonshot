@@ -338,6 +338,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
 - 19:52Z CNN + transformer blend for L (mean or min of the two percentiles): q 0.995 +1065 /
   +1125 bp vs day5 +1064, on fewer trades and with no better years: within noise.
 
+- 20:32Z day-weighted dilated TCN (3 seeds, 65 min): L q 0.995 +960 bp, q 0.99 +416 (2022 and
+  2026 negative); LMC +1161 bp, years +53/+59/+157/+648/+58%. Slightly behind the CNN alone,
+  equivalent in the book.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
