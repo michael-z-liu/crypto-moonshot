@@ -100,6 +100,18 @@ forward is the test (rerun the two scripts after a sync).
   10 seeds instead of 5, the 2h head, per-day top-K selection, trailing stops, forecast-based
   take profits, a second position per coin, fading the bounce after the take profit, leverage.
 
+**Network architectures with the same day-weighted training on all 1.85M spikes (E50, 3 seeds
+each; CNN 5 seeds):**
+
+| Network | L at pct >= 0.995 | LMC a trade | LMC worst year |
+| --- | --- | --- | --- |
+| CNN (day5, the pick) | +10.6% | +11.6% | +51% |
+| Patch transformer | +10.3% | +11.7% | +53% |
+| Dilated TCN | +9.6% | +11.6% | +53% |
+| Conv + GRU | +9.1% | +11.0% | +31% |
+
+Newer networks match the CNN at best: the bounce signal looks limited by the data, not the model.
+
 ### M: weak-listing shorts (E12, E13, E18, E27, E28, E36)
 
 - New Binance spot listings with a perp fall: shorting 72 hours after listing for 30 days makes

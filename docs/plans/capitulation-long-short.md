@@ -342,6 +342,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   2026 negative); LMC +1161 bp, years +53/+59/+157/+648/+58%. Slightly behind the CNN alone,
   equivalent in the book.
 
+- 21:12Z day-weighted conv+GRU (3 seeds, 40 min): L q 0.995 +908 bp; LMC +1101 bp, years +31/
+  +75/+159/+671/+60%. Architecture comparison done (same day-weighted training, all spikes):
+  CNN +1064 / transformer +1031 / TCN +960 / GRU +908 bp at q 0.995; the original CNN stays.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
