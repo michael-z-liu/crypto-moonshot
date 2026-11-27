@@ -5,7 +5,7 @@
 - **PR:**
 - **Started:** 2026-11-27T13:46Z. Keep searching until at least **2026-11-28T09:46Z** (20 h)
   before hand-off; budget about 25 h (five usage windows).
-- **Updated:** 2026-11-27T14:22Z
+- **Updated:** 2026-11-27T14:33Z
 
 ## Goal
 
@@ -140,6 +140,16 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
 - ~14:20Z E17: squeezes are not predictable (AUC 0.42-0.63 by year, metrics add nothing).
   Realistic pump-short reference: iso1x, 10 slots, 72h: +313 bp, +7..+26% a year, DD -33%.
   Transformer ranker (3 seeds) IC 0.33/0.18/0.30/0.24 for 2022-25: better than GBM/MLP.
+- ~14:25Z E18: shorting every new perp listing is weak (+1.5..+3.5% a trade); the edge is in new
+  Binance *spot* listings that have a perp (E13: +10..+14%).
+- ~14:28Z E19: GBM trained on the realistic target (perp short return, -100% at +100% adverse):
+  top 10% +449 bp, -1..+74% a year, DD -28%. The pump-short edge is mostly 2025-26.
+- ~14:32Z E20-E22 (main long finding): capitulation longs with the day-weighted CNN at
+  pct >= 0.995, take profit +20%, time exit 72h, 10 slots: +10.6%/trade, +15..+103% a year
+  2022-26 (all positive), DD -14%, ~33 trades a year. Broad region (q 0.995-0.997, TP 15-30%,
+  24-72h): +9..+16%/trade. Survives 0.8% cost (+10.2%), perp paths (+10.9%), one candle late
+  (+8.0%). Across 13 walk-forward score sets: +7..+11%/trade. Per-position leverage is a trap:
+  2x/3x isolated longs are wiped out by the 2025-10-10 wicks (2025 -89%).
 
 ## Idea backlog
 

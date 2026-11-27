@@ -37,10 +37,11 @@ for name, p in preds.items():
     base = d.filter(pl.col("perp")) if S < 0 else d
     for q in (0.5, 0.8, 0.9):
         c = base.filter(pl.col("pq") >= q).select("row", side=pl.lit(S), prio="pred")
-        b = simulate_yearly(c, Rule(hold_min=4320, slots=5, cost=0.003), perp_funding=S < 0)
+        rule = Rule(hold_min=4320, slots=10, cost=0.003, sl=1.0) if S < 0 else Rule(hold_min=4320, slots=5, cost=0.003)
+        b = simulate_yearly(c, rule, perp_funding=S < 0, source="perp")
         print(f"   q>={q:.1f}: {b.summary['bp']:+5.0f}bp {fmt_years(b, (2022, 2023, 2024, 2025, 2026))}")
     if S < 0:  # the rule's set (pump >= 40%) with the model as a veto on its bottom part
         for q in (0.0, 0.3, 0.5):
             c = base.filter((pl.col("ret_4h") >= 0.4) & (pl.col("pq") >= q)).select("row", side=pl.lit(S), prio="pred")
-            b = simulate_yearly(c, Rule(hold_min=4320, slots=5, cost=0.003), perp_funding=True)
+            b = simulate_yearly(c, Rule(hold_min=4320, slots=10, cost=0.003, sl=1.0), perp_funding=True, source="perp")
             print(f"   r4>=0.4 & q>={q:.1f}: {b.summary['bp']:+5.0f}bp {fmt_years(b, (2022, 2023, 2024, 2025, 2026))}")
