@@ -49,6 +49,7 @@ def trades(delay_h: int, hold_d: int, tp: float | None, sl: float | None) -> pl.
         elif kt < 10**9:
             ret, k_exit = tp, i + kt
         out.append({"symbol": r["symbol"], "t_in": int(h[i]), "t_out": int(h[k_exit]) + 3600, "ret": float(ret),
+                    "adv": float(min(up[: k_exit - i + 1].max(), 1.0)),
                     "year": r["listed"].year, "qv": float(qv[i - 1])})  # fmt: skip
     d = pl.DataFrame(out)
     f = funding_paid(d["symbol"].to_numpy(), d["t_in"].to_numpy(), d["t_out"].to_numpy(), -np.ones(d.height))
@@ -79,8 +80,9 @@ def book(d: pl.DataFrame, slots: int) -> pl.DataFrame:
     return pl.DataFrame(res).sort("year")
 
 
-for delay, hold, tp, sl, slots in itertools.product((24, 72), (3, 7, 14, 30), (None, 0.5), (None, 0.5), (5, 10)):
-    d = trades(delay, hold, tp, sl)
-    b = book(d, slots)
-    yrs = " | ".join(f"{r['year']}: {r['trades']:>3}t {r['bp']:+6.0f}bp {r['ret'] * 100:+5.0f}%" for r in b.iter_rows(named=True))
-    print(f"delay {delay:>2}h hold {hold:>2}d tp {tp} sl {sl} slots {slots:>2} | all {d['net'].mean() * 1e4:+5.0f}bp n={d.height} | {yrs}")
+if __name__ == "__main__":
+    for delay, hold, tp, sl, slots in itertools.product((24, 72), (3, 7, 14, 30), (None, 0.5), (None, 0.5), (5, 10)):
+        d = trades(delay, hold, tp, sl)
+        b = book(d, slots)
+        yrs = " | ".join(f"{r['year']}: {r['trades']:>3}t {r['bp']:+6.0f}bp {r['ret'] * 100:+5.0f}%" for r in b.iter_rows(named=True))
+        print(f"delay {delay:>2}h hold {hold:>2}d tp {tp} sl {sl} slots {slots:>2} | all {d['net'].mean() * 1e4:+5.0f}bp n={d.height} | {yrs}")

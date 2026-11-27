@@ -5,7 +5,7 @@
 - **PR:**
 - **Started:** 2026-11-27T13:46Z. Keep searching until at least **2026-11-28T09:46Z** (20 h)
   before hand-off; budget about 25 h (five usage windows).
-- **Updated:** 2026-11-27T14:33Z
+- **Updated:** 2026-11-27T14:30Z
 
 ## Goal
 
@@ -150,6 +150,15 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   24-72h): +9..+16%/trade. Survives 0.8% cost (+10.2%), perp paths (+10.9%), one candle late
   (+8.0%). Across 13 walk-forward score sets: +7..+11%/trade. Per-position leverage is a trap:
   2x/3x isolated longs are wiped out by the 2025-10-10 wicks (2025 -89%).
+- 14:20Z E23/E24: walk-forward choice of the long rule's settings is noisy (day5 WF +260 bp,
+  CAGR +36%; path_all5 WF +1744 bp on 62 trades, +30%); 112 of 200 configs positive every year.
+  Ensembles of score sets (mean or min percentile) give +11..+18%/trade on fewer trades.
+- 14:30Z E25 (combined book): sleeves L (capitulation longs), P (pump shorts, iso1x), N (spot-
+  listing shorts) share one slot pool. LN, 15 slots, gross 1.0: +1271 bp/trade, +38/+54/+97/
+  +238/+35% in 2022-26, DD -18%. Gross 1.5: min +55% but the worst concurrent adverse move of
+  the long sleeve reaches 104% of equity on 2025-10-10, so >1x gross under cross margin can be
+  wiped out; longs belong on spot (no liquidation), shorts on isolated 1x perps. LPN 15 slots:
+  +877 bp, min +49%, DD -36%. All sleeve settings were chosen in-sample.
 
 ## Idea backlog
 
