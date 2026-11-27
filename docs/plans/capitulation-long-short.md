@@ -293,6 +293,9 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   BTC 7d gate): +135..+426 bp, DD -29..-56%; the lowest scores are the worst (most extreme
   pumps squeeze hardest). No better than the r4 rule.
 
+- 17:12Z day5's 2h head (pct_h2) or h1/h2 blends for L: +1053..+1075 bp at q 0.995 (h1 +1064),
+  nearly the same picks; no change.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
