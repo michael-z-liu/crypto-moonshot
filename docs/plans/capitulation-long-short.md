@@ -285,6 +285,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   catching the one or two biggest flush days a year (an outage on such a day costs the year's
   target).
 
+- 16:50Z day10b (day-weighted CNN, 10 seeds, 112 min): L at pct >= 0.995 +1093 bp (day5 +1064),
+  q 0.997 +1359 (day5 +1377); LMC with day10b +1168 bp (day5 +1158), years +62/+81/+164/+618/
+  +52%. More seeds change nothing beyond noise; day5 stays the pick.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
@@ -308,7 +312,7 @@ are in-sample only.
 
 1. Done: forward read-out (0 trades). To refresh later: sync spot candles, then
    `forward_signals.py day5` and `lmc_forward.py day5`.
-2. `day10b` (10-seed day CNN, i10 harness, runs after the save): compare the L sleeve with day5.
+2. Done: day10b = day5 within noise.
 3. Keep searching the idea backlog until 2026-11-28T09:46Z; then final report, check command, PR.
 
 ## Idea backlog
