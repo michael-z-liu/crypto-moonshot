@@ -238,6 +238,11 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   the 0.5%-of-volume cap); from $250k still >= +53% a year.
 - 14:57Z C sleeve anatomy: 49 of 161 trades are coins later delisted (+851 bp, win 67%) vs
   +255 bp for the rest: part of the edge is post-delisting-announcement selling.
+- 15:05Z E46 (how wide is the region?): 400 random LMC configurations from plausible ranges:
+  96% positive every year; median avg trade +997 bp (10-90%: +815..+1237); median worst year
+  +41% (10-90%: +17..+66%); median DD -20%. Both targets at once: 14% of configurations. The
+  per-trade target is typical; >= +50% every year is the binding one and needs q >= 0.995,
+  TP 25-30% and 6-8 slots.
 
 ## Idea backlog
 
