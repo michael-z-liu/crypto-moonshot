@@ -69,11 +69,11 @@ def sleeve_listing_weak(extra_cost: float = 0.0) -> pl.DataFrame:
     return x.select("symbol", "adv", "t_in", "t_out", net=pl.col("net") - extra_cost, qv="qv", sleeve=pl.lit("N"), prio=pl.lit(1.0))
 
 
-def book(tr: pl.DataFrame, slots: int, gross: float = 1.0, trades_out: list | None = None) -> pl.DataFrame:
+def book(tr: pl.DataFrame, slots: int, gross: float = 1.0, trades_out: list | None = None, start: float = 10_000.0) -> pl.DataFrame:
     tr = tr.with_columns(year=pl.from_epoch("t_in").dt.year()).sort(["t_in", "prio"], descending=[False, True])
     res = []
     for (y,), g in tr.group_by(["year"], maintain_order=True):
-        eq, cash, pos, nets, peak, dd, held = 10_000.0, 10_000.0 * gross, [], [], 10_000.0, 0.0, set()
+        eq, cash, pos, nets, peak, dd, held = start, start * gross, [], [], start, 0.0, set()
         worst = 0.0
         by = {"L": [], "P": [], "N": [], "C": []}
         for r in g.iter_rows(named=True):
@@ -98,7 +98,7 @@ def book(tr: pl.DataFrame, slots: int, gross: float = 1.0, trades_out: list | No
             nets.append(r["net"]); by[r["sleeve"]].append(r["net"])
         for p in sorted(pos):
             eq += p[1] * p[2]; peak = max(peak, eq); dd = min(dd, eq / peak - 1)
-        res.append({"year": y, "trades": len(nets), "bp": float(np.mean(nets)) * 1e4, "ret": eq / 10_000 - 1, "dd": dd, "worst_mtm": worst,
+        res.append({"year": y, "trades": len(nets), "bp": float(np.mean(nets)) * 1e4, "ret": eq / start - 1, "dd": dd, "worst_mtm": worst,
                     **{f"n{k}": len(v) for k, v in by.items()}, **{f"bp{k}": float(np.mean(v)) * 1e4 if v else 0.0 for k, v in by.items()}})  # fmt: skip
     return pl.DataFrame(res).sort("year")
 

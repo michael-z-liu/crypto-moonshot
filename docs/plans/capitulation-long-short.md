@@ -234,6 +234,10 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   TP 50% / stop 50%, 8 slots. Read after the choice: 2025 +544% (+857 bp, DD -29%), 2026 +89%
   (+545 bp, DD -26%). The annual target holds; the per-trade target does not (the 2022-24 choice
   prefers more, smaller trades). The weak-listing filter itself was fixed with 2025 in view.
+- 14:55Z capacity: LMC from $50k each year: +61/+82/+156/+504/+50% (only 2025's compounding meets
+  the 0.5%-of-volume cap); from $250k still >= +53% a year.
+- 14:57Z C sleeve anatomy: 49 of 161 trades are coins later delisted (+851 bp, win 67%) vs
+  +255 bp for the rest: part of the edge is post-delisting-announcement selling.
 
 ## Idea backlog
 
