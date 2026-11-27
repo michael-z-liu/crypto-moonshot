@@ -268,6 +268,10 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
 - 15:25Z weak-listing shorts by BTC 7d / 30d trend at entry: no consistent split (signs flip by
   year on small samples); M stays unfiltered.
 
+- 15:33Z per-day top-K selection for L (top 3-20 per day among pct >= 0.98, on days whose max
+  pct >= 0.99 / 0.995): +536..+1049 bp, never better than the global pct >= 0.995 threshold
+  (+1064 bp, all years positive); weaker 2022/2026.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
