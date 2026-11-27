@@ -289,6 +289,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   q 0.997 +1359 (day5 +1377); LMC with day10b +1168 bp (day5 +1158), years +62/+81/+164/+618/
   +52%. More seeds change nothing beyond noise; day5 stays the pick.
 
+- 17:08Z pump shorts picked by a low CNN score (day5 <= 0.2-2%, perp, iso1x, with/without the
+  BTC 7d gate): +135..+426 bp, DD -29..-56%; the lowest scores are the worst (most extreme
+  pumps squeeze hardest). No better than the r4 rule.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
