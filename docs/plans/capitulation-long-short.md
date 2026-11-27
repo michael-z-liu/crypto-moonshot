@@ -449,6 +449,12 @@ A. Diagnostics (user 23:20Z) [sleeves done 23:40Z; next: score explorer trade fi
    (signal 0..1, outcome -1..+1, TP progress, stop progress, failure modes, signal calibration).
    Apply to L, M, C, F, P myself (`d01_scorecards.py` -> `results/diag/`), then hand the failed
    groups to sub-agents with diag.py as the standard. Status is recorded in the run log.
+Running at 23:45Z (if a resume finds their outputs, review, lint, commit, and score with diag.py):
+   explorer premium extremes (`x1_*`, `results/explore/premium.md`), explorer lag catch-up
+   (`x3_*`, `results/explore/lag_catchup.md`), explorer contagion shorts (`x4_*`,
+   `results/explore/contagion.md`), failed-variant diagnostics (`d02_*`,
+   `results/diag/failed_scorecards.md`). If a run died with no output, relaunch it from its brief
+   (same names). Done: quiet breakouts (fails; committed).
 B. Exploration (user 23:20Z): run 2-3 parallel explorer sub-agents on new strategy families
    (delisting-announcement shorts inferred from spot trading stops, perp premium/basis extremes,
    volume-profile breakouts after quiet periods, listing momentum after the first month), each
