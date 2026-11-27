@@ -93,12 +93,15 @@ forward is the test (rerun the two scripts after a sync).
 - Region, not a point: pct 0.995-0.997, take profit 15-30%, hold 24-72h, 10 slots: +9..+16% a
   trade, every year positive. Walk-forward choice of these settings is noisy (one to three
   earlier years), but 112 of 200 configurations are positive in every year.
-- 85% of trades win; 65% reach the take profit; the worst are systemic collapses (LUNA -100%,
-  FTT -70%) and the 2024-04-12 cascade. 1,803 of 1,883 candidate trades fall on 11 broad flush days.
+- In the 10-slot book 81% of the 162 trades win and 60% reach the take profit (85% / 65% over all
+  1,883 candidates); the worst are systemic collapses (LUNA -100%, FTT -70%) and the 2024-04-12
+  cascade. 1,803 of 1,883 candidate trades fall on 11 broad flush days.
 - Did not help: a CNN trained on the realistic TP20/72h target (+5.2% vs +10.6%), a GBM or
   transformer on that target (they learn which years are good, not which coins), ensembles,
-  10 seeds instead of 5, the 2h head, per-day top-K selection, trailing stops, forecast-based
-  take profits, a second position per coin, fading the bounce after the take profit, leverage.
+  10 seeds instead of 5, the 2h head, per-day top-K selection, a second position per coin,
+  fading the bounce after the take profit, leverage. Trailing stops, other take profits and
+  forecast-based exits were not better, but with ~23 independent flush days none of the exit
+  variants is statistically distinguishable from the +20% take profit (see `results/why/`).
 
 **Network architectures with the same day-weighted training on all 1.85M spikes (E50, 3 seeds
 each; CNN 5 seeds):**
