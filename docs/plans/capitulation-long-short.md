@@ -399,6 +399,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   Nov-Dec liquidation tail (OM, XVG, RSR). Rate tracks funding paid (rho -0.72) more than crowding
   (+0.26 with the long/short ratio); the sign matters mainly where shorts are crowded.
 
+- 23:05Z E51 (new family) weekly large-cap cross-sectional reversal (30 large coins, buy the 5
+  worst past-7d, hold 7d): +40 bp/week vs the basket's +71; losers minus basket -31 bp/week (t
+  -1.2); shorting the 5 best loses -169 bp/week. No reversal (if anything weak momentum).
+  Investigator launched (`why/largecap_reversal.md`, `w9_`).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
