@@ -16,7 +16,17 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-os.environ["PAPER_DIR"] = str(ROOT / ".cache" / "paper")
+# Optional argument: a model name under .cache/forward_model/ (saved by save_day_model.py);
+# default: the paper test's path_all 2026 fold in .cache/paper/model.
+MODEL_NAME = sys.argv[1] if len(sys.argv) > 1 else ""
+if MODEL_NAME:
+    _pdir = ROOT / ".cache" / f"paper_{MODEL_NAME}"
+    _pdir.mkdir(parents=True, exist_ok=True)
+    if not (_pdir / "model").exists():
+        (_pdir / "model").symlink_to(ROOT / ".cache" / "forward_model" / MODEL_NAME)
+    os.environ["PAPER_DIR"] = str(_pdir)
+else:
+    os.environ["PAPER_DIR"] = str(ROOT / ".cache" / "paper")
 os.environ["PAPER_DATA_DIR"] = os.environ.get(
     "MOONSHOT_DATA_DIR", "/Users/mike/code/crypto-moonshot/data"
 )
@@ -26,7 +36,10 @@ import numpy as np  # noqa: E402
 import paper  # noqa: E402
 import polars as pl  # noqa: E402
 
-OUT = Path("/Users/mike/code/crypto-moonshot/data/cache/capitulation_ls/forward_signals.parquet")
+OUT = Path(
+    "/Users/mike/code/crypto-moonshot/data/cache/capitulation_ls/"
+    f"forward_signals{'_' + MODEL_NAME if MODEL_NAME else ''}.parquet"
+)
 
 
 def main() -> None:
@@ -35,6 +48,14 @@ def main() -> None:
     sp = paper.spikes(paper.coins(), start, end)
     print(len(sp), "spikes from", start, "to", end, file=sys.stderr)
     seq = paper.build_inputs(sp, paper.INPUTS / "forward", paper.market_series(end))
+    if MODEL_NAME:  # the saved fold may have more seeds than path_all's two
+        import json
+        from dataclasses import replace
+
+        import m12_cnn_wf as m12
+
+        seeds = json.loads((paper.MODEL / "config.json").read_text())["seeds"]
+        m12.VARIANTS[paper.VARIANT] = replace(m12.VARIANTS[paper.VARIANT], seeds=seeds)
     raw, pct = paper.Model().score(seq, sp["qv_base"].to_numpy())
     # BTC 4h return at each spike (as seq2_meta's btc_ret_4h): BTC close channel 7, 48 bars back.
     btc4 = -np.asarray(seq[:, 7, -49], dtype=np.float64)

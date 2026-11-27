@@ -5,7 +5,7 @@
 - **PR:**
 - **Started:** 2026-11-27T13:46Z. Keep searching until at least **2026-11-28T09:46Z** (20 h)
   before hand-off; budget about 25 h (five usage windows).
-- **Updated:** 2026-11-27T15:50Z
+- **Updated:** 2026-11-27T15:35Z
 
 ## Goal
 
@@ -267,6 +267,14 @@ on spot 5m for L and perp klines for C/M). Success for the paper trade: mean net
 trade > 0 and no closed year below 0. Until the day5 2026 model is saved, the forward scorer
 uses the paper test's path_all 2026 fold (a stated deviation). Search results after this point
 are in-sample only.
+
+## Next steps (for a resume)
+
+1. When `/tmp/save_day5.log` says "saved": `cd research/capitulation_ls && uv run --group research
+   python forward_signals.py day5` (scores 2026-11-02.. with the day5 2026 fold), then run the
+   one-time forward read-out `uv run --group research python lmc_forward.py day5` and log it.
+2. `day10b` (10-seed day CNN, i10 harness, runs after the save): compare the L sleeve with day5.
+3. Keep searching the idea backlog until 2026-11-28T09:46Z; then final report, check command, PR.
 
 ## Idea backlog
 
