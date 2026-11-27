@@ -319,6 +319,9 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   for the pick): BTC fell ~15% in 3 days around 2026-11-14/15 without any pct >= 0.995 spike, a
   slow slide, not a flush; the forward window was not calm for BTC, only free of 5m capitulation.
 
+- 17:48Z a 4th sleeve of perp-only listings down >= 20% since listing (not on spot): 97 trades
+  at +519 bp; LMCZ +1035 bp, worst year +28%, DD -23% (LMC +1158, +51%, -17%). Not added.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
