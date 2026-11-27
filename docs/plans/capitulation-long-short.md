@@ -369,6 +369,12 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   +1184 bp, W=20 +1359 bp, but trades vanish in 2023/2026 and years swing (W=30: 2024 -9%). Not
   robust; investigator launched (`why/cascade_wait.md`, `w6_`).
 
+- 22:25Z why cascade-wait failed (`why/cascade_wait.md`): only 28 signal episodes in 2022-26, 16
+  shorter than 20 min, so W removes whole years; the W=20 gain is 2025-10-10 alone (without it W
+  only hurts from 5 min on); the low comes 4-642 min after the start (no stable clock); entering
+  before the low is not the problem per signal (+1649 bp up to 10 min before the low). The real
+  10-10 loss was slot allocation: the first spikes took all 10 slots.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
