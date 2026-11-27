@@ -357,6 +357,18 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   delay and the book stays ~+10% a trade, but ">= +50% every year" holds only at 72h. A fair
   expectation for LMC is the neighbourhood: ~+10% a trade, worst year ~+30%.
 
+- 22:00-22:15Z "why" investigations done (5 notes in results/why/): pump shorts (perps do not
+  squeeze more than spot; the gap is a cost waterfall incl. funding -2.4 pts; stops sell retraces;
+  models rank pump size; dedup kills the 2025-26 edge), leverage (one correlated wick day; slots
+  filled before the low; max survivable 0.99x), long variants (day explains 56% of the 72h outcome,
+  so realistic-target models learn regimes; one shared within-day IC ~0.12; exits not
+  distinguishable; my 85%/65% were candidate-level, the book is 81%/60%), listings (spot-listing
+  event, front-loaded decay, 72h peak mostly noise, 2025 count = perp coverage), regime/other
+  (funding trends, majors do not bounce less, squeezes coin-specific). Report section added.
+- 22:12Z new idea: skip the first W minutes of each q>=0.995 signal episode (gap >= 2h): W=10
+  +1184 bp, W=20 +1359 bp, but trades vanish in 2023/2026 and years swing (W=30: 2024 -9%). Not
+  robust; investigator launched (`why/cascade_wait.md`, `w6_`).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
@@ -378,7 +390,7 @@ are in-sample only.
 
 ## Next steps (for a resume)
 
-0. "Why it failed" investigations (user, 21:40Z): five sub-agents launched 21:45Z on pump
+0. Done 22:15Z (five notes committed; cascade-wait investigator running). "Why it failed" investigations (user, 21:40Z): five sub-agents launched 21:45Z on pump
    shorts, leverage, long-sleeve variants, listing variants, regime/other; notes go to
    `research/capitulation_ls/results/why/*.md` (scripts `w1_`..`w5_`). On completion: review,
    lint (`ruff`), commit, fold the causes into the report's "Why it did not work" section. Every

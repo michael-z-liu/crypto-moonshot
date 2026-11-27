@@ -31,9 +31,10 @@ both directions (longs after dumps, shorts on USD-M perpetuals after rallies). P
    (every year positive, drawdown -14%), and +7-11% across all 13 walk-forward score sets.
 3. **Shorting pumps is real but squeezes cap it.** On spot prices, shorting +40% pumps looked
    like +10% a trade; on perp prices with honest tails (isolated 1x liquidation at +100%) it is
-   +3% a trade. 6.5% of pump shorts see the price double within 72 hours (ALPACA's delisting
-   squeeze: -516%), and squeezes are not predictable (AUC 0.42-0.63). It only works when BTC
-   has not fallen over the past week (+6.5% a trade, every year positive).
+   +3% a trade, a waterfall of the perp-spot gap, liquidation, funding and cost (see
+   [Why it did not work](#why-it-did-not-work)). 6% of pump shorts see the price double within
+   72 hours, and squeezes are barely predictable. It only works when BTC has not fallen over the
+   past week (+6.5% a trade, every year positive).
 4. **Leverage does not survive flash crashes.** 2x on longs, even on majors, is wiped out by the
    2025-10-10 wicks. The targets are met at 1x gross; longs belong on spot.
 5. **On the forecaster's per-coin fidelity:** within a day, the CNN's forecast band ranks coins'
@@ -143,6 +144,54 @@ Shorting every new perp listing; weekly shorts of young coins; shorts or longs a
 funding; open interest, long/short ratios and funding as squeeze predictors; pump shorts picked
 by a low CNN score; capping or re-weighting sleeves; BTC-trend filters on listing shorts; longer
 listing holds inside the book.
+
+## Why it did not work
+
+Each failure was investigated separately (notes in `research/capitulation_ls/results/why/`,
+scripts `w1_`..`w6_`). The common thread: the edges here are event-driven and rest on few
+independent days, so any rule that needs fine distinctions inside those days drowns in noise.
+
+**Pump shorts** (`why/pump_shorts.md`). Perps do *not* squeeze more than spot (doublings 6.2% vs
+6.0% of trades, 23 of 24 shared). The drop from +11% (spot, losses floored) to +3% (perp, honest
+tails) is a cost waterfall: perp-vs-spot gap -3.9 points (a third of it one frozen, delisting perp,
+ALPACA), liquidation at +100% -1.4 (17% of doublings later retrace below entry), funding -2.4
+(shorts pay heavily in squeezes; entries at negative funding rose from 14% of pumps in 2024 to 60%
+in 2026), cost -0.3. Stops sell the retraces the trade lives on: 75% of trades that touch +50%
+against end better than -50%. Models mostly rank pump size, which drives both the reversion and the
+squeezes, so ranking skill does not survive the tails. Deduplicated to one entry per pump, the
+"2025-26 edge" is about zero; the one real squeeze signal (crowded shorts, a low long/short account
+ratio) is too weak to trade.
+
+**Leverage** (`why/leverage.md`). The edge and the tail are the same trades: the signal picks the
+coins with the deepest wicks, and the wick is what the +20% take profit later collects. At 1x the
+wick costs nothing (79% of trades that went 33%+ against finished profitable); with leverage it is
+paid first. 2025-10-10 produced 58% of 2025's candidates and 159 of the 187 with a 33%+ adverse
+move; the wicks were real (414 pairs, median -66% on 1m, close -21% an hour later; 12 of 19 majors
+wicked 50%+). The slots filled with the first spikes, before the low. The largest leverage that
+avoided liquidation over 2022-26 was 0.99x.
+
+**Long-sleeve variants** (`why/long_variants.md`). On crash rows the day explains 56% of the
+TP20/72h outcome but only 17% of the 1h outcome, so models trained on the realistic target learn
+regimes, not coins (yearly IC up to 0.57, within-day 0.06-0.12). The TP20-target CNN is fine on the
+CNN's own days (+11.6%) but trades 48 extra losing days. All five day-weighted networks share one
+within-day IC (0.12-0.13; their ensemble 0.124), about 1.6% of within-day variance: the 8h of
+candles hold no more coin-level information. Exit variants are not distinguishable with ~23
+independent flush days.
+
+**Listing variants** (`why/listings.md`). The edge belongs to the Binance *spot* listing: perp-only
+coins have a fifth of the volume and barely decline (median 30d -6% vs -22%). The weak filter mostly
+cuts the squeeze tail (stop-outs 15% vs 38%) and partly bets on a falling market. Decay is smooth
+and front-loaded (median -18% at 3 days, -51% at 30 days), so the 72h entry peak is mostly noise on
+that decline. 2025's many weak listings are mostly perp coverage: 97% of 2025 spot listings had a
+perp at listing vs 6-32% in 2021-23.
+
+**Regime and other ideas** (`why/regime_other.md`). Extreme funding persists because it follows the
+price trend (funding collected is outweighed by price). Moderate BTC drawdowns are neither bounce
+nor continuation; only the four -20% events won. The 2026-11-14 slide was a real 5m flush on the
+majors but scored just below the entry bar and its bounce faded. The BTC-calm sensitivity of the
+crash short rests on 25 trades with three tail losses. Majors do not bounce less (the +4.6% vs +10%
+gap compared different rules). Squeezes are coin-specific jumps, not time clusters, so slot caps
+cannot cut them; the one lead is a delisting-notice feed.
 
 ## Data added (Binance only, `fetch_futures.py`)
 
