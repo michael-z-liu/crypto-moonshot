@@ -190,6 +190,14 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   +1159 bp, min +42%, DD -25%. In-sample choices throughout: only forward data can confirm.
 - 14:55Z: training a day-weighted CNN (i10 harness) whose target is the realistic long outcome
   (TP 20% / 72h) via target_offset (wf_i10/tp20day).
+- 15:05Z E36: waiting up to 30 days for a listing to fall below its listing price adds ~40
+  trades but lowers the average (+1969 -> +1534 bp); keep the plain weak-listing rule.
+- 15:07Z E37/E38: the realistic-target GBM adds little to regime pump shorts (+633 -> +723 bp);
+  a take profit set from the CNN's own path forecast is not robust (2022 drops to +6%).
+- 15:08Z: longs on perps (0.3% + funding) +1109 bp vs spot +1064 bp: equivalent; spot is safer.
+- 15:10Z E39: deflated Sharpe ratio of LQM (10 slots): annualised Sharpe 2.11 on 1,766 days,
+  skew 6.3; Sharpe sd across 68 related books 0.48. DSR 0.99 / 0.93 / 0.84 for 100 / 1000 / 4000
+  trials. Moderate evidence, not proof (the robustness study's pick had DSR 0.97 and failed).
 
 ## Idea backlog
 

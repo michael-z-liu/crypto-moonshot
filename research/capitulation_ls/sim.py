@@ -91,7 +91,8 @@ def delayed(p: np.ndarray, d: int, step_end_in: np.ndarray = STEP_END_MIN) -> tu
 
 
 def exits(
-    p: np.ndarray, side: np.ndarray, rule: Rule, step_end: np.ndarray = STEP_END_MIN
+    p: np.ndarray, side: np.ndarray, rule: Rule, step_end: np.ndarray = STEP_END_MIN,
+    tp_arr: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Per trade: price return in the trade's favour (before costs), exit step, exit kind.
 
@@ -116,7 +117,8 @@ def exits(
     liq_lvl = 1.0 / rule.lev - rule.mm if rule.lev > 1 else np.inf
     t_liq = first(np.nan_to_num(adv, nan=0) >= liq_lvl)
     t_sl = first(np.nan_to_num(adv, nan=0) >= rule.sl) if rule.sl is not None else np.full(n, big)
-    t_tp = first(np.nan_to_num(fav, nan=0) >= rule.tp) if rule.tp is not None else np.full(n, big)
+    tp_v = tp_arr if tp_arr is not None else (np.full(n, rule.tp) if rule.tp is not None else None)
+    t_tp = first(np.nan_to_num(fav, nan=0) >= tp_v[:, None]) if tp_v is not None else np.full(n, big)
     if rule.trail is not None:
         best = np.maximum.accumulate(np.nan_to_num(cl, nan=-1), axis=1)
         prev_best = np.concatenate([np.zeros((n, 1), np.float32), best[:, :-1]], axis=1)
@@ -133,7 +135,7 @@ def exits(
     t_exit = stack[kind, np.arange(n)]
     ret = cl[np.arange(n), t_exit].astype(np.float64)
     ret = np.where(kind == 1, -rule.sl if rule.sl is not None else 0, ret)
-    ret = np.where(kind == 2, rule.tp if rule.tp is not None else 0, ret)
+    ret = np.where(kind == 2, tp_v if tp_v is not None else 0, ret)
     if rule.trail is not None:
         tr_lvl = prev_best[np.arange(n), np.minimum(t_exit, p.shape[2] - 1)] - rule.trail
         ret = np.where(kind == 4, tr_lvl, ret)
@@ -181,7 +183,8 @@ def simulate(
             ok = side * moved > 0
             cand = cand.filter(pl.Series(ok))
             rows, side, p = rows[ok], side[ok], p[ok]
-    ret, t_exit, kind = exits(p, side, rule, step_end)
+    tp_arr = cand["tp"].to_numpy().astype(np.float64) if "tp" in cand.columns else None
+    ret, t_exit, kind = exits(p, side, rule, step_end, tp_arr)
     hold_min = step_end[t_exit]
     advp = np.nan_to_num(np.where(side[:, None] > 0, -p[:, 1], p[:, 0]), nan=0.0)
     adv_max = np.maximum.accumulate(advp, axis=1)[np.arange(len(t_exit)), np.minimum(t_exit, p.shape[2] - 1)]

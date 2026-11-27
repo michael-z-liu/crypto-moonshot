@@ -56,7 +56,7 @@ def sleeve_listing_weak(extra_cost: float = 0.0) -> pl.DataFrame:
     return x.select("symbol", "adv", "t_in", "t_out", net=pl.col("net") - extra_cost, qv="qv", sleeve=pl.lit("N"), prio=pl.lit(1.0))
 
 
-def book(tr: pl.DataFrame, slots: int, gross: float = 1.0) -> pl.DataFrame:
+def book(tr: pl.DataFrame, slots: int, gross: float = 1.0, trades_out: list | None = None) -> pl.DataFrame:
     tr = tr.with_columns(year=pl.from_epoch("t_in").dt.year()).sort(["t_in", "prio"], descending=[False, True])
     res = []
     for (y,), g in tr.group_by(["year"], maintain_order=True):
@@ -79,6 +79,8 @@ def book(tr: pl.DataFrame, slots: int, gross: float = 1.0) -> pl.DataFrame:
                 continue
             cash -= stake
             pos.append((r["t_out"], stake, r["net"], r["symbol"], r["adv"])); held.add(r["symbol"])
+            if trades_out is not None:
+                trades_out.append({"year": y, "t_out": r["t_out"], "pnl": stake * r["net"], "sleeve": r["sleeve"]})
             worst = max(worst, sum(p[1] * p[4] for p in pos) / eq)
             nets.append(r["net"]); by[r["sleeve"]].append(r["net"])
         for p in sorted(pos):
