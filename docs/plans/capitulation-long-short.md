@@ -5,7 +5,7 @@
 - **PR:**
 - **Started:** 2026-11-27T13:46Z. Keep searching until at least **2026-11-28T09:46Z** (20 h)
   before hand-off; budget about 25 h (five usage windows).
-- **Updated:** 2026-11-27T15:55Z
+- **Updated:** 2026-11-27T14:22Z
 
 ## Goal
 
@@ -131,6 +131,15 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   almost nothing (+1020 -> +1050 bp).
 - ~14:07Z E12/E13: new listings fall: short 1-3 days after spot listing on the perp, hold 7-30
   days: +10..+15% a trade, positive most years (few trades 2021-23). Second short component.
+- ~14:15Z E14-E16 (correction): on perp paths the pump short is weaker (r4>=0.4, 72h: +979 bp
+  spot -> +656 bp perp), and the earlier books floored losses at -100% while keeping positions
+  that went +100% against them. 6.5% of pump shorts see a +100% move within 72h (ALPACA's
+  delisting squeeze: -516%). Realistic tails: isolated 1x (liquidated at +100%) or cross margin
+  (losses beyond the stake). Then r4>=0.4, 10 slots, 72h: +260 to +310 bp a trade, worst year
+  about -6%..+7%; cross margin with 5 slots loses a whole year to one squeeze. Stops at 50% hurt.
+- ~14:20Z E17: squeezes are not predictable (AUC 0.42-0.63 by year, metrics add nothing).
+  Realistic pump-short reference: iso1x, 10 slots, 72h: +313 bp, +7..+26% a year, DD -33%.
+  Transformer ranker (3 seeds) IC 0.33/0.18/0.30/0.24 for 2022-25: better than GBM/MLP.
 
 ## Idea backlog
 

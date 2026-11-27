@@ -18,12 +18,33 @@ put up: the price return times `lev`, minus costs times `lev`, minus funding (sh
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import cache
 
 import numpy as np
 import polars as pl
 from common_ls import fwd2, fwd72, meta
 
 STEP_END_MIN = np.concatenate([np.arange(1, 97) * 5, np.arange(9, 73) * 60]).astype(np.int64)
+
+
+PERP_STEP_END_MIN = np.concatenate([np.arange(1, 97) * 5, np.arange(9, 169) * 60]).astype(np.int64)
+
+
+@cache
+def _perp_store() -> tuple[np.ndarray, np.ndarray]:
+    from common_ls import OWN
+
+    z = np.load(OWN / "perp_paths.npz")
+    return z["rows"], z["paths"]
+
+
+def perp_paths(rows: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Perp paths [n, 3, 256] (5m to 8h, then hourly to 7 days) and a mask of rows that have one."""
+    pr, pp = _perp_store()
+    k = np.searchsorted(pr, rows)
+    k = np.minimum(k, len(pr) - 1)
+    ok = pr[k] == rows
+    return pp[k[ok]], ok
 
 
 def paths(rows: np.ndarray) -> np.ndarray:
@@ -50,19 +71,20 @@ class Rule:
     slots: int = 5
     max_per_day: int | None = None
     liq_frac: float | None = 0.005  # stake at most this share of the coin's 24h quote volume
+    loss_floor: float = -1.0  # worst return on the stake; below -1 = cross margin losses
     delay: int = 0  # enter this many 5m candles after the usual entry (< 96)
     delay_cond: str | None = None  # "confirm": only if price moved our way during the delay
     name: str = ""
 
 
-def delayed(p: np.ndarray, d: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def delayed(p: np.ndarray, d: int, step_end_in: np.ndarray = STEP_END_MIN) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Re-base paths to an entry at the close of step d-1. Returns paths, step ends (minutes after
     the new entry) and the price at the new entry relative to the old one."""
     base = 1 + p[:, 2, d - 1]
     q = (1 + p[:, :, d:]) / base[:, None, None] - 1
     pad = np.repeat(q[:, :, -1:], d, axis=2)
     q = np.concatenate([q, pad], axis=2)
-    ends = np.concatenate([STEP_END_MIN[d:] - 5 * d, STEP_END_MIN[-1] - 5 * d + 60 * np.arange(1, d + 1)])
+    ends = np.concatenate([step_end_in[d:] - 5 * d, step_end_in[-1] - 5 * d + 60 * np.arange(1, d + 1)])
     return q.astype(np.float32), ends, base - 1
 
 
@@ -126,7 +148,8 @@ class Book:
 
 
 def simulate(
-    cand: pl.DataFrame, rule: Rule, start_equity: float = 10_000, perp_funding: bool = False
+    cand: pl.DataFrame, rule: Rule, start_equity: float = 10_000, perp_funding: bool = False,
+    source: str = "spot",
 ) -> Book:
     """cand: columns row (seq2 row), side (+1/-1), prio (higher first), optional fund_day (the
     funding this side pays per day held, as a fraction of notional; negative = received).
@@ -140,11 +163,17 @@ def simulate(
     ).sort(["t", "prio"], descending=[False, True])
     rows = cand["row"].to_numpy()
     side = cand["side"].to_numpy()
-    p = paths(rows)
-    step_end = STEP_END_MIN
+    if source == "perp":
+        p, ok = perp_paths(rows)
+        cand = cand.filter(pl.Series(ok))
+        rows, side = rows[ok], side[ok]
+        step_end = PERP_STEP_END_MIN
+    else:
+        p = paths(rows)
+        step_end = STEP_END_MIN
     t_shift = 0
     if rule.delay > 0:
-        p, step_end, moved = delayed(p, rule.delay)
+        p, step_end, moved = delayed(p, rule.delay, step_end)
         t_shift = rule.delay * 300
         if rule.delay_cond == "confirm":
             ok = side * moved > 0
@@ -161,7 +190,7 @@ def simulate(
         t0 = cand["t"].to_numpy() + 300 + t_shift
         fund = funding_paid(cand["symbol"].to_numpy(), t0, t0 + hold_min * 60, side)
     net = rule.lev * (ret - rule.cost - (rule.stop_slip * (kind == 1)) - fund)
-    net = np.maximum(net, -1.0)
+    net = np.maximum(net, rule.loss_floor)
     t_in = cand["t"].to_numpy() + 300 + t_shift
     t_out = t_in + hold_min * 60
     syms = cand["symbol"].to_numpy()
@@ -255,7 +284,7 @@ def fmt_years(b: Book, years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025, 2
 
 def simulate_yearly(
     cand: pl.DataFrame, rule: Rule, start_equity: float = 10_000, perp_funding: bool = False,
-    years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025, 2026),
+    years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025, 2026), source: str = "spot",
 ) -> Book:
     """One book per entry year, each starting at `start_equity` (the account size the user has),
     so a year's return does not depend on how much earlier years compounded."""
@@ -266,7 +295,9 @@ def simulate_yearly(
         c = cand.filter(pl.Series(yr_of[cand["row"].to_numpy()] == y))
         if c.height == 0:
             continue
-        books.append(simulate(c, rule, start_equity, perp_funding))
+        b = simulate(c, rule, start_equity, perp_funding, source)
+        if b.trades.height:
+            books.append(b)
     if not books:
         return Book(pl.DataFrame(), pl.DataFrame({"year": [], "trades": [], "bp": [], "med_bp": [], "win": [], "ret": [], "dd": [], "liq": []}), {"trades": 0, "bp": 0.0, "final": start_equity, "maxdd": 0.0})
     trades = pl.concat([b.trades for b in books])
