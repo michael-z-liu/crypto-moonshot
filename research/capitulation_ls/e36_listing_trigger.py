@@ -33,7 +33,7 @@ for window in (0, 7, 14, 30):
             continue
         j_end = min(np.searchsorted(h, h[i] + 30 * 86400), len(h) - 1)
         e = o[i]
-        up, dn = hi[i:j_end + 1] / e - 1, lo[i:j_end + 1] / e - 1
+        up, dn = hi[i : j_end + 1] / e - 1, lo[i : j_end + 1] / e - 1
         ret, k_exit = -(c[j_end] / e - 1), j_end
         hs, ht = np.flatnonzero(up >= 0.5), np.flatnonzero(-dn >= 0.5)
         ks, kt = (hs[0] if len(hs) else 10**9), (ht[0] if len(ht) else 10**9)
@@ -41,11 +41,16 @@ for window in (0, 7, 14, 30):
             ret, k_exit = -0.52, i + ks
         elif kt < 10**9:
             ret, k_exit = 0.5, i + kt
-        out.append({"symbol": r["symbol"], "t_in": int(h[i]), "t_out": int(h[k_exit]) + 3600, "ret": float(ret),
-                    "year": r["listed"].year, "qv": float(qv[max(0, i - 24):i].sum()), "wait_d": (h[i] - h[i0]) / 86400})  # fmt: skip
+        out.append({"symbol": r["symbol"], "t_in": int(h[i]), "t_out": int(h[k_exit]) + 3600, "ret": float(ret),  # noqa: E501
+                    "year": r["listed"].year, "qv": float(qv[max(0, i - 24):i].sum()), "wait_d": (h[i] - h[i0]) / 86400})  # fmt: skip  # noqa: E501
     d = pl.DataFrame(out)
-    f = funding_paid(d["symbol"].to_numpy(), d["t_in"].to_numpy(), d["t_out"].to_numpy(), -np.ones(d.height))
+    f = funding_paid(
+        d["symbol"].to_numpy(), d["t_in"].to_numpy(), d["t_out"].to_numpy(), -np.ones(d.height)
+    )
     d = d.with_columns(net=pl.col("ret") - COST - pl.Series(f))
     b = book(d, 10)
-    yrs = " | ".join(f"{r['year']}: {r['trades']:>3}t {r['bp']:+5.0f}bp {r['ret'] * 100:+5.0f}%" for r in b.iter_rows(named=True))
+    yrs = " | ".join(
+        f"{r['year']}: {r['trades']:>3}t {r['bp']:+5.0f}bp {r['ret'] * 100:+5.0f}%"
+        for r in b.iter_rows(named=True)
+    )
     print(f"window {window:>2}d: n={d.height} {d['net'].mean() * 1e4:+5.0f}bp | {yrs}")

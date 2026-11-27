@@ -10,10 +10,24 @@ from sim import Rule, exits, paths
 
 PATH_STEPS = np.arange(3, 97, 3) - 1
 n = fwd2().shape[0]
-out = np.lib.format.open_memmap(CACHE_ALL / "wf_i10" / "tp20_offset.npy", mode="w+", dtype=np.float32, shape=(n, len(PATH_STEPS))) if (CACHE_ALL / "wf_i10").exists() else None
+out = (
+    np.lib.format.open_memmap(
+        CACHE_ALL / "wf_i10" / "tp20_offset.npy",
+        mode="w+",
+        dtype=np.float32,
+        shape=(n, len(PATH_STEPS)),
+    )
+    if (CACHE_ALL / "wf_i10").exists()
+    else None
+)
 if out is None:
     (CACHE_ALL / "wf_i10").mkdir()
-    out = np.lib.format.open_memmap(CACHE_ALL / "wf_i10" / "tp20_offset.npy", mode="w+", dtype=np.float32, shape=(n, len(PATH_STEPS)))
+    out = np.lib.format.open_memmap(
+        CACHE_ALL / "wf_i10" / "tp20_offset.npy",
+        mode="w+",
+        dtype=np.float32,
+        shape=(n, len(PATH_STEPS)),
+    )
 rule = Rule(hold_min=4320, tp=0.2)
 stats = []
 for a in range(0, n, 200_000):

@@ -32,14 +32,32 @@ def best(name: str, gen, grid) -> tuple[dict, pl.DataFrame]:
     return res[0][1], res[0][2]
 
 
-Lc, L = best("L", sleeve_long, [dict(q=q, tp=tp, hold=h) for q, tp, h in itertools.product((0.99, 0.995, 0.997), (0.1, 0.15, 0.2, 0.3), (1440, 4320))])
-Cc, C = best("C", sleeve_crash_short, [dict(r4=r, calm=c, cnn=n, hold=h) for r, c, n, h in itertools.product((-0.1, -0.15, -0.2), (0.01, 0.02), (0.3, 0.5, 1.0), (1440, 4320))])
+Lc, L = best(
+    "L",
+    sleeve_long,
+    [
+        dict(q=q, tp=tp, hold=h)
+        for q, tp, h in itertools.product((0.99, 0.995, 0.997), (0.1, 0.15, 0.2, 0.3), (1440, 4320))
+    ],
+)
+Cc, C = best(
+    "C",
+    sleeve_crash_short,
+    [
+        dict(r4=r, calm=c, cnn=n, hold=h)
+        for r, c, n, h in itertools.product(
+            (-0.1, -0.15, -0.2), (0.01, 0.02), (0.3, 0.5, 1.0), (1440, 4320)
+        )
+    ],
+)
 # M: the weak-listing sleeve's settings from E13's grid restricted to 2022-24.
-import e13_listing_book as e13
-from e18_perp_listings import book as lbook
+import e13_listing_book as e13  # noqa: E402
+from e18_perp_listings import book as lbook  # noqa: E402
 
 mres = []
-x27 = pl.read_parquet("/Users/mike/code/crypto-moonshot/data/cache/capitulation_ls/e27_listings.parquet")
+x27 = pl.read_parquet(
+    "/Users/mike/code/crypto-moonshot/data/cache/capitulation_ls/e27_listings.parquet"
+)
 weak = set(zip(x27.filter(pl.col("since_list") <= 0)["symbol"], strict=True))
 for delay, hold, tp, sl in itertools.product((24, 72), (7, 14, 30), (None, 0.5), (None, 0.5)):
     d = e13.trades(delay, hold, tp, sl).filter(pl.col("year") >= 2022)
@@ -50,7 +68,16 @@ for delay, hold, tp, sl in itertools.product((24, 72), (7, 14, 30), (None, 0.5),
     mres.append((sc, dict(delay=delay, hold=hold, tp=tp, sl=sl), d))
 mres.sort(key=lambda r: -r[0])
 print(f"M: best on 2022-24 {mres[0][1]} score {mres[0][0]:.3f} (weak filter fixed from E27)")
-M = mres[0][2].select("symbol", adv=pl.lit(0.0), t_in="t_in", t_out="t_out", net="net", qv="qv", sleeve=pl.lit("N"), prio=pl.lit(1.0))
+M = mres[0][2].select(
+    "symbol",
+    adv=pl.lit(0.0),
+    t_in="t_in",
+    t_out="t_out",
+    net="net",
+    qv="qv",
+    sleeve=pl.lit("N"),
+    prio=pl.lit(1.0),
+)
 allb = []
 for slots in (8, 10, 15):
     b = book(pl.concat([L, M, C], how="vertical_relaxed"), slots)
@@ -59,4 +86,6 @@ allb.sort(key=lambda r: -r[0])
 sc, slots, b = allb[0]
 print(f"slots chosen on 2022-24: {slots}")
 for r in b.iter_rows(named=True):
-    print(f"  {r['year']}: {r['trades']:>3}t {r['bp']:+5.0f}bp {r['ret'] * 100:+5.0f}% dd {r['dd'] * 100:+4.0f}%{'   <- read after the choice' if r['year'] >= 2025 else ''}")
+    print(
+        f"  {r['year']}: {r['trades']:>3}t {r['bp']:+5.0f}bp {r['ret'] * 100:+5.0f}% dd {r['dd'] * 100:+4.0f}%{'   <- read after the choice' if r['year'] >= 2025 else ''}"  # noqa: E501
+    )

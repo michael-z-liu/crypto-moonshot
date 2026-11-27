@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 import polars as pl
 from common_ls import meta
-from sim import Rule, simulate, simulate_yearly
+from sim import Rule, simulate_yearly
 from wf import summarize, table, walk_forward
 
 MODE = sys.argv[1] if len(sys.argv) > 1 else "spot"
@@ -32,18 +32,36 @@ def cands(thr: float) -> pl.DataFrame:
 
 def run(cfg: dict[str, Any]) -> pl.DataFrame:
     c = cands(cfg["thr"])
-    rule = Rule(hold_min=cfg["hold"], tp=cfg["tp"], sl=cfg["sl"], slots=cfg["slots"], cost=0.003, stop_slip=0.01)
+    rule = Rule(
+        hold_min=cfg["hold"],
+        tp=cfg["tp"],
+        sl=cfg["sl"],
+        slots=cfg["slots"],
+        cost=0.003,
+        stop_slip=0.01,
+    )
     return simulate_yearly(c, rule, perp_funding=MODE == "perp").years
 
 
 if __name__ == "__main__":
     grid = [dict(thr=t, hold=h, tp=tp, sl=sl, slots=s) for t, h, tp, sl, s in itertools.product(
-        (0.3, 0.4, 0.5, 0.6, 0.8), (240, 720, 1440, 2880, 4320), (None, 0.2, 0.3, 0.5), (None, 0.5), (3, 5, 10))]  # fmt: skip
+        (0.3, 0.4, 0.5, 0.6, 0.8), (240, 720, 1440, 2880, 4320), (None, 0.2, 0.3, 0.5), (None, 0.5), (3, 5, 10))]  # fmt: skip  # noqa: E501
     tab = table(run, grid)
-    tab.write_parquet(f"/Users/mike/code/crypto-moonshot/data/cache/capitulation_ls/e07_{MODE}.parquet")
+    tab.write_parquet(
+        f"/Users/mike/code/crypto-moonshot/data/cache/capitulation_ls/e07_{MODE}.parquet"
+    )
     wf = walk_forward(tab)
     print(MODE, "walk-forward:")
     print(summarize(wf))
     # Context: how many configs are positive in every year, and the median config.
-    g = tab.group_by("cfg").agg(minret=pl.col("ret").min(), med=pl.col("ret").median(), bp=pl.col("bp").mean())
-    print("configs:", g.height, "positive every year:", int((g["minret"] > 0).sum()), "median of yearly-median returns:", float(g["med"].median()))
+    g = tab.group_by("cfg").agg(
+        minret=pl.col("ret").min(), med=pl.col("ret").median(), bp=pl.col("bp").mean()
+    )
+    print(
+        "configs:",
+        g.height,
+        "positive every year:",
+        int((g["minret"] > 0).sum()),
+        "median of yearly-median returns:",
+        float(g["med"].median()),
+    )

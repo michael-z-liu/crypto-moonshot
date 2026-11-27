@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import sys
 from pathlib import Path
 
@@ -17,10 +16,10 @@ os.environ["MOONSHOT_UNIVERSE"] = "all"
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "volume_spike"))
 
-import numpy as np  # noqa: E402
-import torch  # noqa: E402
 import i10_train as i10  # noqa: E402
 import m12_cnn_wf as m12  # noqa: E402
+import numpy as np  # noqa: E402
+import torch  # noqa: E402
 
 VARIANT = sys.argv[1] if len(sys.argv) > 1 else "day5"
 OUT = HERE.parents[1] / ".cache" / "forward_model" / VARIANT
@@ -44,10 +43,16 @@ def main() -> None:
     data = m12.Data()
     i10.run(f"fwd_{VARIANT}_2026", data, icfg, years=(2026,))
     norm = dict(np.load(PAPER_NORM))
-    assert np.allclose(norm["mu"], data.mu) and np.allclose(norm["sd"], data.sd), "frozen channel stats differ from the paper model's"
+    assert np.allclose(norm["mu"], data.mu), "frozen channel means differ from the paper model's"
+    assert np.allclose(norm["sd"], data.sd), "frozen channel sds differ from the paper model's"
     norm["ref_sorted"] = saved["ref_sorted"]
     np.savez(OUT / "norm.npz", **norm)
-    (OUT / "config.json").write_text(json.dumps({"variant": VARIANT, "fold": "2026", "seeds": icfg.base.seeds, "cfg": icfg.describe()}, indent=1))
+    (OUT / "config.json").write_text(
+        json.dumps(
+            {"variant": VARIANT, "fold": "2026", "seeds": icfg.base.seeds, "cfg": icfg.describe()},
+            indent=1,
+        )
+    )
     print("saved", OUT, file=sys.stderr)
 
 

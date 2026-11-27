@@ -10,8 +10,8 @@ import polars as pl
 from common_ls import meta, scores
 from sim import Rule, fmt_years, simulate_yearly
 
-MAJORS = {"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT",
-          "LTCUSDT", "TRXUSDT", "BCHUSDT", "NEARUSDT", "MATICUSDT", "ATOMUSDT", "UNIUSDT", "ETCUSDT", "FILUSDT", "APTUSDT"}  # fmt: skip
+MAJORS = {"BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "AVAXUSDT", "LINKUSDT", "DOTUSDT",  # noqa: E501
+          "LTCUSDT", "TRXUSDT", "BCHUSDT", "NEARUSDT", "MATICUSDT", "ATOMUSDT", "UNIUSDT", "ETCUSDT", "FILUSDT", "APTUSDT"}  # fmt: skip  # noqa: E501
 m = meta()
 yr, sym = m["year"].to_numpy(), m["symbol"].to_numpy()
 r4, btc4 = m["ret_4h"].to_numpy(), m["btc_ret_4h"].to_numpy()
@@ -28,8 +28,12 @@ for name, mask in sets.items():
     idx = np.flatnonzero(mask & (yr >= 2022))
     c = pl.DataFrame({"row": idx, "side": 1, "prio": -r4[idx]})
     for hold, tp, lev in itertools.product((1440, 4320), (0.05, 0.1, None), (1, 2, 3)):
-        b = simulate_yearly(c, Rule(hold_min=hold, tp=tp, slots=5, cost=0.003, lev=lev, liq_frac=None), years=Y)
+        b = simulate_yearly(
+            c, Rule(hold_min=hold, tp=tp, slots=5, cost=0.003, lev=lev, liq_frac=None), years=Y
+        )
         if b.trades.height == 0:
             continue
         liq = int((b.trades["kind"] == 3).sum())
-        print(f"{name:22s} hold {hold // 60:>2}h tp {str(tp):4s} lev {lev}: {b.summary['bp']:+5.0f}bp n={b.summary['trades']:>3} liq={liq} {fmt_years(b, Y)}")
+        print(
+            f"{name:22s} hold {hold // 60:>2}h tp {tp!s:4s} lev {lev}: {b.summary['bp']:+5.0f}bp n={b.summary['trades']:>3} liq={liq} {fmt_years(b, Y)}"  # noqa: E501
+        )

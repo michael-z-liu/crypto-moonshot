@@ -28,7 +28,11 @@ def stats(name: str, mask: np.ndarray, side: int) -> dict[str, object]:
     row["adv24_med"] = round(float(np.nanmedian(adv)) * 100, 1)
     for y in (2022, 2023, 2024, 2025, 2026):
         s = idx[yr[idx] == y]
-        row[f"24h_{y}"] = round(float(np.nanmean(side * np.asarray(f72[s, 2, 23]) - SPOT_COST)) * 1e4) if len(s) else None
+        row[f"24h_{y}"] = (
+            round(float(np.nanmean(side * np.asarray(f72[s, 2, 23]) - SPOT_COST)) * 1e4)
+            if len(s)
+            else None
+        )
     return row
 
 

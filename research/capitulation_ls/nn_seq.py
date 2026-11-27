@@ -35,8 +35,12 @@ DEV = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 def data() -> tuple[pl.DataFrame, np.ndarray, np.ndarray]:
     d = pl.read_parquet(OWN / "feats.parquet")
     d = d.filter(pl.col("ret_4h") >= 0.15) if S < 0 else d.filter(pl.col("ret_4h") <= -0.10)
-    d = d.filter(pl.col("qv_base") >= 20_000).sort("row").with_columns(
-        target=(S * pl.col(f"y{H}")).clip(-0.5, 1.0), year=pl.col("open_time").dt.year()
+    d = (
+        d.filter(pl.col("qv_base") >= 20_000)
+        .sort("row")
+        .with_columns(
+            target=(S * pl.col(f"y{H}")).clip(-0.5, 1.0), year=pl.col("open_time").dt.year()
+        )
     )
     if TARGET == "tp20":
         t = pl.read_parquet(OWN / "target_long_tp20.parquet").rename({"target": "t2"})
@@ -55,14 +59,22 @@ class Transformer(nn.Module):
         self.embed = nn.Linear(ch * patch, d)
         self.pos = nn.Parameter(torch.randn(1, 288 // patch + 1, d) * 0.02)
         self.cls = nn.Parameter(torch.zeros(1, 1, d))
-        layer = nn.TransformerEncoderLayer(d, 4, 128, dropout=0.1, batch_first=True, norm_first=True)
+        layer = nn.TransformerEncoderLayer(
+            d, 4, 128, dropout=0.1, batch_first=True, norm_first=True
+        )
         self.enc = nn.TransformerEncoder(layer, 3)
         self.tab = nn.Sequential(nn.Linear(ntab, 64), nn.GELU())
-        self.head = nn.Sequential(nn.Linear(d + 64, 64), nn.GELU(), nn.Dropout(0.1), nn.Linear(64, 1))
+        self.head = nn.Sequential(
+            nn.Linear(d + 64, 64), nn.GELU(), nn.Dropout(0.1), nn.Linear(64, 1)
+        )
 
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         b, c, n = x.shape
-        p = x.reshape(b, c, n // self.patch, self.patch).permute(0, 2, 1, 3).reshape(b, n // self.patch, c * self.patch)
+        p = (
+            x.reshape(b, c, n // self.patch, self.patch)
+            .permute(0, 2, 1, 3)
+            .reshape(b, n // self.patch, c * self.patch)
+        )
         z = torch.cat([self.cls.expand(b, -1, -1), self.embed(p)], 1) + self.pos
         z = self.enc(z)[:, 0]
         return self.head(torch.cat([z, self.tab(t)], 1)).squeeze(1)
@@ -74,11 +86,17 @@ class TCN(nn.Module):
         layers: list[nn.Module] = []
         cin = ch
         for dil in (1, 2, 4, 8, 16, 32):
-            layers += [nn.Conv1d(cin, w, 3, padding=dil, dilation=dil), nn.GELU(), nn.BatchNorm1d(w)]
+            layers += [
+                nn.Conv1d(cin, w, 3, padding=dil, dilation=dil),
+                nn.GELU(),
+                nn.BatchNorm1d(w),
+            ]
             cin = w
         self.conv = nn.Sequential(*layers)
         self.tab = nn.Sequential(nn.Linear(ntab, 64), nn.GELU())
-        self.head = nn.Sequential(nn.Linear(2 * w + 64, 64), nn.GELU(), nn.Dropout(0.1), nn.Linear(64, 1))
+        self.head = nn.Sequential(
+            nn.Linear(2 * w + 64, 64), nn.GELU(), nn.Dropout(0.1), nn.Linear(64, 1)
+        )
 
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         z = self.conv(x)
@@ -89,7 +107,14 @@ class TCN(nn.Module):
 class MLP(nn.Module):
     def __init__(self, ch: int, ntab: int) -> None:
         super().__init__()
-        self.net = nn.Sequential(nn.Linear(ntab, 128), nn.GELU(), nn.Dropout(0.1), nn.Linear(128, 64), nn.GELU(), nn.Linear(64, 1))
+        self.net = nn.Sequential(
+            nn.Linear(ntab, 128),
+            nn.GELU(),
+            nn.Dropout(0.1),
+            nn.Linear(128, 64),
+            nn.GELU(),
+            nn.Linear(64, 1),
+        )
 
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         return self.net(t).squeeze(1)
@@ -104,10 +129,20 @@ def standardise(tab: np.ndarray, tr: np.ndarray) -> np.ndarray:
     return np.concatenate([z, miss.astype(np.float32)], 1).astype(np.float32)
 
 
-def train_one(x: np.ndarray, tab: np.ndarray, y: np.ndarray, tr: np.ndarray, va: np.ndarray, te: np.ndarray, seed: int) -> tuple[np.ndarray, np.ndarray]:
+def train_one(
+    x: np.ndarray,
+    tab: np.ndarray,
+    y: np.ndarray,
+    tr: np.ndarray,
+    va: np.ndarray,
+    te: np.ndarray,
+    seed: int,
+) -> tuple[np.ndarray, np.ndarray]:
     torch.manual_seed(seed)
     np.random.seed(seed)
-    net = {"transformer": Transformer, "tcn": TCN, "mlp": MLP}[MODEL](x.shape[1], tab.shape[1]).to(DEV)
+    net = {"transformer": Transformer, "tcn": TCN, "mlp": MLP}[MODEL](x.shape[1], tab.shape[1]).to(
+        DEV
+    )
     opt = torch.optim.AdamW(net.parameters(), lr=3e-4, weight_decay=1e-2)
     loss_fn = nn.HuberLoss(delta=0.1)
 
@@ -136,7 +171,11 @@ def train_one(x: np.ndarray, tab: np.ndarray, y: np.ndarray, tr: np.ndarray, va:
             nn.utils.clip_grad_norm_(net.parameters(), 1.0)
             opt.step()
         pv = predict(vai)
-        ic = float(pl.DataFrame({"p": pv, "y": y[vai]}).select(pl.corr(pl.col("p").rank(), pl.col("y").rank())).item())
+        ic = float(
+            pl.DataFrame({"p": pv, "y": y[vai]})
+            .select(pl.corr(pl.col("p").rank(), pl.col("y").rank()))
+            .item()
+        )
         if ic > best:
             best, bad = ic, 0
             best_state = {k: v.detach().clone() for k, v in net.state_dict().items()}

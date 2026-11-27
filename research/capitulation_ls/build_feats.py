@@ -29,7 +29,7 @@ def context(job: tuple[str, np.ndarray]) -> pl.DataFrame:
     sym, times = job
     df = load(sym).select("open_time", "close", "high", "low", "quote_volume")
     h = df.group_by_dynamic("open_time", every="1h").agg(
-        c=pl.col("close").last(), hi=pl.col("high").max(), lo=pl.col("low").min(), qv=pl.col("quote_volume").sum()
+        c=pl.col("close").last(), hi=pl.col("high").max(), lo=pl.col("low").min(), qv=pl.col("quote_volume").sum()  # noqa: E501
     ).sort("open_time")  # fmt: skip
     c = h["c"].to_numpy()
     hi, lo, qv = h["hi"].to_numpy(), h["lo"].to_numpy(), h["qv"].to_numpy()
@@ -58,7 +58,9 @@ def context(job: tuple[str, np.ndarray]) -> pl.DataFrame:
     out["vol30d"] = np.where(k >= 0, vol30[np.maximum(k, 0)], np.nan)
     q7 = pl.Series(qv).rolling_sum(168, min_samples=24).to_numpy()
     q30 = pl.Series(qv).rolling_sum(720, min_samples=48).to_numpy()
-    out["qv7_30"] = np.where(k >= 0, q7[np.maximum(k, 0)] / (q30[np.maximum(k, 0)] / 30 * 7), np.nan)
+    out["qv7_30"] = np.where(
+        k >= 0, q7[np.maximum(k, 0)] / (q30[np.maximum(k, 0)] / 30 * 7), np.nan
+    )
     out["n_prior_pumps30"] = np.zeros(len(ev))  # filled below from the event table
     return pl.DataFrame(out)
 
@@ -66,7 +68,10 @@ def context(job: tuple[str, np.ndarray]) -> pl.DataFrame:
 def main() -> None:
     m = meta().with_row_index("row")
     r4 = m["ret_4h"]
-    ev = m.filter(((r4 >= 0.15) | (r4 <= -0.10)) & (pl.col("open_time") >= pl.datetime(2020, 6, 1, time_zone="UTC")))
+    ev = m.filter(
+        ((r4 >= 0.15) | (r4 <= -0.10))
+        & (pl.col("open_time") >= pl.datetime(2020, 6, 1, time_zone="UTC"))
+    )
     rows = ev["row"].to_numpy()
     print(len(rows), "events", file=sys.stderr)
     seq = np.load(CACHE_ALL / "seq2.npy", mmap_mode="r")
@@ -77,21 +82,23 @@ def main() -> None:
         "red": (s[:, 0, -1] > 0).astype(np.float32),
         "off_high4h": s[:, 1, -48:].max(1), "off_low4h": -s[:, 2, -48:].min(1),
         "off_high24h": s[:, 1].max(1), "off_low24h": -s[:, 2].min(1),
-        "r5m": -s[:, 0, -1], "r15m": -s[:, 3, -4], "r1h": -s[:, 3, -13], "r2h": -s[:, 3, -25], "r8h": -s[:, 3, -97],
-        "wick_up": s[:, 1, -1] - np.maximum(s[:, 0, -1], 0), "wick_dn": np.minimum(s[:, 0, -1], 0) - s[:, 2, -1],
+        "r5m": -s[:, 0, -1], "r15m": -s[:, 3, -4], "r1h": -s[:, 3, -13], "r2h": -s[:, 3, -25], "r8h": -s[:, 3, -97],  # noqa: E501
+        "wick_up": s[:, 1, -1] - np.maximum(s[:, 0, -1], 0), "wick_dn": np.minimum(s[:, 0, -1], 0) - s[:, 2, -1],  # noqa: E501
         "taker": s[:, 5, -1], "taker1h": s[:, 5, -12:].mean(1), "taker4h": s[:, 5, -48:].mean(1),
         "trades_x": s[:, 6, -1], "vol1h": vol[:, -12:].mean(1), "vol4h": vol[:, -48:].mean(1),
         "vol_prev20h": vol[:, :-48].mean(1), "n_hot_bars4h": (vol[:, -48:] > np.log1p(5)).sum(1),
         "btc_r1h": -s[:, 7, -13], "btc_r24h": -s[:, 7, 0], "btc_vol1h": s[:, 8, -12:].mean(1),
         "eth_r4h": -s[:, 9, -49], "eth_r24h": -s[:, 9, 0],
-        "mkt_r4h": -s[:, 11, -49], "mkt_r24h": -s[:, 11, 0], "spike_share": s[:, 12, -1], "spike_share1h": s[:, 12, -12:].mean(1),
+        "mkt_r4h": -s[:, 11, -49], "mkt_r24h": -s[:, 11, 0], "spike_share": s[:, 12, -1], "spike_share1h": s[:, 12, -12:].mean(1),  # noqa: E501
     }  # fmt: skip
     out = ev.with_columns(**{k: pl.Series(v.astype(np.float32)) for k, v in feats.items()})
     for lab, hh in (("4h", 3), ("24h", 23), ("72h", 71)):
-        out = out.with_columns(pl.Series(f"y{lab}", f[:, 2, hh].astype(np.float32)))  # long price return
+        out = out.with_columns(
+            pl.Series(f"y{lab}", f[:, 2, hh].astype(np.float32))
+        )  # long price return
     out = out.with_columns(
-        hi24=pl.Series(f[:, 0, :24].max(1).astype(np.float32)), lo24=pl.Series(f[:, 1, :24].min(1).astype(np.float32)),
-        hi72=pl.Series(f[:, 0, :72].max(1).astype(np.float32)), lo72=pl.Series(f[:, 1, :72].min(1).astype(np.float32)),
+        hi24=pl.Series(f[:, 0, :24].max(1).astype(np.float32)), lo24=pl.Series(f[:, 1, :24].min(1).astype(np.float32)),  # noqa: E501
+        hi72=pl.Series(f[:, 0, :72].max(1).astype(np.float32)), lo72=pl.Series(f[:, 1, :72].min(1).astype(np.float32)),  # noqa: E501
         t=pl.col("open_time").dt.epoch("s"),
     )  # fmt: skip
     jobs = [(str(sym), g["t"].to_numpy()) for (sym,), g in out.group_by(["symbol"])]
@@ -99,7 +106,11 @@ def main() -> None:
         ctx = pl.concat(list(ex.map(context, jobs)))
     out = out.join(ctx.unique(["symbol", "t"]), on=["symbol", "t"], how="left")
     # Prior big pumps of the same coin in the last 30 days (one per day).
-    days = out.select("symbol", d=pl.col("t") // 86400, p=pl.col("ret_4h") >= 0.3).filter("p").unique(["symbol", "d"])
+    days = (
+        out.select("symbol", d=pl.col("t") // 86400, p=pl.col("ret_4h") >= 0.3)
+        .filter("p")
+        .unique(["symbol", "d"])
+    )
     cnt = []
     dd = {k[0]: np.sort(g["d"].to_numpy()) for k, g in days.group_by(["symbol"])}
     for sym, t in zip(out["symbol"].to_numpy(), out["t"].to_numpy(), strict=True):
@@ -110,9 +121,15 @@ def main() -> None:
     # Funding at entry (last settled rate, mean of the last 24h) and perp availability.
     from futures_ls import funding, has_perp
 
-    fu = funding().select(symbol=pl.col("spot"), ft=pl.col("time").dt.epoch("s"), rate="rate").sort("ft")
+    fu = (
+        funding()
+        .select(symbol=pl.col("spot"), ft=pl.col("time").dt.epoch("s"), rate="rate")
+        .sort("ft")
+    )
     fu = fu.with_columns(rate24=pl.col("rate").rolling_mean(3, min_samples=1).over("symbol"))
-    out = out.sort("t").join_asof(fu.sort("ft"), left_on="t", right_on="ft", by="symbol", strategy="backward")
+    out = out.sort("t").join_asof(
+        fu.sort("ft"), left_on="t", right_on="ft", by="symbol", strategy="backward"
+    )
     out = out.with_columns(fund_age_h=(pl.col("t") - pl.col("ft")) / 3600).drop("ft")
     out = out.with_columns(perp=pl.Series(has_perp(out["symbol"].to_numpy(), out["t"].to_numpy())))
     out.write_parquet(OWN / "feats.parquet")

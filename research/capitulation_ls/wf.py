@@ -19,8 +19,10 @@ YEARS = (2021, 2022, 2023, 2024, 2025, 2026)
 TEST_YEARS = (2022, 2023, 2024, 2025, 2026)
 
 
-def table(run: Callable[[dict[str, Any]], pl.DataFrame], grid: Iterable[dict[str, Any]], workers: int = 8) -> pl.DataFrame:
-    """run(config) -> per-year frame (year, trades, bp, ret, dd); returns one row per config-year."""
+def table(
+    run: Callable[[dict[str, Any]], pl.DataFrame], grid: Iterable[dict[str, Any]], workers: int = 8
+) -> pl.DataFrame:
+    """run(config) -> per-year frame (year, trades, bp, ret, dd); returns one row per config-year."""  # noqa: E501
     grid = list(grid)
     with ProcessPoolExecutor(workers) as ex:
         parts = list(ex.map(run, grid))
@@ -58,5 +60,11 @@ def summarize(wf: pl.DataFrame) -> str:
     n = int(wf["trades"].sum())
     bp = float((wf["bp"] * wf["trades"]).sum() / max(n, 1))
     cagr = eq ** (1 / (len(wf) - 2 / 12)) - 1 if len(wf) else 0.0  # 2026 runs to Nov
-    lines = [f"  {r['year']}: {r['trades']:>4}t {r['bp']:+6.0f}bp ret {r['ret'] * 100:+6.0f}% dd {r['dd'] * 100:4.0f}%  <- {r['label']}" for r in wf.iter_rows(named=True)]
-    return "\n".join(lines) + f"\n  WF total x{eq:.2f}, CAGR {cagr * 100:+.0f}%, {n} trades, {bp:+.0f} bp/trade"
+    lines = [
+        f"  {r['year']}: {r['trades']:>4}t {r['bp']:+6.0f}bp ret {r['ret'] * 100:+6.0f}% dd {r['dd'] * 100:4.0f}%  <- {r['label']}"  # noqa: E501
+        for r in wf.iter_rows(named=True)
+    ]
+    return (
+        "\n".join(lines)
+        + f"\n  WF total x{eq:.2f}, CAGR {cagr * 100:+.0f}%, {n} trades, {bp:+.0f} bp/trade"
+    )

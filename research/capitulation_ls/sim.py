@@ -79,19 +79,26 @@ class Rule:
     name: str = ""
 
 
-def delayed(p: np.ndarray, d: int, step_end_in: np.ndarray = STEP_END_MIN) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def delayed(
+    p: np.ndarray, d: int, step_end_in: np.ndarray = STEP_END_MIN
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Re-base paths to an entry at the close of step d-1. Returns paths, step ends (minutes after
     the new entry) and the price at the new entry relative to the old one."""
     base = 1 + p[:, 2, d - 1]
     q = (1 + p[:, :, d:]) / base[:, None, None] - 1
     pad = np.repeat(q[:, :, -1:], d, axis=2)
     q = np.concatenate([q, pad], axis=2)
-    ends = np.concatenate([step_end_in[d:] - 5 * d, step_end_in[-1] - 5 * d + 60 * np.arange(1, d + 1)])
+    ends = np.concatenate(
+        [step_end_in[d:] - 5 * d, step_end_in[-1] - 5 * d + 60 * np.arange(1, d + 1)]
+    )
     return q.astype(np.float32), ends, base - 1
 
 
 def exits(
-    p: np.ndarray, side: np.ndarray, rule: Rule, step_end: np.ndarray = STEP_END_MIN,
+    p: np.ndarray,
+    side: np.ndarray,
+    rule: Rule,
+    step_end: np.ndarray = STEP_END_MIN,
     tp_arr: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Per trade: price return in the trade's favour (before costs), exit step, exit kind.
@@ -118,12 +125,16 @@ def exits(
     t_liq = first(np.nan_to_num(adv, nan=0) >= liq_lvl)
     t_sl = first(np.nan_to_num(adv, nan=0) >= rule.sl) if rule.sl is not None else np.full(n, big)
     tp_v = tp_arr if tp_arr is not None else (np.full(n, rule.tp) if rule.tp is not None else None)
-    t_tp = first(np.nan_to_num(fav, nan=0) >= tp_v[:, None]) if tp_v is not None else np.full(n, big)
+    t_tp = (
+        first(np.nan_to_num(fav, nan=0) >= tp_v[:, None]) if tp_v is not None else np.full(n, big)
+    )
     if rule.trail is not None:
         best = np.maximum.accumulate(np.nan_to_num(cl, nan=-1), axis=1)
         prev_best = np.concatenate([np.zeros((n, 1), np.float32), best[:, :-1]], axis=1)
         prev_best = np.maximum(prev_best, 0)
-        t_tr = first((np.nan_to_num(-adv, nan=0) <= prev_best - rule.trail) & (prev_best >= rule.trail_arm))
+        t_tr = first(
+            (np.nan_to_num(-adv, nan=0) <= prev_best - rule.trail) & (prev_best >= rule.trail_arm)
+        )
     else:
         t_tr = np.full(n, big)
     t_time = np.full(n, last)
@@ -152,7 +163,10 @@ class Book:
 
 
 def simulate(
-    cand: pl.DataFrame, rule: Rule, start_equity: float = 10_000, perp_funding: bool = False,
+    cand: pl.DataFrame,
+    rule: Rule,
+    start_equity: float = 10_000,
+    perp_funding: bool = False,
     source: str = "spot",
 ) -> Book:
     """cand: columns row (seq2 row), side (+1/-1), prio (higher first), optional fund_day (the
@@ -187,7 +201,9 @@ def simulate(
     ret, t_exit, kind = exits(p, side, rule, step_end, tp_arr)
     hold_min = step_end[t_exit]
     advp = np.nan_to_num(np.where(side[:, None] > 0, -p[:, 1], p[:, 0]), nan=0.0)
-    adv_max = np.maximum.accumulate(advp, axis=1)[np.arange(len(t_exit)), np.minimum(t_exit, p.shape[2] - 1)]
+    adv_max = np.maximum.accumulate(advp, axis=1)[
+        np.arange(len(t_exit)), np.minimum(t_exit, p.shape[2] - 1)
+    ]
     fund = np.zeros(len(rows))
     if "fund_day" in cand.columns:  # funding paid by this side per day held, fraction of notional
         fund = cand["fund_day"].fill_null(0).to_numpy() * hold_min / 1440.0
@@ -211,7 +227,7 @@ def simulate(
     held: dict[str, int] = {}
     taken = np.zeros(len(rows), dtype=bool)
     stake_arr = np.zeros(len(rows))
-    eq_after = np.zeros(len(rows))
+    np.zeros(len(rows))
     day_count: dict[int, int] = {}
     for i in range(len(rows)):
         ti = t_in[i]
@@ -259,7 +275,9 @@ def simulate(
     yrs = []
     prev_end = start_equity
     for y in sorted(set(ex["year"].to_list())):
-        e = ex.filter(pl.col("t_out").cast(pl.Int64) < int(np.datetime64(f"{y + 1}-01-01", "s").astype(int)))
+        e = ex.filter(
+            pl.col("t_out").cast(pl.Int64) < int(np.datetime64(f"{y + 1}-01-01", "s").astype(int))
+        )
         end_eq = float(e["equity"][-1]) if e.height else prev_end
         ty = tr.filter(pl.col("year") == y)
         sub = ex.filter(pl.col("year") == y)
@@ -285,13 +303,21 @@ def fmt_years(b: Book, years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025, 2
     parts = []
     for y in years:
         r = d.get(y)
-        parts.append(f"{y}: {r['trades']:>4}t {r['bp']:+6.0f}bp {r['ret'] * 100:+6.0f}%" if r else f"{y}:   -")
+        parts.append(
+            f"{y}: {r['trades']:>4}t {r['bp']:+6.0f}bp {r['ret'] * 100:+6.0f}%"
+            if r
+            else f"{y}:   -"
+        )
     return " | ".join(parts) + f" | maxDD {b.summary['maxdd'] * 100:.0f}%"
 
 
 def simulate_yearly(
-    cand: pl.DataFrame, rule: Rule, start_equity: float = 10_000, perp_funding: bool = False,
-    years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025, 2026), source: str = "spot",
+    cand: pl.DataFrame,
+    rule: Rule,
+    start_equity: float = 10_000,
+    perp_funding: bool = False,
+    years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025, 2026),
+    source: str = "spot",
 ) -> Book:
     """One book per entry year, each starting at `start_equity` (the account size the user has),
     so a year's return does not depend on how much earlier years compounded."""
@@ -306,7 +332,22 @@ def simulate_yearly(
         if b.trades.height:
             books.append(b)
     if not books:
-        return Book(pl.DataFrame(), pl.DataFrame({"year": [], "trades": [], "bp": [], "med_bp": [], "win": [], "ret": [], "dd": [], "liq": []}), {"trades": 0, "bp": 0.0, "final": start_equity, "maxdd": 0.0})
+        return Book(
+            pl.DataFrame(),
+            pl.DataFrame(
+                {
+                    "year": [],
+                    "trades": [],
+                    "bp": [],
+                    "med_bp": [],
+                    "win": [],
+                    "ret": [],
+                    "dd": [],
+                    "liq": [],
+                }
+            ),
+            {"trades": 0, "bp": 0.0, "final": start_equity, "maxdd": 0.0},
+        )
     trades = pl.concat([b.trades for b in books])
     yrs = pl.concat([b.years.filter(pl.col("year") == b.trades["year"][0]) for b in books])
     summary = {

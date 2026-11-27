@@ -27,13 +27,23 @@ for r in d.iter_rows(named=True):
         j = np.searchsorted(f[0], r["t_in"]) - 1
         if j >= 3:
             fr = (f[1][j] - f[1][j - 3]) / 3
-    feats.append({"symbol": r["symbol"], "perp_first_h": (t0 - first_perp) / 3600, "since_list": since,
-                  "off_high": o[i] / seg_hi - 1 if seg_hi == seg_hi else np.nan, "qv_3d": float(qv[k0:i].sum()),
+    feats.append({"symbol": r["symbol"], "perp_first_h": (t0 - first_perp) / 3600, "since_list": since,  # noqa: E501
+                  "off_high": o[i] / seg_hi - 1 if seg_hi == seg_hi else np.nan, "qv_3d": float(qv[k0:i].sum()),  # noqa: E501
                   "fund": fr, "qv_day1": float(lst.get("qv_1d") or np.nan)})  # fmt: skip
 x = d.join(pl.DataFrame(feats), on="symbol")
 pl.Config.set_tbl_width_chars(200)
 for col in ("perp_first_h", "since_list", "off_high", "qv_3d", "fund", "qv_day1"):
-    g = x.with_columns(b=pl.col(col).qcut(4, allow_duplicates=True)).group_by("b").agg(
-        n=pl.len(), bp=pl.col("net").mean() * 1e4, med=pl.col("net").median() * 1e4, win=(pl.col("net") > 0).mean()).sort("b")
-    print(col); print(g)
+    g = (
+        x.with_columns(b=pl.col(col).qcut(4, allow_duplicates=True))
+        .group_by("b")
+        .agg(
+            n=pl.len(),
+            bp=pl.col("net").mean() * 1e4,
+            med=pl.col("net").median() * 1e4,
+            win=(pl.col("net") > 0).mean(),
+        )
+        .sort("b")
+    )
+    print(col)
+    print(g)
 x.write_parquet(OWN / "e27_listings.parquet")

@@ -12,7 +12,6 @@ Run: uv run --group research python fetch_futures.py [funding|klines1h]
 from __future__ import annotations
 
 import io
-import re
 import sys
 import urllib.request
 import zipfile
@@ -52,7 +51,7 @@ def fetch_csv(key: str) -> bytes | None:
             data = urllib.request.urlopen(DL + key, timeout=60).read()
             with zipfile.ZipFile(io.BytesIO(data)) as z:
                 return z.read(z.namelist()[0])
-        except Exception:  # noqa: BLE001
+        except Exception:
             continue
     print("failed", key, file=sys.stderr)
     return None
@@ -68,7 +67,14 @@ def funding() -> None:
     syms = symbols("fundingRate")
     print(len(syms), "symbols", file=sys.stderr)
     with ThreadPoolExecutor(16) as ex:
-        keys = [k for ks in ex.map(lambda s: list_prefix(f"data/futures/um/monthly/fundingRate/{s}/", False), syms) for k in ks if k.endswith(".zip")]
+        keys = [
+            k
+            for ks in ex.map(
+                lambda s: list_prefix(f"data/futures/um/monthly/fundingRate/{s}/", False), syms
+            )
+            for k in ks
+            if k.endswith(".zip")
+        ]
     print(len(keys), "files", file=sys.stderr)
 
     def one(key: str) -> pl.DataFrame | None:
@@ -85,7 +91,11 @@ def funding() -> None:
 
     with ThreadPoolExecutor(32) as ex:
         parts = [p for p in ex.map(one, keys) if p is not None]
-    df = pl.concat(parts).with_columns(time=pl.from_epoch("ms", "ms").dt.replace_time_zone("UTC")).drop("ms")
+    df = (
+        pl.concat(parts)
+        .with_columns(time=pl.from_epoch("ms", "ms").dt.replace_time_zone("UTC"))
+        .drop("ms")
+    )
     df.unique(["symbol", "time"]).sort("symbol", "time").write_parquet(OUT / "funding.parquet")
     print(df.shape, file=sys.stderr)
 
@@ -94,7 +104,14 @@ def klines1h() -> None:
     syms = symbols("klines")
     print(len(syms), "symbols", file=sys.stderr)
     with ThreadPoolExecutor(16) as ex:
-        keys = [k for ks in ex.map(lambda s: list_prefix(f"data/futures/um/monthly/klines/{s}/1h/", False), syms) for k in ks if k.endswith(".zip")]
+        keys = [
+            k
+            for ks in ex.map(
+                lambda s: list_prefix(f"data/futures/um/monthly/klines/{s}/1h/", False), syms
+            )
+            for k in ks
+            if k.endswith(".zip")
+        ]
     print(len(keys), "files", file=sys.stderr)
 
     def one(key: str) -> pl.DataFrame | None:
@@ -107,16 +124,20 @@ def klines1h() -> None:
             return None
         return pl.DataFrame({
             "symbol": [sym] * len(rows), "ms": [int(r[0]) for r in rows],
-            **{c: [float(r[i]) for r in rows] for i, c in enumerate(("open", "high", "low", "close", "volume"), 1)},
+            **{c: [float(r[i]) for r in rows] for i, c in enumerate(("open", "high", "low", "close", "volume"), 1)},  # noqa: E501
             "quote_volume": [float(r[7]) for r in rows],
         })  # fmt: skip
 
     with ThreadPoolExecutor(32) as ex:
         parts = [p for p in ex.map(one, keys) if p is not None]
     df = pl.concat(parts)
-    df = df.with_columns(ms=pl.when(pl.col("ms") > 10**14).then(pl.col("ms") // 1000).otherwise(pl.col("ms")))
+    df = df.with_columns(
+        ms=pl.when(pl.col("ms") > 10**14).then(pl.col("ms") // 1000).otherwise(pl.col("ms"))
+    )
     df = df.with_columns(open_time=pl.from_epoch("ms", "ms").dt.replace_time_zone("UTC")).drop("ms")
-    df.unique(["symbol", "open_time"]).sort("symbol", "open_time").write_parquet(OUT / "perp_1h.parquet")
+    df.unique(["symbol", "open_time"]).sort("symbol", "open_time").write_parquet(
+        OUT / "perp_1h.parquet"
+    )
     print(df.shape, file=sys.stderr)
 
 
@@ -129,7 +150,9 @@ def klines5m() -> None:
     per symbol as OWN/futures/perp5m/<PERP>.parquet (float32 OHLC + quote volume)."""
     from futures_ls import spot_name
 
-    d = pl.read_parquet(OWN / "feats.parquet", columns=["symbol", "ret_4h"]).filter(pl.col("ret_4h") >= 0.2)
+    d = pl.read_parquet(OWN / "feats.parquet", columns=["symbol", "ret_4h"]).filter(
+        pl.col("ret_4h") >= 0.2
+    )
     want = set(d["symbol"].unique().to_list())
     syms = [s for s in symbols("klines") if spot_name(s) in want]
     out = OUT / "perp5m"
@@ -138,7 +161,11 @@ def klines5m() -> None:
     print(len(syms), "perps to fetch", file=sys.stderr)
 
     def one_symbol(sym: str) -> int:
-        keys = [k for k in list_prefix(f"data/futures/um/monthly/klines/{sym}/5m/", False) if k.endswith(".zip")]
+        keys = [
+            k
+            for k in list_prefix(f"data/futures/um/monthly/klines/{sym}/5m/", False)
+            if k.endswith(".zip")
+        ]
         parts = []
         for key in keys:
             raw = fetch_csv(key)
@@ -148,13 +175,19 @@ def klines5m() -> None:
             if rows:
                 parts.append(pl.DataFrame({
                     "ms": [int(r[0]) for r in rows],
-                    **{c: [float(r[i]) for r in rows] for i, c in enumerate(("open", "high", "low", "close"), 1)},
+                    **{c: [float(r[i]) for r in rows] for i, c in enumerate(("open", "high", "low", "close"), 1)},  # noqa: E501
                     "qv": [float(r[7]) for r in rows],
                 }))  # fmt: skip
         if not parts:
             return 0
-        df = pl.concat(parts).with_columns(ms=pl.when(pl.col("ms") > 10**14).then(pl.col("ms") // 1000).otherwise(pl.col("ms")))
-        df = df.unique("ms").sort("ms").with_columns(pl.col("open", "high", "low", "close", "qv").cast(pl.Float32))
+        df = pl.concat(parts).with_columns(
+            ms=pl.when(pl.col("ms") > 10**14).then(pl.col("ms") // 1000).otherwise(pl.col("ms"))
+        )
+        df = (
+            df.unique("ms")
+            .sort("ms")
+            .with_columns(pl.col("open", "high", "low", "close", "qv").cast(pl.Float32))
+        )
         df.write_parquet(out / f"{sym}.parquet")
         return df.height
 
@@ -169,26 +202,33 @@ if __name__ == "__main__" and sys.argv[1:] == ["klines5m"]:
 
 def metrics() -> None:
     """5m futures metrics (open interest, long/short ratios, taker ratio) for each event day and
-    the day before, for every big-move event with an active perp. Writes OWN/futures/metrics.parquet."""
+    the day before, for every big-move event with an active perp. Writes OWN/futures/metrics.parquet."""  # noqa: E501
     from futures_ls import funding
 
-    d = pl.read_parquet(OWN / "feats.parquet", columns=["symbol", "open_time", "perp"]).filter("perp")
+    d = pl.read_parquet(OWN / "feats.parquet", columns=["symbol", "open_time", "perp"]).filter(
+        "perp"
+    )
     d = d.with_columns(day=pl.col("open_time").dt.date())
-    days = pl.concat([d.select("symbol", "day"), d.select("symbol", day=pl.col("day") - pl.duration(days=1))]).unique()
+    days = pl.concat(
+        [d.select("symbol", "day"), d.select("symbol", day=pl.col("day") - pl.duration(days=1))]
+    ).unique()
     names = funding().select("symbol", "spot").unique()
     jobs = days.join(names.rename({"symbol": "perp", "spot": "symbol"}), on="symbol")
-    keys = [f"data/futures/um/daily/metrics/{p}/{p}-metrics-{dd}.zip" for p, dd in zip(jobs["perp"], jobs["day"], strict=True)]
+    keys = [
+        f"data/futures/um/daily/metrics/{p}/{p}-metrics-{dd}.zip"
+        for p, dd in zip(jobs["perp"], jobs["day"], strict=True)
+    ]
     print(len(keys), "metric files", file=sys.stderr)
 
     def one(key: str) -> pl.DataFrame | None:
         try:
             data = urllib.request.urlopen(DL + key, timeout=60).read()
-        except Exception:  # noqa: BLE001  (missing days are normal before a perp listed)
+        except Exception:
             return None
         try:
             with zipfile.ZipFile(io.BytesIO(data)) as z:
                 raw = z.read(z.namelist()[0]).decode()
-        except Exception:  # noqa: BLE001
+        except Exception:
             return None
         rows = [ln.split(",") for ln in raw.splitlines()[1:] if ln and ln[0].isdigit()]
         if not rows:
@@ -209,7 +249,9 @@ def metrics() -> None:
 
     with ThreadPoolExecutor(48) as ex:
         parts = [p for p in ex.map(one, keys) if p is not None]
-    df = pl.concat(parts).with_columns(time=pl.col("time").str.to_datetime("%Y-%m-%d %H:%M:%S", time_zone="UTC", strict=False))
+    df = pl.concat(parts).with_columns(
+        time=pl.col("time").str.to_datetime("%Y-%m-%d %H:%M:%S", time_zone="UTC", strict=False)
+    )
     df = df.drop_nulls("time").unique(["perp", "time"]).sort("perp", "time")
     df.write_parquet(OUT / "metrics.parquet")
     print(df.shape, file=sys.stderr)

@@ -10,7 +10,12 @@ from e13_listing_book import COST, L, perp
 from futures_ls import funding_paid
 
 rows = []
-mondays = pl.datetime_range(pl.datetime(2021, 1, 4, time_zone="UTC"), pl.datetime(2026, 10, 19, time_zone="UTC"), "7d", eager=True)
+mondays = pl.datetime_range(
+    pl.datetime(2021, 1, 4, time_zone="UTC"),
+    pl.datetime(2026, 10, 19, time_zone="UTC"),
+    "7d",
+    eager=True,
+)
 for r in L.iter_rows(named=True):
     a = perp.get(r["symbol"])
     if a is None:
@@ -31,15 +36,44 @@ for r in L.iter_rows(named=True):
             continue
         rel = o[i] / p_list - 1
         j = min(np.searchsorted(h, tm + 7 * 86400), len(h) - 1)
-        up = hi[i:j + 1].max() / o[i] - 1
+        up = hi[i : j + 1].max() / o[i] - 1
         ret = -1.0 if up >= 1.0 else -(c[j] / o[i] - 1)
-        rows.append({"symbol": r["symbol"], "t_in": tm, "t_out": int(h[j]) + 3600, "ret": ret, "age": age, "rel": rel, "year": mon.year})
+        rows.append(
+            {
+                "symbol": r["symbol"],
+                "t_in": tm,
+                "t_out": int(h[j]) + 3600,
+                "ret": ret,
+                "age": age,
+                "rel": rel,
+                "year": mon.year,
+            }
+        )
 d = pl.DataFrame(rows)
-f = funding_paid(d["symbol"].to_numpy(), d["t_in"].to_numpy(), d["t_out"].to_numpy(), -np.ones(d.height))
+f = funding_paid(
+    d["symbol"].to_numpy(), d["t_in"].to_numpy(), d["t_out"].to_numpy(), -np.ones(d.height)
+)
 d = d.with_columns(net=pl.col("ret") - COST - pl.Series(f))
-for lab, flt in (("all young", pl.lit(True)), ("below listing", pl.col("rel") <= 0), ("below -30%", pl.col("rel") <= -0.3), ("above listing", pl.col("rel") > 0)):
+for lab, flt in (
+    ("all young", pl.lit(True)),
+    ("below listing", pl.col("rel") <= 0),
+    ("below -30%", pl.col("rel") <= -0.3),
+    ("above listing", pl.col("rel") > 0),
+):
     x = d.filter(flt)
-    print(f"{lab:14s} n={x.height:>5} {x['net'].mean() * 1e4:+5.0f}bp med {x['net'].median() * 1e4:+5.0f} |", x.group_by("year").agg(n=pl.len(), bp=(pl.col("net").mean() * 1e4).round()).sort("year").to_dicts())
+    print(
+        f"{lab:14s} n={x.height:>5} {x['net'].mean() * 1e4:+5.0f}bp med {x['net'].median() * 1e4:+5.0f} |",  # noqa: E501
+        x.group_by("year")
+        .agg(n=pl.len(), bp=(pl.col("net").mean() * 1e4).round())
+        .sort("year")
+        .to_dicts(),
+    )
 x = d.filter(pl.col("rel") <= 0)
-print(x.with_columns(b=pl.col("age").cut([30, 60, 120])).group_by("b").agg(n=pl.len(), bp=(pl.col("net").mean() * 1e4).round()).sort("b").to_dicts())
+print(
+    x.with_columns(b=pl.col("age").cut([30, 60, 120]))
+    .group_by("b")
+    .agg(n=pl.len(), bp=(pl.col("net").mean() * 1e4).round())
+    .sort("b")
+    .to_dicts()
+)
 d.write_parquet("/Users/mike/code/crypto-moonshot/data/cache/capitulation_ls/e44_young.parquet")

@@ -16,8 +16,10 @@ from futures_ls import funding_paid, spot_name
 
 L = pl.read_parquet(OWN / "e12_listings.parquet")
 P = pl.read_parquet(OWN / "futures" / "perp_1h.parquet").with_columns(
-    spot=pl.col("symbol").map_elements(spot_name, return_dtype=pl.Utf8), h=pl.col("open_time").dt.epoch("s"))
-perp = {k[0]: (g["h"].to_numpy(), g["open"].to_numpy(), g["high"].to_numpy(), g["low"].to_numpy(), g["close"].to_numpy(), g["quote_volume"].to_numpy())
+    spot=pl.col("symbol").map_elements(spot_name, return_dtype=pl.Utf8),
+    h=pl.col("open_time").dt.epoch("s"),
+)
+perp = {k[0]: (g["h"].to_numpy(), g["open"].to_numpy(), g["high"].to_numpy(), g["low"].to_numpy(), g["close"].to_numpy(), g["quote_volume"].to_numpy())  # noqa: E501
         for k, g in P.sort("h").group_by(["spot"], maintain_order=True)}  # fmt: skip
 COST = 0.003
 
@@ -35,8 +37,8 @@ def trades(delay_h: int, hold_d: int, tp: float | None, sl: float | None) -> pl.
             continue
         j_end = min(np.searchsorted(h, h[i] + hold_d * 86400), len(h) - 1)
         e = o[i]
-        up = hi[i:j_end + 1] / e - 1  # adverse for a short
-        dn = lo[i:j_end + 1] / e - 1
+        up = hi[i : j_end + 1] / e - 1  # adverse for a short
+        dn = lo[i : j_end + 1] / e - 1
         ret, k_exit = -(c[j_end] / e - 1), j_end
         lvl_liq = 1.0
         stop = sl if sl is not None else lvl_liq
@@ -48,11 +50,13 @@ def trades(delay_h: int, hold_d: int, tp: float | None, sl: float | None) -> pl.
             ret, k_exit = -stop, i + ks
         elif kt < 10**9:
             ret, k_exit = tp, i + kt
-        out.append({"symbol": r["symbol"], "t_in": int(h[i]), "t_out": int(h[k_exit]) + 3600, "ret": float(ret),
+        out.append({"symbol": r["symbol"], "t_in": int(h[i]), "t_out": int(h[k_exit]) + 3600, "ret": float(ret),  # noqa: E501
                     "adv": float(min(up[: k_exit - i + 1].max(), 1.0)),
                     "year": r["listed"].year, "qv": float(qv[i - 1])})  # fmt: skip
     d = pl.DataFrame(out)
-    f = funding_paid(d["symbol"].to_numpy(), d["t_in"].to_numpy(), d["t_out"].to_numpy(), -np.ones(d.height))
+    f = funding_paid(
+        d["symbol"].to_numpy(), d["t_in"].to_numpy(), d["t_out"].to_numpy(), -np.ones(d.height)
+    )
     return d.with_columns(net=pl.col("ret") - COST - pl.Series(f), fund=pl.Series(f))
 
 
@@ -64,7 +68,8 @@ def book(d: pl.DataFrame, slots: int) -> pl.DataFrame:
             keep = []
             for p in pos:
                 if p[0] <= r["t_in"]:
-                    cash += p[1] * (1 + p[2]); eq += p[1] * p[2]
+                    cash += p[1] * (1 + p[2])
+                    eq += p[1] * p[2]
                 else:
                     keep.append(p)
             pos = keep
@@ -73,16 +78,31 @@ def book(d: pl.DataFrame, slots: int) -> pl.DataFrame:
             stake = min(eq / slots, cash, r["qv"] * 24 * 0.005)
             cash -= stake
             pos.append((r["t_out"], stake, r["net"]))
-            n += 1; pnl_list.append(r["net"])
+            n += 1
+            pnl_list.append(r["net"])
         for p in pos:
             eq += p[1] * p[2]
-        res.append({"year": y[0], "trades": n, "bp": float(np.mean(pnl_list)) * 1e4 if pnl_list else 0.0, "ret": eq / 10_000 - 1})
+        res.append(
+            {
+                "year": y[0],
+                "trades": n,
+                "bp": float(np.mean(pnl_list)) * 1e4 if pnl_list else 0.0,
+                "ret": eq / 10_000 - 1,
+            }
+        )
     return pl.DataFrame(res).sort("year")
 
 
 if __name__ == "__main__":
-    for delay, hold, tp, sl, slots in itertools.product((24, 72), (3, 7, 14, 30), (None, 0.5), (None, 0.5), (5, 10)):
+    for delay, hold, tp, sl, slots in itertools.product(
+        (24, 72), (3, 7, 14, 30), (None, 0.5), (None, 0.5), (5, 10)
+    ):
         d = trades(delay, hold, tp, sl)
         b = book(d, slots)
-        yrs = " | ".join(f"{r['year']}: {r['trades']:>3}t {r['bp']:+6.0f}bp {r['ret'] * 100:+5.0f}%" for r in b.iter_rows(named=True))
-        print(f"delay {delay:>2}h hold {hold:>2}d tp {tp} sl {sl} slots {slots:>2} | all {d['net'].mean() * 1e4:+5.0f}bp n={d.height} | {yrs}")
+        yrs = " | ".join(
+            f"{r['year']}: {r['trades']:>3}t {r['bp']:+6.0f}bp {r['ret'] * 100:+5.0f}%"
+            for r in b.iter_rows(named=True)
+        )
+        print(
+            f"delay {delay:>2}h hold {hold:>2}d tp {tp} sl {sl} slots {slots:>2} | all {d['net'].mean() * 1e4:+5.0f}bp n={d.height} | {yrs}"  # noqa: E501
+        )

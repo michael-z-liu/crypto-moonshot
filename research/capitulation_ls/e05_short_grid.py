@@ -19,11 +19,13 @@ for thr, liq in itertools.product((0.2, 0.3, 0.4, 0.6), (20_000,)):
         b = simulate(S, Rule(hold_min=hold, tp=tp, sl=sl, slots=5, cost=0.003, stop_slip=0.01))
         y = {r["year"]: r for r in b.years.iter_rows(named=True)}
         rows.append({"thr": thr, "hold": hold, "tp": tp, "sl": sl, "n": b.summary["trades"],
-                     "bp": round(b.summary["bp"]), **{f"bp{k}": round(y[k]["bp"]) for k in range(2021, 2027) if k in y},
+                     "bp": round(b.summary["bp"]), **{f"bp{k}": round(y[k]["bp"]) for k in range(2021, 2027) if k in y},  # noqa: E501
                      "ret25": round(y[2025]["ret"] * 100), "ret26": round(y[2026]["ret"] * 100),
                      "worst_yr_ret": round(min(r["ret"] for r in y.values()) * 100),
                      "maxdd": round(b.summary["maxdd"] * 100)})  # fmt: skip
 out = pl.DataFrame(rows).sort("bp", descending=True)
-pl.Config.set_tbl_rows(120); pl.Config.set_tbl_width_chars(250); pl.Config.set_tbl_cols(30)
+pl.Config.set_tbl_rows(120)
+pl.Config.set_tbl_width_chars(250)
+pl.Config.set_tbl_cols(30)
 print(out.head(40))
 out.write_csv("results/e05_short_grid.csv")

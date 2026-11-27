@@ -23,7 +23,7 @@ N5, NH = 96, 160  # 5m steps, hourly steps (hours 9..168)
 
 
 def job(args: tuple[str, list[str], np.ndarray, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
-    spot, perps, rows, t = args
+    _spot, perps, rows, t = args
     best = None
     for p in perps:
         f = P5 / f"{p}.parquet"
@@ -44,18 +44,23 @@ def job(args: tuple[str, list[str], np.ndarray, np.ndarray]) -> tuple[np.ndarray
     C = pl.Series(C).fill_null(strategy="forward").to_numpy()
     C = np.where(np.isnan(C), np.nan, C)
     C = pl.Series(C).forward_fill().to_numpy()
-    O, H, L = C.copy(), C.copy(), C.copy()
-    O[gi], H[gi], L[gi] = o, h, lo
+    Op, Hi, Lo = C.copy(), C.copy(), C.copy()
+    Op[gi], Hi[gi], Lo[gi] = o, h, lo
     ok_rows, out = [], []
     for r, ti in zip(rows, t, strict=True):
         e = int((ti + 300 - g0) // 300)  # index of the entry candle
-        if e < 1 or e >= len(ms) + (n - len(ms)) - 168 * 12 - 2 or np.isnan(O[e]):
+        if e < 1 or e >= len(ms) + (n - len(ms)) - 168 * 12 - 2 or np.isnan(Op[e]):
             continue
-        if not (g0 + e * 300 in set(ms[max(0, np.searchsorted(ms, g0 + e * 300) - 1): np.searchsorted(ms, g0 + e * 300) + 1])):
+        if g0 + e * 300 not in set(
+            ms[
+                max(0, np.searchsorted(ms, g0 + e * 300) - 1) : np.searchsorted(ms, g0 + e * 300)
+                + 1
+            ]
+        ):
             continue  # the perp must actually print the entry candle
-        base = O[e]
+        base = Op[e]
         k = e + np.arange(168 * 12)
-        hh, ll, cc = H[k] / base - 1, L[k] / base - 1, C[k] / base - 1
+        hh, ll, cc = Hi[k] / base - 1, Lo[k] / base - 1, C[k] / base - 1
         p = np.empty((3, N5 + NH), np.float32)
         p[0, :N5], p[1, :N5], p[2, :N5] = hh[:N5], ll[:N5], cc[:N5]
         hr = slice(N5, None)
@@ -70,12 +75,17 @@ def job(args: tuple[str, list[str], np.ndarray, np.ndarray]) -> tuple[np.ndarray
 
 
 def main() -> None:
-    d = pl.read_parquet(OWN / "feats.parquet", columns=["row", "symbol", "t", "perp"]).filter("perp")
+    d = pl.read_parquet(OWN / "feats.parquet", columns=["row", "symbol", "t", "perp"]).filter(
+        "perp"
+    )
     have = [f.stem for f in P5.glob("*.parquet")]
     by_spot: dict[str, list[str]] = {}
     for p in have:
         by_spot.setdefault(spot_name(p), []).append(p)
-    jobs = [(str(s), by_spot.get(str(s), []), g["row"].to_numpy(), g["t"].to_numpy()) for (s,), g in d.group_by(["symbol"])]
+    jobs = [
+        (str(s), by_spot.get(str(s), []), g["row"].to_numpy(), g["t"].to_numpy())
+        for (s,), g in d.group_by(["symbol"])
+    ]
     jobs = [j for j in jobs if j[1]]
     print(len(jobs), "symbols with perp 5m data", file=sys.stderr)
     with ProcessPoolExecutor(8) as ex:
@@ -84,7 +94,14 @@ def main() -> None:
     paths = np.concatenate([r[1] for r in res])
     order = np.argsort(rows)
     np.savez(OWN / "perp_paths.npz", rows=rows[order], paths=paths[order])
-    print(len(rows), "paths of", d.height, "perp events; NaN share", float(np.isnan(paths[::50]).mean()), file=sys.stderr)
+    print(
+        len(rows),
+        "paths of",
+        d.height,
+        "perp events; NaN share",
+        float(np.isnan(paths[::50]).mean()),
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":

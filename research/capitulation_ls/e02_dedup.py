@@ -1,8 +1,6 @@
-"""E02: E01 with one entry per coin per event (first qualifying spike, then 24h lockout), medians."""
+"""E02: E01 with one entry per coin per event (first qualifying spike, then 24h lockout), medians."""  # noqa: E501
 
 from __future__ import annotations
-
-import sys
 
 import numpy as np
 import polars as pl

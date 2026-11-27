@@ -32,9 +32,7 @@ PERP_COST = 0.003  # round trip: taker 0.05% + slippage 0.05% + latency 0.05% pe
 @cache
 def meta() -> pl.DataFrame:
     m = pl.read_parquet(CACHE_ALL / "seq2_meta.parquet")
-    return m.with_columns(
-        year=pl.col("open_time").dt.year(), day=pl.col("open_time").dt.date()
-    )
+    return m.with_columns(year=pl.col("open_time").dt.year(), day=pl.col("open_time").dt.date())
 
 
 @cache
