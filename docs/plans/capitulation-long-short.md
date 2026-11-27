@@ -249,6 +249,25 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   candidate, only 3 pump rows on 2 days, and listing shorts need 30 days to resolve. The window
   cannot confirm or reject anything; a forward paper trade over months is the test.
 
+## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
+
+**LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
+
+- L: spot long when the day5-variant CNN (2026 fold) scores a liquid 5m spike at pct >= 0.995;
+  entry at the next 5m open; take profit +20%; time exit 72h; cost 0.4% round trip.
+- M: perp short of a new Binance spot listing 72h after its first spot candle if the perp's open
+  then is at or below the listing price and the perp traded >= 50k USDT in the previous hour;
+  take profit 50%, stop 50% (liquidation at +100% isolated 1x); 30 days; cost 0.3% + funding.
+- C: perp short of a liquid spike with ret_4h <= -15%, |BTC 4h| <= 1% and CNN pct <= 0.5, perp
+  active; 24h; isolated 1x; cost 0.3% + funding.
+- One position per coin; signals in time order, L before C before M at the same time.
+
+Read-out: `research/capitulation_ls/lmc_forward.py` (signals from the forward scorer; outcomes
+on spot 5m for L and perp klines for C/M). Success for the paper trade: mean net per closed
+trade > 0 and no closed year below 0. Until the day5 2026 model is saved, the forward scorer
+uses the paper test's path_all 2026 fold (a stated deviation). Search results after this point
+are in-sample only.
+
 ## Idea backlog
 
 - Pump shorts on perp paths (5m, to 7 days); leverage 1-3x with liquidation on the perp path.
