@@ -5,8 +5,9 @@ orders, and nothing in `src/` imports from here. Reusable code lives in `src/cry
 when a research idea is worth keeping, it is ported there with tests (as the backtest engine and
 the capitulation rules were).
 
-All research so far is one line of work in `volume_spike/`: does a sudden 5-minute volume spike
-predict a price move, and can a strategy be built on it?
+Most research is one line of work in `volume_spike/`: does a sudden 5-minute volume spike
+predict a price move, and can a strategy be built on it? `capitulation_ls/` extends it to longer
+holds, perp shorts and a combined long/short book (see its README).
 
 ## Studies
 
@@ -19,6 +20,7 @@ In the order they were done. Each later study builds on the earlier ones' caches
 | Replication and side experiments | Bracket exits (B1), $50 long shots (B2), quiet coins (B3), 1-minute triggers (B4), 3-day path forecasts (B5) | `m17_`..`m25_`, `build_quiet*.py`, `build_long30.py`, `build_fwd72.py`, `fetch_1m.py` | none; the conclusions are in the plan's log | `docs/plans/cnn-replication.md` |
 | CNN robustness | What makes the walk-forward CNN more robust? | `scorecard.py`, `s0_baseline.py`..`s5_confirm.py`, `build_s4_inputs.py` | `docs/research/cnn-robustness.md` | `docs/plans/cnn-robustness.md` |
 | Issue #10 improvements | Do the improvement ideas from issue #10 hold up? | `i10_*.py` | `docs/research/cnn-issue10.md` | `docs/plans/cnn-improvements.md` |
+| Capitulation long/short search | What makes the strategy reach +10% a trade and +50% a year, long and short? | `../capitulation_ls/` | `docs/research/capitulation-long-short.md` | `docs/plans/capitulation-long-short.md` |
 | Forward paper test | How does the 2h CNN rule do on candles after every study's data end? | `paper.py` | `volume_spike/results/paper/summary.md` | `docs/plans/cnn-robustness.md` (P1) |
 
 Reporting: `report_data.py`, `report_wf.py`, `report_examples.py` and `report/` build the visual
