@@ -5,7 +5,7 @@
 - **PR:**
 - **Started:** 2026-11-27T13:46Z. Keep searching until at least **2026-11-28T09:46Z** (20 h)
   before hand-off; budget about 25 h (five usage windows).
-- **Updated:** 2026-11-27T14:55Z
+- **Updated:** 2026-11-27T15:50Z
 
 ## Goal
 
@@ -219,6 +219,16 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   2 fixed epochs): much worse than day5 (q 0.995 +517 vs +1064 bp; q 0.98 -26 vs +247 bp). The
   long-horizon target is too noisy; the 1h path target learns a cleaner bounce signal that
   carries to 72h. Ensembles (min of day/day5/volday5) do not improve LMC either.
+- 15:40Z: report draft `docs/research/capitulation-long-short.md`. Futures liquidation snapshots
+  are not in the archive; order-book depth (2023+) and BVOL (2023-06+) are too short for ~25
+  flush days, so not pursued.
+- 15:45Z E44: weekly young-coin decay shorts (age 7-180 days) are weak (+1%/week, losing years);
+  the listing decay is concentrated in the first month, which sleeve M already captures.
+- 15:50Z forward_signals.py: 7,382 liquid spikes 2026-11-02..11-27 scored with the paper test's
+  path_all 2026 fold (no outcomes computed). Parity with the paper ledger: corr 0.95 (market
+  channels differ: shared 582-coin universe vs the paper's 395). No spike reaches pct 0.995 in
+  the window: the long sleeve would not have traded (no flush), so the forward read-out can only
+  speak to the short sleeves.
 
 ## Idea backlog
 
