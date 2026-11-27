@@ -417,6 +417,12 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   is -0.03 and unstable; pairwise correlation 0.48-0.72 (market factor 52-73% of variance); the
   losers book is beta ~1, so its gain is the market.
 
+- 23:40Z diagnostics A: `diag.py` + `d01_scorecards.py` -> results/diag/ (scorecards, calibration,
+  README). L: hockey-stick calibration (E[o] ~0 below pct 0.976, +0.132 above 0.9955; 65% TP,
+  0% stopped). M: +0.200, 15% stopped = -0.080. P: flat calibration, stopped share rises with
+  pump size, stopped trades -0.075 vs E[o] +0.025. F: gate halves the tail. C: 27% never went,
+  giveback 67%, top decile worse. Explorer quiet breakouts: fails (signal anti-selects; 576 cells).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
@@ -438,7 +444,8 @@ are in-sample only.
 
 ## Next steps (for a resume)
 
-A. Diagnostics (user 23:20Z): `research/capitulation_ls/diag.py` = the common scorecard
+A. Diagnostics (user 23:20Z) [sleeves done 23:40Z; next: score explorer trade files and the failed
+   variants with diag.py]: `research/capitulation_ls/diag.py` = the common scorecard
    (signal 0..1, outcome -1..+1, TP progress, stop progress, failure modes, signal calibration).
    Apply to L, M, C, F, P myself (`d01_scorecards.py` -> `results/diag/`), then hand the failed
    groups to sub-agents with diag.py as the standard. Status is recorded in the run log.

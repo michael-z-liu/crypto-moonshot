@@ -94,7 +94,10 @@ def calibration(
     a = pl.concat(
         [f.select("signal", "o", "mode", "tp_progress", "stop_progress", "entered") for f in frames]
     )
-    a = a.with_columns(bin=(pl.col("signal").clip(0, 0.999999) * bins).floor() / bins)
+    # Equal-count bins by signal rank (a pool can sit in a narrow signal range, e.g. pct >= 0.95);
+    # each bin is labelled by its lowest signal value.
+    a = a.with_columns(q=((pl.col("signal").rank("ordinal") - 1) * bins / pl.len()).floor().cast(pl.Int32))
+    a = a.with_columns(bin=pl.col("signal").min().over("q")).drop("q")
     return (
         a.group_by("bin")
         .agg(
