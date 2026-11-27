@@ -158,10 +158,62 @@ def klines5m() -> None:
         df.write_parquet(out / f"{sym}.parquet")
         return df.height
 
-    with ThreadPoolExecutor(12) as ex:
+    with ThreadPoolExecutor(36) as ex:
         n = sum(ex.map(one_symbol, syms))
     print("rows", n, file=sys.stderr)
 
 
 if __name__ == "__main__" and sys.argv[1:] == ["klines5m"]:
     klines5m()
+
+
+def metrics() -> None:
+    """5m futures metrics (open interest, long/short ratios, taker ratio) for each event day and
+    the day before, for every big-move event with an active perp. Writes OWN/futures/metrics.parquet."""
+    from futures_ls import funding
+
+    d = pl.read_parquet(OWN / "feats.parquet", columns=["symbol", "open_time", "perp"]).filter("perp")
+    d = d.with_columns(day=pl.col("open_time").dt.date())
+    days = pl.concat([d.select("symbol", "day"), d.select("symbol", day=pl.col("day") - pl.duration(days=1))]).unique()
+    names = funding().select("symbol", "spot").unique()
+    jobs = days.join(names.rename({"symbol": "perp", "spot": "symbol"}), on="symbol")
+    keys = [f"data/futures/um/daily/metrics/{p}/{p}-metrics-{dd}.zip" for p, dd in zip(jobs["perp"], jobs["day"], strict=True)]
+    print(len(keys), "metric files", file=sys.stderr)
+
+    def one(key: str) -> pl.DataFrame | None:
+        try:
+            data = urllib.request.urlopen(DL + key, timeout=60).read()
+        except Exception:  # noqa: BLE001  (missing days are normal before a perp listed)
+            return None
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                raw = z.read(z.namelist()[0]).decode()
+        except Exception:  # noqa: BLE001
+            return None
+        rows = [ln.split(",") for ln in raw.splitlines()[1:] if ln and ln[0].isdigit()]
+        if not rows:
+            return None
+
+        def f(x: str) -> float:
+            try:
+                return float(x)
+            except ValueError:
+                return float("nan")
+
+        return pl.DataFrame({
+            "time": [r[0] for r in rows], "perp": [r[1] for r in rows],
+            "oi": [f(r[2]) for r in rows], "oi_value": [f(r[3]) for r in rows],
+            "top_ls_acc": [f(r[4]) for r in rows], "top_ls_pos": [f(r[5]) for r in rows],
+            "ls_acc": [f(r[6]) for r in rows], "taker_ls": [f(r[7]) for r in rows],
+        })  # fmt: skip
+
+    with ThreadPoolExecutor(48) as ex:
+        parts = [p for p in ex.map(one, keys) if p is not None]
+    df = pl.concat(parts).with_columns(time=pl.col("time").str.to_datetime("%Y-%m-%d %H:%M:%S", time_zone="UTC", strict=False))
+    df = df.drop_nulls("time").unique(["perp", "time"]).sort("perp", "time")
+    df.write_parquet(OUT / "metrics.parquet")
+    print(df.shape, file=sys.stderr)
+
+
+if __name__ == "__main__" and sys.argv[1:] == ["metrics"]:
+    metrics()

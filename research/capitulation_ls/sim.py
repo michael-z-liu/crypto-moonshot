@@ -50,10 +50,25 @@ class Rule:
     slots: int = 5
     max_per_day: int | None = None
     liq_frac: float | None = 0.005  # stake at most this share of the coin's 24h quote volume
+    delay: int = 0  # enter this many 5m candles after the usual entry (< 96)
+    delay_cond: str | None = None  # "confirm": only if price moved our way during the delay
     name: str = ""
 
 
-def exits(p: np.ndarray, side: np.ndarray, rule: Rule) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def delayed(p: np.ndarray, d: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Re-base paths to an entry at the close of step d-1. Returns paths, step ends (minutes after
+    the new entry) and the price at the new entry relative to the old one."""
+    base = 1 + p[:, 2, d - 1]
+    q = (1 + p[:, :, d:]) / base[:, None, None] - 1
+    pad = np.repeat(q[:, :, -1:], d, axis=2)
+    q = np.concatenate([q, pad], axis=2)
+    ends = np.concatenate([STEP_END_MIN[d:] - 5 * d, STEP_END_MIN[-1] - 5 * d + 60 * np.arange(1, d + 1)])
+    return q.astype(np.float32), ends, base - 1
+
+
+def exits(
+    p: np.ndarray, side: np.ndarray, rule: Rule, step_end: np.ndarray = STEP_END_MIN
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Per trade: price return in the trade's favour (before costs), exit step, exit kind.
 
     kind: 0 time, 1 stop, 2 take profit, 3 liquidation, 4 trailing.
@@ -63,7 +78,7 @@ def exits(p: np.ndarray, side: np.ndarray, rule: Rule) -> tuple[np.ndarray, np.n
     fav = np.where(s > 0, p[:, 0], -p[:, 1])  # best move inside the step
     adv = np.where(s > 0, -p[:, 1], p[:, 0])  # worst move inside the step (positive = loss)
     cl = s * p[:, 2]
-    last = int(np.searchsorted(STEP_END_MIN, rule.hold_min))
+    last = int(np.searchsorted(step_end, rule.hold_min))
     last = min(last, p.shape[2] - 1)
     big = p.shape[2] + 10
     steps = np.arange(p.shape[2])[None, :]
@@ -126,19 +141,28 @@ def simulate(
     rows = cand["row"].to_numpy()
     side = cand["side"].to_numpy()
     p = paths(rows)
-    ret, t_exit, kind = exits(p, side, rule)
-    hold_min = STEP_END_MIN[t_exit]
+    step_end = STEP_END_MIN
+    t_shift = 0
+    if rule.delay > 0:
+        p, step_end, moved = delayed(p, rule.delay)
+        t_shift = rule.delay * 300
+        if rule.delay_cond == "confirm":
+            ok = side * moved > 0
+            cand = cand.filter(pl.Series(ok))
+            rows, side, p = rows[ok], side[ok], p[ok]
+    ret, t_exit, kind = exits(p, side, rule, step_end)
+    hold_min = step_end[t_exit]
     fund = np.zeros(len(rows))
     if "fund_day" in cand.columns:  # funding paid by this side per day held, fraction of notional
         fund = cand["fund_day"].fill_null(0).to_numpy() * hold_min / 1440.0
     if perp_funding:
         from futures_ls import funding_paid
 
-        t0 = cand["t"].to_numpy() + 300
+        t0 = cand["t"].to_numpy() + 300 + t_shift
         fund = funding_paid(cand["symbol"].to_numpy(), t0, t0 + hold_min * 60, side)
     net = rule.lev * (ret - rule.cost - (rule.stop_slip * (kind == 1)) - fund)
     net = np.maximum(net, -1.0)
-    t_in = cand["t"].to_numpy() + 300
+    t_in = cand["t"].to_numpy() + 300 + t_shift
     t_out = t_in + hold_min * 60
     syms = cand["symbol"].to_numpy()
     cap = np.full(len(rows), np.inf)
@@ -187,7 +211,7 @@ def simulate(
     ).filter(pl.col("taken"))  # fmt: skip
     tr = tr.with_columns(
         pnl=pl.col("stake") * pl.col("net"),
-        t_out=pl.col("t") + 300 + pl.col("hold_min") * 60,
+        t_out=pl.col("t") + 300 + t_shift + pl.col("hold_min") * 60,
         year=pl.col("open_time").dt.year(),
     )
     # Realised equity curve in exit order.
