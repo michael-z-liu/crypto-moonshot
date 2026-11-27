@@ -109,20 +109,40 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
 
 - 2026-11-27T14:05Z: plan written; caches found (seq2 1.85M liquid spikes 2020-01..2026-11-01,
   8h and 72h forward paths, i10 walk-forward scores in the AUhKx worktree).
-- 14:30Z E01-E03: event landscape. Longer holds change the picture: one entry per event, shorts
+- ~13:52Z E01-E03: event landscape. Longer holds change the picture: one entry per event, shorts
   after +40% 4h pumps average +5% at 24h and +11% at 72h (median +12.5% at 24h), positive every
   year 2021-26; longs on the top 0.5% day5 scores average +11% at 24h. Simulator reproduces the
   #10 study's day5 1h result (+98 bp over 2025-26).
-- 15:00Z M1: perp funding (2.85M rows, 919 symbols) and 1h perp klines (16.5M rows) downloaded;
+- ~13:56Z M1: perp funding (2.85M rows, 919 symbols) and 1h perp klines (16.5M rows) downloaded;
   spot 5m synced to 2026-11-27 (unseen forward window from 2026-11-02).
-- 15:20Z E05/E07: pump-short grid and walk-forward (per-year $10k books, perp-gated, funding):
+- ~13:58Z E05/E07: pump-short grid and walk-forward (per-year $10k books, perp-gated, funding):
   WF pick +86/+134/+157/+236/+551% in 2022-26, +327 bp/trade, worst DD -55%. Hindsight best
   (thr 0.4, hold 72h, 5 slots) >= +66% every year at +10%/trade, DD -29%.
-- 15:40Z E08: GBM walk-forward ranking of pumps: IC 0.13-0.31 every year; top 20% book +820
+- ~14:00Z E08: GBM walk-forward ranking of pumps: IC 0.13-0.31 every year; top 20% book +820
   bp/trade, positive every year, DD -53%. Crash longs with GBM: unstable, mostly losing.
-- 15:50Z E09: perp vs spot over the same hours: median gap 0.2% but delisting squeezes (ALPACA
+- ~14:02Z E09: perp vs spot over the same hours: median gap 0.2% but delisting squeezes (ALPACA
   +584% perp vs +28% spot) and frozen perps break the spot proxy. Perp gate now requires traded
   volume in the last two hours; shorts will be re-simulated on 5m perp paths (download running).
+- ~14:05Z E10: short entry timing: immediate entry is best; each delay costs edge (5m late
+  -25 bp, 1h late -200 bp) but stays profitable even 4h late. Rule r4>=0.4 on the active-perp
+  gate: +1020 bp/trade, +62..+400% a year 2022-26, DD -29%.
+- ~14:06Z nn_seq/E11: tabular MLP IC 0.15-0.28 (= GBM); GBM+MLP blend IC 0.17-0.34, within-day
+  IC +0.30 (the models do separate coins on the same day). As a veto on the rule set they add
+  almost nothing (+1020 -> +1050 bp).
+- ~14:07Z E12/E13: new listings fall: short 1-3 days after spot listing on the perp, hold 7-30
+  days: +10..+15% a trade, positive most years (few trades 2021-23). Second short component.
+
+## Idea backlog
+
+- Pump shorts on perp paths (5m, to 7 days); leverage 1-3x with liquidation on the perp path.
+- Open interest / long-short ratios at entry as squeeze predictors (metrics download running).
+- Transformer and TCN rankers (training), seed ensembles, a ranker trained only on the rule set.
+- Listing shorts: combine with pump shorts in one book; listing pumps inside the first week.
+- Long side: flush-day longs on perps (lower fees), CNN top 0.5% held 24h, a BTC-crash gate.
+- Combined long/short book; capital split; Kelly sizing; drawdown control.
+- Forward read-out on 2026-11-02..27 (spot synced; perp prices and funding via daily archive/API).
+- Crazy ones: pyramiding into squeezes, basket shorts of the day's pumps, shorting extreme
+  positive funding, weekday/hour effects, pump-then-dump chains (second pump within days).
 
 ## Blocked on
 
