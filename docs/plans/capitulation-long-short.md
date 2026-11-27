@@ -5,7 +5,7 @@
 - **PR:**
 - **Started:** 2026-11-27T13:46Z. Keep searching until at least **2026-11-28T09:46Z** (20 h)
   before hand-off; budget about 25 h (five usage windows).
-- **Updated:** 2026-11-27T15:35Z
+- **Updated:** 2026-11-27T14:56Z
 
 ## Goal
 
@@ -248,6 +248,10 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
 - 15:15Z forward window (2026-11-02..27, no outcomes read): no L signal (max pct 0.986), no C
   candidate, only 3 pump rows on 2 days, and listing shorts need 30 days to resolve. The window
   cannot confirm or reject anything; a forward paper trade over months is the test.
+
+- 15:00Z E47: trading against extreme funding (short after rate >= +0.1%/+0.3%, long after
+  <= -0.3%/-1%) has no consistent edge (means -305..+182 bp, signs flip by year): crowded
+  positioning tends to persist.
 
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
