@@ -265,6 +265,9 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   without perps. The window neither confirms nor rejects LMC; `lmc_forward.py day5` can be
   rerun as data arrives (results/forward.md).
 
+- 15:25Z weak-listing shorts by BTC 7d / 30d trend at entry: no consistent split (signs flip by
+  year on small samples); M stays unfiltered.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
