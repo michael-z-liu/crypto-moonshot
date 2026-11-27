@@ -105,6 +105,12 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   caches (`research/volume_spike/cache_all`, symlinked to the shared data folder) instead of
   rebuilding them.
 
+- 2026-11-27 (user, ~21:40Z): scope extension: for every idea that did not work, investigate
+  *why* (mechanisms, contributing factors, what blocked it), backtracking all failures so far
+  and then each new failure as it happens, in parallel sub-agent sessions. Investigators write
+  `research/capitulation_ls/results/why/<topic>.md` and new `wNN_*.py` scripts only (no edits to
+  shared code, no commits, no GPU training); the master reviews and commits.
+
 ## Run log
 
 Note: the entry times from "~13:52Z" up to the entry marked "(real time ...)" ran ahead of the
