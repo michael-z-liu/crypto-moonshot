@@ -137,6 +137,12 @@ Newer networks match the CNN at best: the bounce signal looks limited by the dat
   interest, long/short ratios and funding do not predict squeezes.
 - A book with P (LQM) also meets both targets (+11.4% a trade, every year >= +53%) but with a
   -36% drawdown against LMC's -17%.
+- **Funding filter (found after the pre-registration, from the "why" investigation).** Shorting
+  big pumps (r4 >= 40%) only when the last settled funding rate is >= 0, i.e. shorts are not
+  already crowded and paying, makes +9.5% a trade with every year positive (DD -26%); pumps
+  entered at negative funding lose (-2.0%). It holds for r4 40-60% and 24h/72h holds, not for
+  smaller pumps, and 2024 is weak. Added to LMC ("LMCF", 10 slots): +11.2% a trade, every year
+  >= +95%, but DD -32% (squeezes). In-sample only, like everything before the forward test.
 
 ### Other ideas that did not work
 

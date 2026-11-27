@@ -384,6 +384,14 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   no later candidates, so the cap swaps +1400 bp trades for idle cash; only 2025-10-10 (327 later
   candidates) has the reserve that makes a cap pay.
 
+- 22:50Z (lead from why/pump_shorts.md) pump shorts only when the last settled funding rate >= 0
+  (shorts not crowded/paying): r4 >= 40%, 72h, iso1x: +953 bp, every year positive (+31/+14/+5/
+  +58/+44%), DD -26%; with funding < 0 they lose (-196 bp). With the BTC 7d gate too: +1191 bp,
+  +20/+14/+13/+64/+51%. Robust for r4 >= 40-60% (24h and 72h); not for r4 25-30% (2024 loses);
+  2024 is weak throughout. In the book: LMCF (LMC + this sleeve) 10 slots +1121 bp, years
+  +97/+104/+171/+781/+95%, DD -32%, worst concurrent adverse 37%; LMF +1355 bp, min +67%, DD -32%.
+  Found after the pre-registration and on seen data: in-sample only; the pick stays LMC.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
