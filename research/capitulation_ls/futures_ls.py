@@ -42,12 +42,33 @@ def perp_window() -> dict[str, tuple[int, int]]:
     return {r["spot"]: (int(r["a"].timestamp()), int(r["b"].timestamp())) for r in g.iter_rows(named=True)}
 
 
-def has_perp(symbols: np.ndarray, t: np.ndarray, warmup_s: int = 86400) -> np.ndarray:
-    w = perp_window()
+@cache
+def perp_active() -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """spot symbol -> (hour starts in epoch s, perp quote volume that hour), from perp_1h."""
+    p = pl.read_parquet(FUT / "perp_1h.parquet", columns=["symbol", "open_time", "quote_volume", "high", "low"])
+    p = p.with_columns(spot=pl.col("symbol").map_elements(spot_name, return_dtype=pl.Utf8))
+    # A frozen perp prints flat candles: count only hours that traded and moved.
+    p = p.with_columns(qv=pl.when(pl.col("high") > pl.col("low")).then(pl.col("quote_volume")).otherwise(0.0))
+    out = {}
+    for (sym,), g in p.sort("open_time").group_by(["spot"], maintain_order=True):
+        out[str(sym)] = (g["open_time"].dt.epoch("s").to_numpy(), g["qv"].to_numpy())
+    return out
+
+
+def has_perp(symbols: np.ndarray, t: np.ndarray, min_qv: float = 50_000, warmup_s: int = 86400) -> np.ndarray:
+    """True if the perp traded at least `min_qv` USDT (with a moving price) in each of the last
+    two closed hours before `t`, and has a history of at least `warmup_s`."""
+    act = perp_active()
     out = np.zeros(len(symbols), dtype=bool)
     for i, (s, ti) in enumerate(zip(symbols, t, strict=True)):
-        ab = w.get(str(s))
-        out[i] = ab is not None and ab[0] + warmup_s <= ti <= ab[1]
+        a = act.get(str(s))
+        if a is None:
+            continue
+        hours, qv = a
+        k = np.searchsorted(hours, (ti // 3600) * 3600) - 1  # last closed hour
+        if k < 1 or hours[0] + warmup_s > ti or hours[k] < ti - 2 * 3600:
+            continue
+        out[i] = qv[k] >= min_qv and qv[k - 1] >= min_qv
     return out
 
 

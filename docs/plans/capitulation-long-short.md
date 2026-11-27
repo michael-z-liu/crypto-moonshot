@@ -5,7 +5,7 @@
 - **PR:**
 - **Started:** 2026-11-27T13:46Z. Keep searching until at least **2026-11-28T09:46Z** (20 h)
   before hand-off; budget about 25 h (five usage windows).
-- **Updated:** 2026-11-27T14:05Z
+- **Updated:** 2026-11-27T15:55Z
 
 ## Goal
 
@@ -41,7 +41,7 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
 
 ## Milestones
 
-### M0: Harness, baseline and scorecard (in progress)
+### M0: Harness, baseline and scorecard (done)
 
 - **Delivers:** `research/capitulation_ls/` with a fast event-level simulator (long and short,
   TP/SL/time exits on 5m paths, slots, leverage), the scorecard (bp per trade, yearly return,
@@ -51,7 +51,7 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   passes.
 - **Worker:** master
 
-### M1: Binance futures data (todo)
+### M1: Binance futures data (in progress)
 
 - **Delivers:** USD-M perp 5m klines, funding rates, premium index and metrics (open interest,
   long/short ratios) for every coin with a perp, from data.binance.vision; aligned features per
@@ -60,7 +60,7 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   look-ahead.
 - **Worker:** master (or sonnet for the downloader)
 
-### M2: Short side (todo)
+### M2: Short side (in progress)
 
 - **Delivers:** pump/blow-off event study, rules and models for perp shorts, with funding.
 - **Done when:** short-side scorecard for rules and the best model, ledgered.
@@ -109,6 +109,20 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
 
 - 2026-11-27T14:05Z: plan written; caches found (seq2 1.85M liquid spikes 2020-01..2026-11-01,
   8h and 72h forward paths, i10 walk-forward scores in the AUhKx worktree).
+- 14:30Z E01-E03: event landscape. Longer holds change the picture: one entry per event, shorts
+  after +40% 4h pumps average +5% at 24h and +11% at 72h (median +12.5% at 24h), positive every
+  year 2021-26; longs on the top 0.5% day5 scores average +11% at 24h. Simulator reproduces the
+  #10 study's day5 1h result (+98 bp over 2025-26).
+- 15:00Z M1: perp funding (2.85M rows, 919 symbols) and 1h perp klines (16.5M rows) downloaded;
+  spot 5m synced to 2026-11-27 (unseen forward window from 2026-11-02).
+- 15:20Z E05/E07: pump-short grid and walk-forward (per-year $10k books, perp-gated, funding):
+  WF pick +86/+134/+157/+236/+551% in 2022-26, +327 bp/trade, worst DD -55%. Hindsight best
+  (thr 0.4, hold 72h, 5 slots) >= +66% every year at +10%/trade, DD -29%.
+- 15:40Z E08: GBM walk-forward ranking of pumps: IC 0.13-0.31 every year; top 20% book +820
+  bp/trade, positive every year, DD -53%. Crash longs with GBM: unstable, mostly losing.
+- 15:50Z E09: perp vs spot over the same hours: median gap 0.2% but delisting squeezes (ALPACA
+  +584% perp vs +28% spot) and frozen perps break the spot proxy. Perp gate now requires traded
+  volume in the last two hours; shorts will be re-simulated on 5m perp paths (download running).
 
 ## Blocked on
 

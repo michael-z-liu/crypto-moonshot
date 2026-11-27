@@ -120,5 +120,48 @@ def klines1h() -> None:
     print(df.shape, file=sys.stderr)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and sys.argv[1] in ("funding", "klines1h"):
     {"funding": funding, "klines1h": klines1h}[sys.argv[1]]()
+
+
+def klines5m() -> None:
+    """5m perp klines for every perp whose spot coin had a +20% 4h pump (feats.parquet), stored
+    per symbol as OWN/futures/perp5m/<PERP>.parquet (float32 OHLC + quote volume)."""
+    from futures_ls import spot_name
+
+    d = pl.read_parquet(OWN / "feats.parquet", columns=["symbol", "ret_4h"]).filter(pl.col("ret_4h") >= 0.2)
+    want = set(d["symbol"].unique().to_list())
+    syms = [s for s in symbols("klines") if spot_name(s) in want]
+    out = OUT / "perp5m"
+    out.mkdir(exist_ok=True)
+    syms = [s for s in syms if not (out / f"{s}.parquet").exists()]
+    print(len(syms), "perps to fetch", file=sys.stderr)
+
+    def one_symbol(sym: str) -> int:
+        keys = [k for k in list_prefix(f"data/futures/um/monthly/klines/{sym}/5m/", False) if k.endswith(".zip")]
+        parts = []
+        for key in keys:
+            raw = fetch_csv(key)
+            if raw is None:
+                continue
+            rows = [ln.split(",") for ln in raw.decode().splitlines() if ln and ln[0].isdigit()]
+            if rows:
+                parts.append(pl.DataFrame({
+                    "ms": [int(r[0]) for r in rows],
+                    **{c: [float(r[i]) for r in rows] for i, c in enumerate(("open", "high", "low", "close"), 1)},
+                    "qv": [float(r[7]) for r in rows],
+                }))  # fmt: skip
+        if not parts:
+            return 0
+        df = pl.concat(parts).with_columns(ms=pl.when(pl.col("ms") > 10**14).then(pl.col("ms") // 1000).otherwise(pl.col("ms")))
+        df = df.unique("ms").sort("ms").with_columns(pl.col("open", "high", "low", "close", "qv").cast(pl.Float32))
+        df.write_parquet(out / f"{sym}.parquet")
+        return df.height
+
+    with ThreadPoolExecutor(12) as ex:
+        n = sum(ex.map(one_symbol, syms))
+    print("rows", n, file=sys.stderr)
+
+
+if __name__ == "__main__" and sys.argv[1:] == ["klines5m"]:
+    klines5m()
