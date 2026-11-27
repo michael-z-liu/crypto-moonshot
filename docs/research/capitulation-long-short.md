@@ -6,8 +6,8 @@ both directions (longs after dumps, shorts on USD-M perpetuals after rallies). P
 `docs/plans/capitulation-long-short.md`. Code: `research/capitulation_ls/` (`e01_` .. `e43_`,
 `sim.py`, `wf.py`, `dsr.py`, `fetch_futures.py`, `build_*.py`, `nn_seq.py`).
 
-> Status: draft written mid-search. The forward read-out on unseen data (after 2026-11-02) is
-> added at the end of the search.
+> Status: written mid-search and updated as it continues. The pre-registered forward read-out
+> (2026-11-02..27) found no trades: see [Forward read-out](#forward-read-out).
 
 ## Summary
 
@@ -46,6 +46,34 @@ both directions (longs after dumps, shorts on USD-M perpetuals after rallies). P
    evidence rests on about 25 flush days; 2025 dominates the book (listing shorts). Only forward
    data can confirm any of this.
 
+## Robustness checks on LMC
+
+| Check | Result |
+| --- | --- |
+| Double costs | +11.3% a trade, worst year +48% |
+| Longs one candle (5 min) late | +10.7% a trade, worst year +42% |
+| Entry 1-2 minutes after the assumed open (1m candles) | costs at most ~0.3% a trade |
+| Other walk-forward score sets for L (volscale5, path_all5, 10 seeds) | +10.9..+11.7% a trade, worst year +29..+52% |
+| Settings chosen on 2022-24 only, read on 2025-26 | 2025 +544%, 2026 +89% (+8.6% / +5.5% a trade) |
+| 400 random configurations from plausible ranges | 96% positive every year; median +10.0% a trade, median worst year +41%; both targets in 14% |
+| Without each year's best flush day for L | +10.6% a trade, worst year +21% |
+| Without each year's top 3 listing shorts | +10.0% a trade, worst year +32% |
+| Starting each year with $50k / $250k | worst year +50% / +53% (2025's compounding meets the volume cap) |
+| 7-day block bootstrap of daily returns | one-year return p5 +26%, median +129%; P(>= +50%) 86% (68% without 2025) |
+| Deflated Sharpe ratio | 0.98 (1,000 trials) / 0.90 (5,000); annualised Sharpe 2.16 |
+
+The per-trade target is typical of the whole region; +50% every year is the binding target and
+depends on catching the one or two biggest flush days of a year.
+
+## Forward read-out
+
+The pick was written into the plan before any forward outcome was computed. The day5 2026 fold
+was saved (`save_day_model.py`, reproducing day5's 2026 scores exactly) and every liquid spike
+from 2026-11-02 to 11-27 was scored (`forward_signals.py day5`). `lmc_forward.py day5`: **no
+trades.** The highest long score was 0.990 (no flush), no crash met the crash-short rule, and all
+18 new spot listings were tokenised stocks or ETFs without perps. The window can neither confirm
+nor reject LMC; the paper trade going forward is the test (rerun the two scripts after a sync).
+
 ## What changed against the earlier capitulation studies
 
 | Change | Effect |
@@ -67,8 +95,8 @@ both directions (longs after dumps, shorts on USD-M perpetuals after rallies). P
   FTT -70%) and the 2024-04-12 cascade. 1,803 of 1,883 candidate trades fall on 11 broad flush days.
 - Did not help: a CNN trained on the realistic TP20/72h target (+5.2% vs +10.6%), a GBM or
   transformer on that target (they learn which years are good, not which coins), ensembles,
-  trailing stops, forecast-based take profits, a second position per coin, fading the bounce
-  after the take profit, leverage.
+  10 seeds instead of 5, the 2h head, per-day top-K selection, trailing stops, forecast-based
+  take profits, a second position per coin, fading the bounce after the take profit, leverage.
 
 ### M: weak-listing shorts (E12, E13, E18, E27, E28, E36)
 
@@ -81,6 +109,8 @@ both directions (longs after dumps, shorts on USD-M perpetuals after rallies). P
 
 - A coin crashing alone (BTC calm) keeps falling when the CNN expects no bounce: +4.4% a trade
   over 24 hours, every year positive. Sensitive to the BTC-calm threshold (2% is weaker).
+- A third of its trades are coins Binance later delisted (+8.5% a trade against +2.6%): part of
+  the edge is selling after delisting announcements.
 
 ### P: pump shorts (E01-E19, E34, E37)
 
@@ -89,6 +119,13 @@ both directions (longs after dumps, shorts on USD-M perpetuals after rallies). P
   interest, long/short ratios and funding do not predict squeezes.
 - A book with P (LQM) also meets both targets (+11.4% a trade, every year >= +53%) but with a
   -36% drawdown against LMC's -17%.
+
+### Other ideas that did not work
+
+Shorting every new perp listing; weekly shorts of young coins; shorts or longs against extreme
+funding; open interest, long/short ratios and funding as squeeze predictors; pump shorts picked
+by a low CNN score; capping or re-weighting sleeves; BTC-trend filters on listing shorts; longer
+listing holds inside the book.
 
 ## Data added (Binance only, `fetch_futures.py`)
 
