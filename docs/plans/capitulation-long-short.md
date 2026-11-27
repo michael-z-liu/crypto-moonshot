@@ -378,6 +378,12 @@ are in-sample only.
 
 ## Next steps (for a resume)
 
+0. "Why it failed" investigations (user, 21:40Z): five sub-agents launched 21:45Z on pump
+   shorts, leverage, long-sleeve variants, listing variants, regime/other; notes go to
+   `research/capitulation_ls/results/why/*.md` (scripts `w1_`..`w5_`). On completion: review,
+   lint (`ruff`), commit, fold the causes into the report's "Why it did not work" section. Every
+   new failure from now on gets its own investigator (next script prefix `w6_`).
+
 1. Done: forward read-out (0 trades). To refresh later: sync spot candles, then
    `forward_signals.py day5` and `lmc_forward.py day5`.
 2. Done: day10b = day5 within noise.
