@@ -168,6 +168,15 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
 - 14:37Z E25 again with N2 = weak spot listings ("M"): LM 10 slots +1523 bp, +43/+71/+136/+494/
   +30%, DD -14%; LPM 10 slots +934 bp, every year >= +54%, DD -38%; WPM (L at q 0.99, TP 15%)
   10 slots +836 bp, every year >= +63%, DD -38%.
+- 14:40Z E29: capitulation longs on 20 majors: 1x is a steady sleeve (r4<=-10%, TP 10%, 24h:
+  +457 bp, +15..+87% a year, DD -10%), but 2x/3x is wiped out in 2025 even on majors (Binance
+  wicks on 2025-10-10 liquidated 5-6 positions). Leverage stays off the table for longs.
+- 14:42Z E30: transformer on the realistic long target: yearly IC 0.15-0.57 but within-day IC
+  0.12 (day5 0.13, blend 0.16); its picks cluster by year (it learns regimes). The day5 rule
+  stays the long sleeve (+1193 bp on crash rows).
+- 14:44Z E31: fading capitulation bounces after the TP (+15-30%) loses: bounces keep going.
+- 14:46Z E32: trailing stops armed at +10-30% (hold 72h/168h) do not beat the fixed TP 20% / 72h
+  (best +1209 vs +1088 bp on perp paths, with a weaker 2025).
 
 ## Idea backlog
 

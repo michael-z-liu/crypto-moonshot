@@ -64,6 +64,7 @@ class Rule:
     tp: float | None = None  # take profit as a favourable price move, e.g. 0.10
     sl: float | None = None  # stop loss as an adverse price move, e.g. 0.05
     trail: float | None = None  # trailing stop from the best close so far
+    trail_arm: float = 0.0  # the trailing stop is live only once the best close reaches this gain
     lev: float = 1.0
     cost: float = 0.004  # round trip, as a fraction of notional
     stop_slip: float = 0.0
@@ -119,7 +120,7 @@ def exits(
         best = np.maximum.accumulate(np.nan_to_num(cl, nan=-1), axis=1)
         prev_best = np.concatenate([np.zeros((n, 1), np.float32), best[:, :-1]], axis=1)
         prev_best = np.maximum(prev_best, 0)
-        t_tr = first(np.nan_to_num(-adv, nan=0) <= prev_best - rule.trail)
+        t_tr = first((np.nan_to_num(-adv, nan=0) <= prev_best - rule.trail) & (prev_best >= rule.trail_arm))
     else:
         t_tr = np.full(n, big)
     t_time = np.full(n, last)
