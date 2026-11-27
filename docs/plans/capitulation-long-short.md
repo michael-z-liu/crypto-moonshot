@@ -299,6 +299,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
 - 17:18Z listing-short hold 45-90 days: +2159..+2307 bp a trade (30 days +2000), but in LMC the
   longer slot use lowers the worst year (45d +47%, 60d +42% vs +51%); keep 30 days.
 
+- 17:25Z fill realism for L on 1m candles (all 1,883 candidate trades): one minute after the
+  assumed entry (next 5m open) the price is on average 102 bp lower (median 19 bp higher), two
+  minutes after 28 bp higher. Entering within 1-2 minutes of the spike close costs at most
+  ~0.3%; a full 5m candle late costs ~2.7% (E21).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
@@ -323,8 +328,7 @@ are in-sample only.
 1. Done: forward read-out (0 trades). To refresh later: sync spot candles, then
    `forward_signals.py day5` and `lmc_forward.py day5`.
 2. Done: day10b = day5 within noise.
-3. Queue: (a) fill realism for L on 1m candles (spike close vs next 5m open, first-minute
-   slippage); (b) hour-of-day of C and M entries; (c) sleeve weights by quality (Kelly-lite);
+3. Queue: (a) done (fill realism); (b) hour-of-day of C and M entries; (c) sleeve weights by quality (Kelly-lite);
    (d) refresh the report with every finding after the draft.
 4. Keep searching the idea backlog until 2026-11-28T09:46Z; then final report, check command, PR.
 
