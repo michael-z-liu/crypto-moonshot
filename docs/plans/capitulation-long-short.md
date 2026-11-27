@@ -111,6 +111,14 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   `research/capitulation_ls/results/why/<topic>.md` and new `wNN_*.py` scripts only (no edits to
   shared code, no commits, no GPU training); the master reviews and commits.
 
+- 2026-11-27 (user, ~23:20Z): two more tasks. (1) Numerical failure diagnostics: score every
+  strategy on common scales (signal 0..1, outcome -1..+1 where -1 = stake lost, progress to the
+  take profit 0..1, progress to the stop/liquidation 0..1) and classify trades into failure modes
+  (signal never reached the threshold, never got going, near miss then gave back, stopped /
+  liquidated), as a basis for improving the algorithm. (2) Keep exploring new strategies
+  continuously with the quota (parallel sub-agents), not one idea per heartbeat. Must resume
+  after usage limits.
+
 ## Run log
 
 Note: the entry times from "~13:52Z" up to the entry marked "(real time ...)" ran ahead of the
@@ -429,6 +437,15 @@ uses the paper test's path_all 2026 fold (a stated deviation). Search results af
 are in-sample only.
 
 ## Next steps (for a resume)
+
+A. Diagnostics (user 23:20Z): `research/capitulation_ls/diag.py` = the common scorecard
+   (signal 0..1, outcome -1..+1, TP progress, stop progress, failure modes, signal calibration).
+   Apply to L, M, C, F, P myself (`d01_scorecards.py` -> `results/diag/`), then hand the failed
+   groups to sub-agents with diag.py as the standard. Status is recorded in the run log.
+B. Exploration (user 23:20Z): run 2-3 parallel explorer sub-agents on new strategy families
+   (delisting-announcement shorts inferred from spot trading stops, perp premium/basis extremes,
+   volume-profile breakouts after quiet periods, listing momentum after the first month), each
+   writing `results/explore/<family>.md` with a diag scorecard; failures get a "why" note.
 
 0. Done 22:15Z (five notes committed; cascade-wait investigator running). "Why it failed" investigations (user, 21:40Z): five sub-agents launched 21:45Z on pump
    shorts, leverage, long-sleeve variants, listing variants, regime/other; notes go to
