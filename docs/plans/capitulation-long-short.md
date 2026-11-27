@@ -296,6 +296,9 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
 - 17:12Z day5's 2h head (pct_h2) or h1/h2 blends for L: +1053..+1075 bp at q 0.995 (h1 +1064),
   nearly the same picks; no change.
 
+- 17:18Z listing-short hold 45-90 days: +2159..+2307 bp a trade (30 days +2000), but in LMC the
+  longer slot use lowers the worst year (45d +47%, 60d +42% vs +51%); keep 30 days.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
