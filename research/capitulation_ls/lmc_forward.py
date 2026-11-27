@@ -130,7 +130,7 @@ def listings() -> list[dict]:
     syms = [
         s["symbol"]
         for s in info["symbols"]
-        if s["quoteAsset"] == "USDT" and s["status"] == "TRADING"
+        if s["quoteAsset"] == "USDT" and s["status"] == "TRADING" and s["symbol"].isascii()
     ]  # type: ignore[index]
     since = int(datetime(2026, 10, 25, tzinfo=UTC).timestamp() * 1000)
     out = []

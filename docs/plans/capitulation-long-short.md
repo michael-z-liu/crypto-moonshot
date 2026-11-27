@@ -259,6 +259,12 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
 
 - 15:06Z E49: spot listings whose perp only arrives later add 5 trades in five years: negligible.
 
+- 15:18Z forward read-out (pre-registered LMC, day5 2026 fold saved by save_day_model.py, which
+  reproduces day5's 2026 scores exactly): **0 trades** from 2026-11-02 to 11-27. L: highest pct
+  0.990 (no flush); C: no candidate; M: all 18 new spot listings were tokenised stocks/ETFs
+  without perps. The window neither confirms nor rejects LMC; `lmc_forward.py day5` can be
+  rerun as data arrives (results/forward.md).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
@@ -280,9 +286,8 @@ are in-sample only.
 
 ## Next steps (for a resume)
 
-1. When `/tmp/save_day5.log` says "saved": `cd research/capitulation_ls && uv run --group research
-   python forward_signals.py day5` (scores 2026-11-02.. with the day5 2026 fold), then run the
-   one-time forward read-out `uv run --group research python lmc_forward.py day5` and log it.
+1. Done: forward read-out (0 trades). To refresh later: sync spot candles, then
+   `forward_signals.py day5` and `lmc_forward.py day5`.
 2. `day10b` (10-seed day CNN, i10 harness, runs after the save): compare the L sleeve with day5.
 3. Keep searching the idea backlog until 2026-11-28T09:46Z; then final report, check command, PR.
 
