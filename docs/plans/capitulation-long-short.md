@@ -375,6 +375,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   before the low is not the problem per signal (+1649 bp up to 10 min before the low). The real
   10-10 loss was slot allocation: the first spikes took all 10 slots.
 
+- 22:32Z cap on early-episode slots (first 15/30 min of an episode limited to 2/3/5 of the 10
+  slots): long sleeve +899..+968 bp (uncapped +1051), 2026 ~0%; LMC worst year +35..+45% (vs +51%);
+  only 2025 improves. Fails; investigator launched (`why/early_slot_cap.md`, `w7_`).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**

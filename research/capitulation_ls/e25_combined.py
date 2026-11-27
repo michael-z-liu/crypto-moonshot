@@ -206,7 +206,7 @@ def book(
                 )
             worst = max(worst, sum(p[1] * p[4] for p in pos) / eq)
             nets.append(r["net"])
-            by[r["sleeve"]].append(r["net"])
+            by.setdefault(r["sleeve"], []).append(r["net"])
         for p in sorted(pos):
             eq += p[1] * p[2]
             peak = max(peak, eq)
