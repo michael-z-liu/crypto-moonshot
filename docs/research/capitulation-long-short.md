@@ -143,6 +143,10 @@ Newer networks match the CNN at best: the bounce signal looks limited by the dat
   entered at negative funding lose (-2.0%). It holds for r4 40-60% and 24h/72h holds, not for
   smaller pumps, and 2024 is weak. Added to LMC ("LMCF", 10 slots): +11.2% a trade, every year
   >= +95%, but DD -32% (squeezes). In-sample only, like everything before the forward test.
+  Its limits (`why/funding_filter_limits.md`): for 40%+ pumps the funding sign carries price
+  information (+11 points gross, CI above 0); for smaller pumps it only saves the funding cost.
+  In 2024 funding was rarely negative, so the filter barely filtered and a late-2024 liquidation
+  tail decided the year.
 
 ### Other ideas that did not work
 

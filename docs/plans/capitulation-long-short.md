@@ -392,6 +392,13 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   +97/+104/+171/+781/+95%, DD -32%, worst concurrent adverse 37%; LMF +1355 bp, min +67%, DD -32%.
   Found after the pre-registration and on seen data: in-sample only; the pick stays LMC.
 
+- 23:00Z why the funding filter has limits (`why/funding_filter_limits.md`): for pumps >= 40% the
+  sign adds price information (gross gap f>=0 minus f<0 +1132 bp, CI +249..+1979); for 25-40% it
+  only avoids funding (~350 bp) with no price gap (+44, CI -374..+457). 2024 is weak because the
+  filter barely filters (funding negative only 9% of the time; 18% of small pumps at f<0) and a
+  Nov-Dec liquidation tail (OM, XVG, RSR). Rate tracks funding paid (rho -0.72) more than crowding
+  (+0.26 with the long/short ratio); the sign matters mainly where shorts are crowded.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
