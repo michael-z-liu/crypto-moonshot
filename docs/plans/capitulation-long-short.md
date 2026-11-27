@@ -198,6 +198,14 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
 - 15:10Z E39: deflated Sharpe ratio of LQM (10 slots): annualised Sharpe 2.11 on 1,766 days,
   skew 6.3; Sharpe sd across 68 related books 0.48. DSR 0.99 / 0.93 / 0.84 for 100 / 1000 / 4000
   trials. Moderate evidence, not proof (the robustness study's pick had DSR 0.97 and failed).
+- 15:15Z E40 (the user's fidelity question): within a day, the day5 forecast's 8h band width
+  ranks coins' realised |8h move| at IC 0.224 (trailing 24h vol alone 0.209; the band adds a
+  partial 0.131 beyond it; blend 0.232); direction IC within a day 0.104. The 10-90% band holds
+  73% of outcomes (too narrow, the "averaging" the user saw); widening it 1.2x gives 80%.
+- 15:18Z E41 (concentration): 1,803 of the 1,883 long-sleeve candidate trades fall on 11 broad
+  flush days (> 30 signals each); in the LQM book the long sleeve exits on 5-7 days a year, so its
+  evidence is ~25 flush days, not hundreds of independent trades. Pump and listing shorts trade
+  on 14-55 days a year and spread the book in time; 2025's +518% is mostly listing shorts.
 
 ## Idea backlog
 
