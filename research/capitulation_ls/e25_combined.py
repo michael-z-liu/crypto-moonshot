@@ -43,6 +43,16 @@ def sleeve_pump_regime(thr: float = 0.4, hold: int = 4320, btc7_min: float = -0.
     return t.filter(pl.Series(btc_trend(t["t_in"].to_numpy() - 300, 7) > btc7_min))
 
 
+def sleeve_crash_short(r4: float = -0.15, calm: float = 0.01, cnn: float = 0.5, hold: int = 1440, cost: float = 0.003) -> pl.DataFrame:
+    """C: short idiosyncratic crashes (BTC calm) that the CNN does not expect to bounce (E42)."""
+    d = pl.read_parquet(OWN / "feats.parquet").filter(pl.col("perp") & (pl.col("qv_base") >= 20_000) & (pl.col("open_time").dt.year() >= 2022) & (pl.col("ret_4h") <= r4) & (pl.col("btc_ret_4h").abs() <= calm))
+    pct = scores("day5")
+    d = d.filter(pl.Series(pct[d["row"].to_numpy()] <= cnn))
+    b = simulate(d.select("row", side=pl.lit(-1), prio=-pl.col("ret_4h")), Rule(hold_min=hold, slots=100_000, cost=cost, sl=1.0, liq_frac=None), start_equity=1e12, perp_funding=True, source="perp")
+    t = b.trades
+    return t.select("symbol", "adv", t_in=pl.col("t") + 300, t_out="t_out", net="net", qv=pl.col("row").map_elements(lambda r: float(m["qv_base"][r]) * 288, return_dtype=pl.Float64), sleeve=pl.lit("C"), prio=pl.lit(1.5))
+
+
 def sleeve_listing() -> pl.DataFrame:
     import e13_listing_book as e13
 
@@ -62,7 +72,7 @@ def book(tr: pl.DataFrame, slots: int, gross: float = 1.0, trades_out: list | No
     for (y,), g in tr.group_by(["year"], maintain_order=True):
         eq, cash, pos, nets, peak, dd, held = 10_000.0, 10_000.0 * gross, [], [], 10_000.0, 0.0, set()
         worst = 0.0
-        by = {"L": [], "P": [], "N": []}
+        by = {"L": [], "P": [], "N": [], "C": []}
         for r in g.iter_rows(named=True):
             keep = []
             for p in pos:
@@ -95,11 +105,12 @@ if __name__ == "__main__":
     N2 = sleeve_listing_weak()
     L99 = sleeve_long(q=0.99, tp=0.15)
     P2 = sleeve_pump_regime()
+    C = sleeve_crash_short()
     print("candidates:", L.height, P.height, N.height)
     pl.Config.set_tbl_width_chars(220); pl.Config.set_tbl_cols(20)
     combos = sys.argv[1].split(",") if len(sys.argv) > 1 else ["LQM", "WQM", "LQ", "Q"]
     for combo, slots, gross in itertools.product(combos, (8, 10, 15), (1.0,)):
-        tr = pl.concat([{"L": L, "P": P, "N": N, "M": N2, "W": L99, "Q": P2}[k] for k in combo], how="vertical_relaxed")
+        tr = pl.concat([{"L": L, "P": P, "N": N, "M": N2, "W": L99, "Q": P2, "C": C}[k] for k in combo], how="vertical_relaxed")
         b = book(tr, slots, gross)
         yrs = " | ".join(f"{r['year']}: {r['trades']:>3}t {r['bp']:+5.0f}bp {r['ret'] * 100:+5.0f}% dd{r['dd'] * 100:+4.0f} w{r['worst_mtm'] * 100:3.0f}" for r in b.iter_rows(named=True))
         n = int(b["trades"].sum())

@@ -206,6 +206,12 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   flush days (> 30 signals each); in the LQM book the long sleeve exits on 5-7 days a year, so its
   evidence is ~25 flush days, not hundreds of independent trades. Pump and listing shorts trade
   on 14-55 days a year and spread the book in time; 2025's +518% is mostly listing shorts.
+- 15:22Z E42: new sleeve C, idiosyncratic crash shorts: coin r4 <= -15% while |BTC 4h| <= 1%
+  and the CNN expects no bounce (day5 <= 0.5), perp, isolated 1x, 24h: +436 bp, every year
+  positive (+5..+29%), DD -21% (sensitive to the BTC-calm threshold: 2% is weaker).
+- 15:25Z E25: LMC (longs + weak listing shorts + crash shorts, no pump shorts), 10 slots:
+  +1158 bp a trade, +62/+81/+156/+625/+51% in 2022-26, DD -17%, worst concurrent adverse 26%.
+  8 slots: +1123 bp, min +59%, DD -22%. LQMC 10 slots: +967 bp, min +66%, DD -36%.
 
 ## Idea backlog
 
