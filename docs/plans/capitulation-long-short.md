@@ -323,7 +323,10 @@ are in-sample only.
 1. Done: forward read-out (0 trades). To refresh later: sync spot candles, then
    `forward_signals.py day5` and `lmc_forward.py day5`.
 2. Done: day10b = day5 within noise.
-3. Keep searching the idea backlog until 2026-11-28T09:46Z; then final report, check command, PR.
+3. Queue: (a) fill realism for L on 1m candles (spike close vs next 5m open, first-minute
+   slippage); (b) hour-of-day of C and M entries; (c) sleeve weights by quality (Kelly-lite);
+   (d) refresh the report with every finding after the draft.
+4. Keep searching the idea backlog until 2026-11-28T09:46Z; then final report, check command, PR.
 
 ## Idea backlog
 
