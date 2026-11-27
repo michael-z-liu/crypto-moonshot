@@ -27,6 +27,7 @@ SIDE = sys.argv[1]
 MODEL = sys.argv[2]
 H = sys.argv[3] if len(sys.argv) > 3 else "72h"
 SEEDS = int(sys.argv[4]) if len(sys.argv) > 4 else 3
+TARGET = sys.argv[5] if len(sys.argv) > 5 else ""  # "tp20": realistic long outcome (E26)
 S = -1 if SIDE == "short" else 1
 DEV = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
@@ -37,6 +38,9 @@ def data() -> tuple[pl.DataFrame, np.ndarray, np.ndarray]:
     d = d.filter(pl.col("qv_base") >= 20_000).sort("row").with_columns(
         target=(S * pl.col(f"y{H}")).clip(-0.5, 1.0), year=pl.col("open_time").dt.year()
     )
+    if TARGET == "tp20":
+        t = pl.read_parquet(OWN / "target_long_tp20.parquet").rename({"target": "t2"})
+        d = d.join(t, on="row").with_columns(target=pl.col("t2")).drop("t2").sort("row")
     seq = np.load(CACHE_ALL / "seq2.npy", mmap_mode="r")
     x = np.asarray(seq[d["row"].to_numpy()], dtype=np.float32)
     x = np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)
@@ -169,7 +173,7 @@ def main() -> None:
         ic = np.corrcoef(np.argsort(np.argsort(p_te)), np.argsort(np.argsort(y[te])))[0, 1]
         print(f"{Y}: n={te.sum()} IC {ic:+.3f}  ({time.time() - t0:.0f}s)", flush=True)
     out = d.select("row").with_columns(pred=pl.Series(pred), pq=pl.Series(pq))
-    out.write_parquet(OWN / f"nn_{SIDE}_{MODEL}_{H}.parquet")
+    out.write_parquet(OWN / f"nn_{SIDE}_{MODEL}_{H}{'_' + TARGET if TARGET else ''}.parquet")
 
 
 if __name__ == "__main__":

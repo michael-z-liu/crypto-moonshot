@@ -42,6 +42,12 @@ def sleeve_listing() -> pl.DataFrame:
     return d.select("symbol", "adv", "t_in", "t_out", "net", "qv", sleeve=pl.lit("N"), prio=pl.lit(1.0))
 
 
+def sleeve_listing_weak() -> pl.DataFrame:
+    """N2: only listings trading at or below their listing price at entry (E27)."""
+    x = pl.read_parquet(OWN / "e27_listings.parquet").filter((pl.col("year") >= 2022) & (pl.col("since_list") <= 0))
+    return x.select("symbol", "adv", "t_in", "t_out", "net", "qv", sleeve=pl.lit("N"), prio=pl.lit(1.0))
+
+
 def book(tr: pl.DataFrame, slots: int, gross: float = 1.0) -> pl.DataFrame:
     tr = tr.with_columns(year=pl.from_epoch("t_in").dt.year()).sort(["t_in", "prio"], descending=[False, True])
     res = []
@@ -76,10 +82,12 @@ def book(tr: pl.DataFrame, slots: int, gross: float = 1.0) -> pl.DataFrame:
 
 if __name__ == "__main__":
     L, P, N = sleeve_long(), sleeve_pump(), sleeve_listing()
+    N2 = sleeve_listing_weak()
+    L99 = sleeve_long(q=0.99, tp=0.15)
     print("candidates:", L.height, P.height, N.height)
     pl.Config.set_tbl_width_chars(220); pl.Config.set_tbl_cols(20)
-    for combo, slots, gross in itertools.product(("L", "N", "LN", "LPN"), (15, 20), (1.0, 1.5)):
-        tr = pl.concat([{"L": L, "P": P, "N": N}[k] for k in combo], how="vertical_relaxed")
+    for combo, slots, gross in itertools.product(("M", "LM", "LPM", "WM", "WPM", "LN"), (10, 15, 20), (1.0,)):
+        tr = pl.concat([{"L": L, "P": P, "N": N, "M": N2, "W": L99}[k] for k in combo], how="vertical_relaxed")
         b = book(tr, slots, gross)
         yrs = " | ".join(f"{r['year']}: {r['trades']:>3}t {r['bp']:+5.0f}bp {r['ret'] * 100:+5.0f}% dd{r['dd'] * 100:+4.0f} w{r['worst_mtm'] * 100:3.0f}" for r in b.iter_rows(named=True))
         n = int(b["trades"].sum())

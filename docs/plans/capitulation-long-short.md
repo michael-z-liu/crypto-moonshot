@@ -159,6 +159,15 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   the long sleeve reaches 104% of equity on 2025-10-10, so >1x gross under cross margin can be
   wiped out; longs belong on spot (no liquidation), shorts on isolated 1x perps. LPN 15 slots:
   +877 bp, min +49%, DD -36%. All sleeve settings were chosen in-sample.
+- 14:30Z E26: a GBM trained on the realistic long outcome (TP 20%, 72h) ranks crash events
+  poorly within a day (IC +0.06) and concentrates its picks in 2022/2025; the day5 CNN stays the
+  better within-day ranker for longs.
+- 14:35Z E27/E28: listing shorts work best on listings already below their listing price at
+  entry (+14.3% -> +20.0% a trade, better in every year). On perp-only listings the same filter
+  helps (+2.3% -> +5.5%) but stays noisy.
+- 14:37Z E25 again with N2 = weak spot listings ("M"): LM 10 slots +1523 bp, +43/+71/+136/+494/
+  +30%, DD -14%; LPM 10 slots +934 bp, every year >= +54%, DD -38%; WPM (L at q 0.99, TP 15%)
+  10 slots +836 bp, every year >= +63%, DD -38%.
 
 ## Idea backlog
 
