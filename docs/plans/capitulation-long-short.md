@@ -253,6 +253,10 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   <= -0.3%/-1%) has no consistent edge (means -305..+182 bp, signs flip by year): crowded
   positioning tends to persist.
 
+- 15:02Z E48: 7-day block bootstrap of LMC's daily returns: one-year return p5 +26%, median
+  +129%, p75 +211%; P(year < 0) 0.9%, P(year >= +50%) 86%. Without 2025: p5 +9%, median +73%,
+  P(>= +50%) 68%. (In-sample returns: this shows dispersion, not a forecast.)
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
