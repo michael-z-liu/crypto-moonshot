@@ -229,6 +229,11 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   channels differ: shared 582-coin universe vs the paper's 395). No spike reaches pct 0.995 in
   the window: the long sleeve would not have traded (no flush), so the forward read-out can only
   speak to the short sleeves.
+- 14:50Z (real time; earlier entries' times ran ahead of the clock) E45, choice on 2022-24 only:
+  L q 0.99 / TP 10% / 72h, C r4 <= -10% / calm 1% / CNN <= 0.5 / 72h, M delay 24h / 30 days /
+  TP 50% / stop 50%, 8 slots. Read after the choice: 2025 +544% (+857 bp, DD -29%), 2026 +89%
+  (+545 bp, DD -26%). The annual target holds; the per-trade target does not (the 2022-24 choice
+  prefers more, smaller trades). The weak-listing filter itself was fixed with 2025 in view.
 
 ## Idea backlog
 
