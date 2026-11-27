@@ -309,6 +309,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   Equal weights stay. Hour of day: C is weak 12-18 UTC (+54 bp, n=46) vs +419..+973 bp other
   hours, too few trades to filter on; M entry hours are set by Binance's listing times.
 
+- 17:32Z BTC hedge for L (short beta x BTC over each hold): BTC averages +4.5% over the holds
+  (it bounces too; corr 0.53), so beta 0.5 / 1.0 cuts the mean to +1049 / +808 bp while the
+  worst trade (LUNA, -100%, coin-specific) is unchanged and p5 improves only 1-2 points. No hedge.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
