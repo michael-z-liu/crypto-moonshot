@@ -6,7 +6,7 @@ import sys
 
 import numpy as np
 import polars as pl
-from common_ls import SPOT_COST, fwd72, meta, scores
+from common_ls import SPOT_COST, first_per_event, fwd72, meta, scores
 
 m = meta()
 f72 = fwd72()
@@ -16,18 +16,6 @@ qv = m["qv_base"].to_numpy()
 t = m["open_time"].dt.epoch("s").to_numpy()
 sym = m["symbol"].to_numpy()
 yr = m["year"].to_numpy()
-
-
-def first_per_event(mask: np.ndarray, lock_s: int = 86400) -> np.ndarray:
-    idx = np.flatnonzero(mask)
-    order = np.lexsort((t[idx], sym[idx]))
-    idx = idx[order]
-    keep, last_sym, last_t = [], None, -1e18
-    for i in idx:
-        if sym[i] != last_sym or t[i] - last_t >= lock_s:
-            keep.append(i)
-            last_sym, last_t = sym[i], t[i]
-    return np.array(sorted(keep))
 
 
 def stats(name: str, mask: np.ndarray, side: int) -> dict[str, object]:

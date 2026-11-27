@@ -54,3 +54,18 @@ def scores(name: str, key: str = "pct") -> np.ndarray:
         if p.exists():
             return np.load(p)[key]
     raise FileNotFoundError(name)
+
+
+def first_per_event(mask: np.ndarray, lock_s: int = 86400) -> np.ndarray:
+    """Rows of `mask`, keeping a coin's first spike and then nothing for `lock_s` seconds."""
+    m = meta()
+    t = m["open_time"].dt.epoch("s").to_numpy()
+    sym = m["symbol"].to_numpy()
+    idx = np.flatnonzero(mask)
+    idx = idx[np.lexsort((t[idx], sym[idx]))]
+    keep, last_sym, last_t = [], None, -1e18
+    for i in idx:
+        if sym[i] != last_sym or t[i] - last_t >= lock_s:
+            keep.append(i)
+            last_sym, last_t = sym[i], t[i]
+    return np.array(sorted(keep), dtype=np.int64)

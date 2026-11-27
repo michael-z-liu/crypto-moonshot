@@ -110,7 +110,9 @@ class Book:
     summary: dict[str, float] = field(default_factory=dict)
 
 
-def simulate(cand: pl.DataFrame, rule: Rule, start_equity: float = 10_000) -> Book:
+def simulate(
+    cand: pl.DataFrame, rule: Rule, start_equity: float = 10_000, perp_funding: bool = False
+) -> Book:
     """cand: columns row (seq2 row), side (+1/-1), prio (higher first), optional fund_day (the
     funding this side pays per day held, as a fraction of notional; negative = received).
     """
@@ -129,6 +131,11 @@ def simulate(cand: pl.DataFrame, rule: Rule, start_equity: float = 10_000) -> Bo
     fund = np.zeros(len(rows))
     if "fund_day" in cand.columns:  # funding paid by this side per day held, fraction of notional
         fund = cand["fund_day"].fill_null(0).to_numpy() * hold_min / 1440.0
+    if perp_funding:
+        from futures_ls import funding_paid
+
+        t0 = cand["t"].to_numpy() + 300
+        fund = funding_paid(cand["symbol"].to_numpy(), t0, t0 + hold_min * 60, side)
     net = rule.lev * (ret - rule.cost - (rule.stop_slip * (kind == 1)) - fund)
     net = np.maximum(net, -1.0)
     t_in = cand["t"].to_numpy() + 300
@@ -176,6 +183,7 @@ def simulate(cand: pl.DataFrame, rule: Rule, start_equity: float = 10_000) -> Bo
     tr = cand.with_columns(
         net=pl.Series(net), ret=pl.Series(ret), kind=pl.Series(kind),
         hold_min=pl.Series(hold_min), stake=pl.Series(stake_arr), taken=pl.Series(taken),
+        fund=pl.Series(fund),
     ).filter(pl.col("taken"))  # fmt: skip
     tr = tr.with_columns(
         pnl=pl.col("stake") * pl.col("net"),
@@ -219,3 +227,30 @@ def fmt_years(b: Book, years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025, 2
         r = d.get(y)
         parts.append(f"{y}: {r['trades']:>4}t {r['bp']:+6.0f}bp {r['ret'] * 100:+6.0f}%" if r else f"{y}:   -")
     return " | ".join(parts) + f" | maxDD {b.summary['maxdd'] * 100:.0f}%"
+
+
+def simulate_yearly(
+    cand: pl.DataFrame, rule: Rule, start_equity: float = 10_000, perp_funding: bool = False,
+    years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025, 2026),
+) -> Book:
+    """One book per entry year, each starting at `start_equity` (the account size the user has),
+    so a year's return does not depend on how much earlier years compounded."""
+    m = meta()
+    yr_of = m["year"].to_numpy()
+    books = []
+    for y in years:
+        c = cand.filter(pl.Series(yr_of[cand["row"].to_numpy()] == y))
+        if c.height == 0:
+            continue
+        books.append(simulate(c, rule, start_equity, perp_funding))
+    if not books:
+        return Book(pl.DataFrame(), pl.DataFrame({"year": [], "trades": [], "bp": [], "med_bp": [], "win": [], "ret": [], "dd": [], "liq": []}), {"trades": 0, "bp": 0.0, "final": start_equity, "maxdd": 0.0})
+    trades = pl.concat([b.trades for b in books])
+    yrs = pl.concat([b.years.filter(pl.col("year") == b.trades["year"][0]) for b in books])
+    summary = {
+        "trades": trades.height,
+        "bp": float(trades["net"].mean() or 0) * 1e4,
+        "final": float(np.prod(1 + yrs["ret"].to_numpy())) * start_equity,
+        "maxdd": float(yrs["dd"].min() or 0),
+    }
+    return Book(trades, yrs, summary)
