@@ -49,7 +49,7 @@ def fwd72() -> np.ndarray:
 
 def scores(name: str, key: str = "pct") -> np.ndarray:
     """Walk-forward percentile scores (NaN outside the 2022-26 test folds)."""
-    for d in (OWN / "scores", I10 / "wf_i10", I10 / "wf", CACHE_ALL / "wf"):
+    for d in (OWN / "scores", CACHE_ALL / "wf_i10", I10 / "wf_i10", I10 / "wf", CACHE_ALL / "wf"):
         p = d / f"{name}.npz"
         if p.exists():
             return np.load(p)[key]

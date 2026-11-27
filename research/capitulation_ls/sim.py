@@ -73,6 +73,7 @@ class Rule:
     max_per_day: int | None = None
     liq_frac: float | None = 0.005  # stake at most this share of the coin's 24h quote volume
     loss_floor: float = -1.0  # worst return on the stake; below -1 = cross margin losses
+    max_per_coin: int = 1  # positions allowed in the same coin at once (2 = add on a deeper spike)
     delay: int = 0  # enter this many 5m candles after the usual entry (< 96)
     delay_cond: str | None = None  # "confirm": only if price moved our way during the delay
     name: str = ""
@@ -204,7 +205,7 @@ def simulate(
     equity = start_equity
     cash = start_equity
     open_pos: list[tuple[int, float, str, float]] = []  # (t_out, stake, symbol, net)
-    held: set[str] = set()
+    held: dict[str, int] = {}
     taken = np.zeros(len(rows), dtype=bool)
     stake_arr = np.zeros(len(rows))
     eq_after = np.zeros(len(rows))
@@ -218,11 +219,11 @@ def simulate(
                     pnl = pos[1] * pos[3]
                     cash += pos[1] + pnl
                     equity += pnl
-                    held.discard(pos[2])
+                    held[pos[2]] -= 1
                 else:
                     still.append(pos)
             open_pos = still
-        if syms[i] in held or len(open_pos) >= rule.slots:
+        if held.get(syms[i], 0) >= rule.max_per_coin or len(open_pos) >= rule.slots:
             continue
         d = int(ti // 86400)
         if rule.max_per_day is not None and day_count.get(d, 0) >= rule.max_per_day:
@@ -232,7 +233,7 @@ def simulate(
             continue
         cash -= stake
         open_pos.append((int(t_out[i]), stake, syms[i], float(net[i])))
-        held.add(syms[i])
+        held[syms[i]] = held.get(syms[i], 0) + 1
         taken[i] = True
         stake_arr[i] = stake
         day_count[d] = day_count.get(d, 0) + 1

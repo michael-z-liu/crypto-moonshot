@@ -17,22 +17,30 @@ Y = (2022, 2023, 2024, 2025, 2026)
 m = meta()
 
 
-def sleeve_long(q: float = 0.995, tp: float = 0.2, hold: int = 4320, score: str = "day5") -> pl.DataFrame:
+def sleeve_long(q: float = 0.995, tp: float = 0.2, hold: int = 4320, score: str = "day5", cost: float = 0.004, delay: int = 0) -> pl.DataFrame:
     pct = scores(score)
     yr = m["year"].to_numpy()
     idx = np.flatnonzero((yr >= 2022) & np.isfinite(pct) & (pct >= q))
     c = pl.DataFrame({"row": idx, "side": 1, "prio": pct[idx]})
-    b = simulate(c, Rule(hold_min=hold, tp=tp, slots=100_000, cost=0.004, liq_frac=None), start_equity=1e12)
+    b = simulate(c, Rule(hold_min=hold, tp=tp, slots=100_000, cost=cost, liq_frac=None, delay=delay), start_equity=1e12)
     t = b.trades
     return t.select("symbol", "adv", t_in=pl.col("t") + 300, t_out="t_out", net="net", qv=pl.col("row").map_elements(lambda r: float(m["qv_base"][r]) * 288, return_dtype=pl.Float64), sleeve=pl.lit("L"), prio=pl.lit(3.0) + pl.col("prio"))
 
 
-def sleeve_pump(thr: float = 0.4, hold: int = 4320) -> pl.DataFrame:
+def sleeve_pump(thr: float = 0.4, hold: int = 4320, cost: float = 0.003, delay: int = 0) -> pl.DataFrame:
     d = pl.read_parquet(OWN / "feats.parquet").filter(pl.col("perp") & (pl.col("qv_base") >= 20_000) & (pl.col("ret_4h") >= thr) & (pl.col("open_time").dt.year() >= 2022))
     c = d.select("row", side=pl.lit(-1), prio="ret_4h")
-    b = simulate(c, Rule(hold_min=hold, slots=100_000, cost=0.003, sl=1.0, liq_frac=None), start_equity=1e12, perp_funding=True, source="perp")
+    b = simulate(c, Rule(hold_min=hold, slots=100_000, cost=cost, sl=1.0, liq_frac=None, delay=delay), start_equity=1e12, perp_funding=True, source="perp")
     t = b.trades
     return t.select("symbol", "adv", t_in=pl.col("t") + 300, t_out="t_out", net="net", qv=pl.col("row").map_elements(lambda r: float(m["qv_base"][r]) * 288, return_dtype=pl.Float64), sleeve=pl.lit("P"), prio=pl.lit(2.0) + pl.col("prio").clip(0, 0.99))
+
+
+def sleeve_pump_regime(thr: float = 0.4, hold: int = 4320, btc7_min: float = -0.03, cost: float = 0.003, delay: int = 0) -> pl.DataFrame:
+    """P': pump shorts only when BTC's last 7 days are above btc7_min (E34)."""
+    from e34_regime import btc_trend
+
+    t = sleeve_pump(thr, hold, cost, delay)
+    return t.filter(pl.Series(btc_trend(t["t_in"].to_numpy() - 300, 7) > btc7_min))
 
 
 def sleeve_listing() -> pl.DataFrame:
@@ -42,10 +50,10 @@ def sleeve_listing() -> pl.DataFrame:
     return d.select("symbol", "adv", "t_in", "t_out", "net", "qv", sleeve=pl.lit("N"), prio=pl.lit(1.0))
 
 
-def sleeve_listing_weak() -> pl.DataFrame:
+def sleeve_listing_weak(extra_cost: float = 0.0) -> pl.DataFrame:
     """N2: only listings trading at or below their listing price at entry (E27)."""
     x = pl.read_parquet(OWN / "e27_listings.parquet").filter((pl.col("year") >= 2022) & (pl.col("since_list") <= 0))
-    return x.select("symbol", "adv", "t_in", "t_out", "net", "qv", sleeve=pl.lit("N"), prio=pl.lit(1.0))
+    return x.select("symbol", "adv", "t_in", "t_out", net=pl.col("net") - extra_cost, qv="qv", sleeve=pl.lit("N"), prio=pl.lit(1.0))
 
 
 def book(tr: pl.DataFrame, slots: int, gross: float = 1.0) -> pl.DataFrame:
@@ -84,10 +92,12 @@ if __name__ == "__main__":
     L, P, N = sleeve_long(), sleeve_pump(), sleeve_listing()
     N2 = sleeve_listing_weak()
     L99 = sleeve_long(q=0.99, tp=0.15)
+    P2 = sleeve_pump_regime()
     print("candidates:", L.height, P.height, N.height)
     pl.Config.set_tbl_width_chars(220); pl.Config.set_tbl_cols(20)
-    for combo, slots, gross in itertools.product(("M", "LM", "LPM", "WM", "WPM", "LN"), (10, 15, 20), (1.0,)):
-        tr = pl.concat([{"L": L, "P": P, "N": N, "M": N2, "W": L99}[k] for k in combo], how="vertical_relaxed")
+    combos = sys.argv[1].split(",") if len(sys.argv) > 1 else ["LQM", "WQM", "LQ", "Q"]
+    for combo, slots, gross in itertools.product(combos, (8, 10, 15), (1.0,)):
+        tr = pl.concat([{"L": L, "P": P, "N": N, "M": N2, "W": L99, "Q": P2}[k] for k in combo], how="vertical_relaxed")
         b = book(tr, slots, gross)
         yrs = " | ".join(f"{r['year']}: {r['trades']:>3}t {r['bp']:+5.0f}bp {r['ret'] * 100:+5.0f}% dd{r['dd'] * 100:+4.0f} w{r['worst_mtm'] * 100:3.0f}" for r in b.iter_rows(named=True))
         n = int(b["trades"].sum())

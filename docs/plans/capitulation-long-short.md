@@ -5,7 +5,7 @@
 - **PR:**
 - **Started:** 2026-11-27T13:46Z. Keep searching until at least **2026-11-28T09:46Z** (20 h)
   before hand-off; budget about 25 h (five usage windows).
-- **Updated:** 2026-11-27T14:30Z
+- **Updated:** 2026-11-27T14:55Z
 
 ## Goal
 
@@ -177,6 +177,19 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
 - 14:44Z E31: fading capitulation bounces after the TP (+15-30%) loses: bounces keep going.
 - 14:46Z E32: trailing stops armed at +10-30% (hold 72h/168h) do not beat the fixed TP 20% / 72h
   (best +1209 vs +1088 bp on perp paths, with a weaker 2025).
+- 14:50Z E33: a second position in a coin already held (deeper spike) adds nothing.
+- 14:52Z E34: regime: pump shorts lose when BTC fell over the last 7 days (squeeze rallies);
+  with BTC 7d > -3% they make +647 bp a trade, positive every year 2022-26 (+551/+766/+597/
+  +478/+954). Longs work in every BTC regime. Weekday filters are not consistent.
+- 14:55Z E25/E35 (candidate): LQM = capitulation longs (day5 >= 0.995, TP 20%, 72h, spot) +
+  regime pump shorts (r4 >= 40%, BTC 7d > -3%, perp, isolated 1x, 72h) + weak spot-listing
+  shorts (entry +72h if price <= listing price, perp, TP 50%, stop 50%, 30 days), one pool of 10
+  equal slots, gross 1.0: +1137 bp a trade, +53/+101/+172/+518/+78% in 2022-26, DD -36%, worst
+  concurrent adverse 41% of equity. Stresses: 2x costs +1105 bp (min +51%); one candle late
+  +1029 bp (min +26%); both +997 bp (min +24%); other score sets for L +1091..+1133 bp; 15 slots
+  +1159 bp, min +42%, DD -25%. In-sample choices throughout: only forward data can confirm.
+- 14:55Z: training a day-weighted CNN (i10 harness) whose target is the realistic long outcome
+  (TP 20% / 72h) via target_offset (wf_i10/tp20day).
 
 ## Idea backlog
 
