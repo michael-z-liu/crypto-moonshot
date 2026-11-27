@@ -272,6 +272,10 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   pct >= 0.99 / 0.995): +536..+1049 bp, never better than the global pct >= 0.995 threshold
   (+1064 bp, all years positive); weaker 2022/2026.
 
+- 15:55Z LMC + regime pump shorts with a sleeve cap (at most 2-3 of the slots): +929..+943 bp,
+  min year +50..+54%, DD -35..-45%; the cap does not remove the squeeze drawdown (it clusters).
+  LMC stays the better balance (+1158 bp, DD -17%).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**

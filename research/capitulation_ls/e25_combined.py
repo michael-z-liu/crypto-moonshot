@@ -161,6 +161,7 @@ def book(
     gross: float = 1.0,
     trades_out: list | None = None,
     start: float = 10_000.0,
+    caps: dict | None = None,
 ) -> pl.DataFrame:
     tr = tr.with_columns(year=pl.from_epoch("t_in").dt.year()).sort(
         ["t_in", "prio"], descending=[False, True]
@@ -184,11 +185,17 @@ def book(
             pos = keep
             if len(pos) >= slots or r["symbol"] in held:
                 continue
+            if (
+                caps
+                and r["sleeve"] in caps
+                and sum(1 for p in pos if p[5] == r["sleeve"]) >= caps[r["sleeve"]]
+            ):
+                continue
             stake = min(gross * eq / slots, cash, r["qv"] * 0.005)
             if stake < 1:
                 continue
             cash -= stake
-            pos.append((r["t_out"], stake, r["net"], r["symbol"], r["adv"]))
+            pos.append((r["t_out"], stake, r["net"], r["symbol"], r["adv"], r["sleeve"]))
             held.add(r["symbol"])
             if trades_out is not None:
                 trades_out.append(
