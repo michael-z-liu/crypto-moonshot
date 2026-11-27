@@ -330,6 +330,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   0.5-1.5x): yearly returns fall (2024 +156% -> +123..+135%) and DD stays -17%; the volatile
   coins are the ones that bounce most. Equal stakes stay.
 
+- 19:35Z E50 day-weighted patch transformer (3 seeds, 45 min, all 1.85M spikes): L at q 0.995
+  +1031 bp (day5 +1064), q 0.99 +471 (day5 +666); LMC +1165 bp, years +78/+76/+186/+619/+53%
+  (day5 +1158, +62/+81/+156/+625/+51%). Equivalent to the CNN, not better: the bounce signal
+  looks limited by the data, not the network. TCN and GRU running.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
