@@ -335,6 +335,9 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   (day5 +1158, +62/+81/+156/+625/+51%). Equivalent to the CNN, not better: the bounce signal
   looks limited by the data, not the network. TCN and GRU running.
 
+- 19:52Z CNN + transformer blend for L (mean or min of the two percentiles): q 0.995 +1065 /
+  +1125 bp vs day5 +1064, on fewer trades and with no better years: within noise.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
