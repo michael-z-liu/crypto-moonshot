@@ -257,6 +257,8 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   +129%, p75 +211%; P(year < 0) 0.9%, P(year >= +50%) 86%. Without 2025: p5 +9%, median +73%,
   P(>= +50%) 68%. (In-sample returns: this shows dispersion, not a forecast.)
 
+- 15:06Z E49: spot listings whose perp only arrives later add 5 trades in five years: negligible.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
