@@ -210,6 +210,11 @@ wait for. Capping the slots the first minutes may take fails too (`why/early_slo
 first 15 minutes of episodes hold 60% of the long sleeve's net, and 11 of 13 capped episodes have
 no later signals to fill the freed slots.
 
+**Large-cap reversal** (`why/largecap_reversal.md`). Weekly reversal among 30 large coins fails
+because there is no stable reversal at any horizon (1-28 days): cross-sectional spread is ample
+(~9% a week), but ranks barely predict (IC -0.03, unstable), the market factor explains 52-73% of
+daily variance, and the losers book is just the market (beta ~1).
+
 ## Data added (Binance only, `fetch_futures.py`)
 
 USD-M perpetual funding rates (2.85M rows, 919 symbols), 1h perp klines (16.5M rows), 5m perp

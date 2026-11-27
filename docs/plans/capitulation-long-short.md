@@ -404,6 +404,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   -1.2); shorting the 5 best loses -169 bp/week. No reversal (if anything weak momentum).
   Investigator launched (`why/largecap_reversal.md`, `w9_`).
 
+- 23:15Z why large-cap reversal failed (`why/largecap_reversal.md`): no horizon (1-28d formation x
+  1-28d hold) shows reversal, mostly weak continuation; dispersion is ample (~9%/week) but rank IC
+  is -0.03 and unstable; pairwise correlation 0.48-0.72 (market factor 52-73% of variance); the
+  losers book is beta ~1, so its gain is the market.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
