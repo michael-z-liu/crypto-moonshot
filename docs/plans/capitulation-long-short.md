@@ -107,6 +107,9 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
 
 ## Run log
 
+Note: the entry times from "~13:52Z" up to the entry marked "(real time ...)" ran ahead of the
+clock; those entries all happened between 13:46Z and about 14:50Z. Later times are real.
+
 - 2026-11-27T14:05Z: plan written; caches found (seq2 1.85M liquid spikes 2020-01..2026-11-01,
   8h and 72h forward paths, i10 walk-forward scores in the AUhKx worktree).
 - ~13:52Z E01-E03: event landscape. Longer holds change the picture: one entry per event, shorts
