@@ -193,6 +193,7 @@ def book(
             ):
                 continue
             w = weights.get(r["sleeve"], 1.0) if weights else 1.0
+            w *= r.get("w", 1.0) or 1.0
             stake = min(w * gross * eq / slots, cash, r["qv"] * 0.005)
             if stake < 1:
                 continue

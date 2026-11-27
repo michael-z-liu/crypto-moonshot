@@ -326,6 +326,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   networks (patch transformer registered in m12.ARCHS, 117k weights; dilated TCN; conv+GRU),
   3 seeds each, sequentially (`/tmp/arch_*.log`). To compare on the L sleeve with day5.
 
+- 18:55Z volatility-scaled stakes in L (inverse of the CNN's band or of trailing vol, clipped
+  0.5-1.5x): yearly returns fall (2024 +156% -> +123..+135%) and DD stays -17%; the volatile
+  coins are the ones that bounce most. Equal stakes stay.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
