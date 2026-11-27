@@ -346,6 +346,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   +75/+159/+671/+60%. Architecture comparison done (same day-weighted training, all spikes):
   CNN +1064 / transformer +1031 / TCN +960 / GRU +908 bp at q 0.995; the original CNN stays.
 
+- 21:32Z listing-short entry delay inside LMC: 24h +1028 bp (min +24%), 48h +1020 (+32%), 72h
+  +1158 (+51%), 96h +990 (+31%), 120h +969 (+28%). 72h is a sharp peak: M is profitable at every
+  delay and the book stays ~+10% a trade, but ">= +50% every year" holds only at 72h. A fair
+  expectation for LMC is the neighbourhood: ~+10% a trade, worst year ~+30%.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**

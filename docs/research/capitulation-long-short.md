@@ -150,6 +150,9 @@ long/short ratios, taker ratio; 6.3M 5m rows on event days), spot 5m candles syn
 
 ## Caveats
 
+- **The 72h listing entry is a sharp peak.** With the listing short entered at 24/48/96/120h
+  instead, LMC makes +9.7..+10.3% a trade with a worst year of +24..+32%; only 72h gives +51%.
+  Treat ~+10% a trade and a worst year near +30% as the fair expectation, not +51%.
 - **In-sample choices.** Sleeves, filters (weak listing, BTC calm, BTC 7d) and settings were all
   found on 2020-26. 2025-26 had already been opened by three earlier studies.
 - **Few independent events.** The long sleeve trades on 5-7 days a year.
