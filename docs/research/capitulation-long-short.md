@@ -196,7 +196,9 @@ cannot cut them; the one lead is a delisting-notice feed.
 **Cascade timing** (`why/cascade_wait.md`). Skipping the first minutes of each signal episode
 fails because there are only 28 episodes in five years and 16 last under 20 minutes; its apparent
 gain is 2025-10-10 alone. The time to the low ranges from 4 to 642 minutes, so there is no clock to
-wait for.
+wait for. Capping the slots the first minutes may take fails too (`why/early_slot_cap.md`): the
+first 15 minutes of episodes hold 60% of the long sleeve's net, and 11 of 13 capped episodes have
+no later signals to fill the freed slots.
 
 ## Data added (Binance only, `fetch_futures.py`)
 

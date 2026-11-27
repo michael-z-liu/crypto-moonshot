@@ -379,6 +379,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   slots): long sleeve +899..+968 bp (uncapped +1051), 2026 ~0%; LMC worst year +35..+45% (vs +51%);
   only 2025 improves. Fails; investigator launched (`why/early_slot_cap.md`, `w7_`).
 
+- 22:40Z why the early-slot cap failed (`why/early_slot_cap.md`): the first 15 min of episodes
+  hold 54% of candidates and 60% of net (first 30 min: 82% / 98%); 11 of 13 capped episodes have
+  no later candidates, so the cap swaps +1400 bp trades for idle cash; only 2025-10-10 (327 later
+  candidates) has the reserve that makes a cap pay.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
