@@ -313,6 +313,12 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   (it bounces too; corr 0.53), so beta 0.5 / 1.0 cuts the mean to +1049 / +808 bp while the
   worst trade (LUNA, -100%, coin-specific) is unchanged and p5 improves only 1-2 points. No hedge.
 
+- 17:40Z market-level daily capitulation (BTC 3-day drop <= -12/-15/-20%, equal-weight basket of
+  10 large alts, hold 3-14 days, 2022+): -12% (15 events) and -15% (8) lose on average at 3-7 days;
+  only -20% (4 events) wins, too few to rely on. Note: this scan read data after 2026-11-02 (not
+  for the pick): BTC fell ~15% in 3 days around 2026-11-14/15 without any pct >= 0.995 spike, a
+  slow slide, not a flush; the forward window was not calm for BTC, only free of 5m capitulation.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**

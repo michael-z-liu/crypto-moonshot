@@ -71,8 +71,10 @@ The pick was written into the plan before any forward outcome was computed. The 
 was saved (`save_day_model.py`, reproducing day5's 2026 scores exactly) and every liquid spike
 from 2026-11-02 to 11-27 was scored (`forward_signals.py day5`). `lmc_forward.py day5`: **no
 trades.** The highest long score was 0.990 (no flush), no crash met the crash-short rule, and all
-18 new spot listings were tokenised stocks or ETFs without perps. The window can neither confirm
-nor reject LMC; the paper trade going forward is the test (rerun the two scripts after a sync).
+18 new spot listings were tokenised stocks or ETFs without perps. BTC did fall about 15% in three
+days around 2026-11-14/15, but as a slow slide without 5m capitulation spikes, so the long sleeve
+stayed out by design. The window can neither confirm nor reject LMC; the paper trade going
+forward is the test (rerun the two scripts after a sync).
 
 ## What changed against the earlier capitulation studies
 
