@@ -243,6 +243,11 @@ sizing and leverage. Keep trying new ideas, however unlikely, for at least 20 ho
   +41% (10-90%: +17..+66%); median DD -20%. Both targets at once: 14% of configurations. The
   per-trade target is typical; >= +50% every year is the binding one and needs q >= 0.995,
   TP 25-30% and 6-8 slots.
+- 15:12Z 2025 listing shorts are broad-based: 73 weak listings, median +40%, the top 10 carry
+  28% of the sleeve's P&L (the rest average +20.7%); 2025 simply had many weak listings.
+- 15:15Z forward window (2026-11-02..27, no outcomes read): no L signal (max pct 0.986), no C
+  candidate, only 3 pump rows on 2 days, and listing shorts need 30 days to resolve. The window
+  cannot confirm or reject anything; a forward paper trade over months is the test.
 
 ## Idea backlog
 
