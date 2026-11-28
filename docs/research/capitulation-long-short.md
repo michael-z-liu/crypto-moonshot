@@ -4,7 +4,7 @@ Unattended search, started 2026-11-27, for changes to the capitulation strategy 
 **average trade of +10% or more** and **+50% or more a year** for a $10k-50k account, trading
 both directions (longs after dumps, shorts on USD-M perpetuals after rallies). Plan and run log:
 `docs/plans/capitulation-long-short.md`. Code: `research/capitulation_ls/` (`README.md` maps every
-script: experiments `e01_`..`e51_`, failure investigations `w1_`..`w12_`, explorers `x1_`..`x15_`,
+script: experiments `e01_`..`e51_`, failure investigations `w1_`..`w12_`, explorers `x1_`..`x16_`,
 diagnostics `d01_`/`d02_` and `diag.py`, the 2017-19 holdout `h1_`, perp-only coins `p1_`/`p2_`/
 `f1_`, less liquid spikes `q1_`, the audit `a1_`; shared code `sim.py`, `e25_combined.py`, `wf.py`,
 `dsr.py`, `fetch_futures.py`, `build_*.py`, `nn_seq.py`).
@@ -389,6 +389,13 @@ first (+3.7% vs +8.0% a trade with the funding gate; more squeezes), and buying 
 the first month, listing features carry no signal; only a generic slow decline remains (short
 every listing at day 60 for 30 days: +10% a trade, but drawdown -31% in the book). The pump short
 works only on the 5m volume-spike rows: hourly "+40% in 4h" pumps that are not spike rows lose.
+
+**Listing longs** (`explore/listing_longs.md`). Buying new spot listings loses in every
+setting (-1% to -15% a trade): the first candles are near the top, the other side of the listing
+short's edge. Listings still above their listing price after 72 hours are fading pumps, not
+squeezes to ride: the in-sample picks made +32% a trade in 2021-24 on three runners (GMT, C98,
+TIA) and -20% in 2025-26. A long on the listings the short skips mirrors the short (correlation
+-0.99), so there is no edge in the squeezes that stop it out.
 
 **Less liquid spikes** (`explore/illiquid.md`). The long rule works on spikes of thinner coins
 too (+12.4% a trade at 0.4% cost, +10.8% at 2%, the same hockey stick), but they fire on the same

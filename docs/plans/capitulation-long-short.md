@@ -597,6 +597,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   `results/explore/holdout_btc_pairs.md`, deadline 08:45Z). Report, README and scoreboard
   refreshed; full check passes (ruff, mypy, 524 tests).
 
+- 05:45Z listing longs (`x16_*`, `results/explore/listing_longs.md`): fail. Buying every listing
+  loses in all 128 configs (-1..-15%); the first 5m close is near the top. Strong listings (above
+  listing price at 72h) are fading pumps: picks +32% in 2021-24 -> -20% in 2025-26, carried by 3
+  runners (GMT, C98, TIA). A long on M's strong listings mirrors M (corr -0.99): no squeeze edge.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
