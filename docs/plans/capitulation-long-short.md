@@ -569,6 +569,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   +371/+54%. MTM drawdown -18.6% (vs -16.7%), 2026 -17.2%. DSR depends on the 0.48 trial
   spread (0.75 -> 0.60/0.25). Report robustness table and caveats updated.
 
+- 05:31Z L on perps instead of spot (`x13_l_perp.py`, `results/explore/l_perp.md`): neutral.
+  Same rows: perp +1259 vs spot +1258 bp; lower cost and funding received offset by deeper perp
+  wicks on 2025-10-10. Spot stays the venue where it exists.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
