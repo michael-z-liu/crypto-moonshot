@@ -54,8 +54,11 @@ diagnostics `d01_`/`d02_` and `diag.py`, the 2017-19 holdout `h1_`, perp-only co
    rule, scored by the same model on Binance spot data no earlier study had used, made +9.5% a
    trade (41 trades on 18 flush days, 88% winners, day-bootstrap 95% CI +6.2..+13.8%), about
    three quarters of its 2022-26 size, with the same hockey-stick calibration. Its book made only
-   +10..+16% a year, because there were few USDT pairs and few flush days then. This is evidence
-   for the signal, not for the +50% a year target, and says nothing about the short sleeves.
+   +10..+16% a year, because there were few USDT pairs and few flush days then. Adding the
+   BTC-quoted pairs of that era (converted to USDT) gives 181 trades on 44 flush days at +14.3% a
+   trade (95% CI +11.1..+16.6%; +13.6% at wide costs) and books of +87% / +146% / +19% in 2017 /
+   2018 / 2019, most of it from the 2017-18 altcoin top and crash. Evidence for the signal; it
+   says nothing about the short sleeves.
 8. **Perp-only coins add flush days to the long sleeve ("LMC+", chosen after the pick).** The same
    L rule, applied as a 1x perp long to the 200 coins that trade only as perps and scored by
    walk-forward folds, made +13.1% a trade after costs and funding (328 trades, 86% winners). It
@@ -117,6 +120,15 @@ check.
   liquid spike -0.4%. Neighbours: pct 0.99 +6.7% (72 trades), 0.998 +17.8% (10).
 - Book (10 slots, $10k a year): +10% (2017, five months), +16% (2018), +13% (2019), drawdowns
   about 1%. Too few events for the +50% target in that era.
+- **BTC-quoted pairs** (`results/explore/holdout_btc_pairs.md`): most alts then traded only
+  against BTC. 151 such pairs (spikes kept only while the coin had no USDT pair), candles converted
+  to USDT with BTCUSDT: L made +15.7% a trade (140 trades, 38 flush days, 26 not in the USDT
+  holdout, 91% winners; +14.9% at 1.2% cost including the BTCUSDT legs), with a steeper hockey
+  stick (Spearman +0.35). The conversion is checked on coins that had both quotes (+10.5% native vs
+  +10.9% converted on the would-be trades). 74% of these trades fall in 2017-12..2018-01; without
+  those two months: 36 trades, +8.6% at 1.2% cost (CI +2.2..+14.6%). Combined USDT + BTC pairs:
+  181 trades, 44 days, +14.3% (CI +11.1..+16.6%); 10-slot book +87% (2017, five months), +146%
+  (2018), +19% (2019).
 - Caveats: small sample (12 trades on 2019-09-24); 2017-18 spreads were probably wider than the
   0.4% cost; the 2026 fold is applied backwards in time (the retrained 2022 fold is stricter:
   4 trades, all reached +20%). Archive fixes: candles offset after the February 2018 outage

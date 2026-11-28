@@ -63,3 +63,4 @@ uv run --group research python e05_short_grid.py   # any script: run from this f
 | p1 | perp-only coins (USD-M perps without spot): L as a perp long and C, day5 walk-forward folds 2022-26 (`results/explore/perp_only.md`) |
 | f1 | pump shorts F (funding-gated) and P on perp-only coins and pre-spot perp windows; books with LMC+ (`f1_lib.py`, `f1_eval.py`; `results/explore/f_perp_only.md`) |
 | q1 | illiquid spikes (qv_base 1k-5k and 500-1k USDT per 5m) for L, spot and perp-only, fold-scored 2022-26; books at 0.4/1/2% cost (`q1_build.py`, `q1_paths.py`, `q1_eval.py`; `results/explore/illiquid.md`) |
+| h2 | holdout on BTC-quoted pairs (no USDT pair at the time) of 2017-08..2019-12, converted to USDT with BTCUSDT; L unchanged, conversion parity and robustness (`h2_fetch.py`, `h2_build.py`, `h2_score.py`, `h2_eval.py`, `h2_parity.py`, `h2_robust.py`; `results/explore/holdout_btc_pairs.md`) |

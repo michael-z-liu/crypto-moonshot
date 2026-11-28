@@ -617,6 +617,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
 - 10:56Z launched (running): L on perps after their coin's spot delisting (`p3_*`,
   `results/explore/post_delist.md`). Running too: BTC-pair holdout (`h2_*`).
 
+- 10:56Z HOLDOUT on 2017-19 BTC-quoted pairs (`h2_*`, `results/explore/holdout_btc_pairs.md`): L
+  +1574 bp (140 trades, 38 days, 26 new; +1494 at 1.2% cost); combined holdout 181 trades, 44 days,
+  +1433 bp, CI +1114..+1660; book 2017 +87% / 2018 +146% / 2019 +19%. Concentrated in the
+  2017-12..2018-01 mania (without it +856 bp at 1.2%, CI +220..+1461). Conversion checked (+40 bp).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
