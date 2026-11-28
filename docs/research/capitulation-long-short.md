@@ -189,7 +189,10 @@ days around 2026-11-14/15, but as a slow slide without 5m capitulation spikes, s
 stayed out by design. The window can neither confirm nor reject LMC; the paper trade going
 forward is the test (rerun the two scripts after a sync). The perp-only extension (see the
 previous section) had one signal in the same window, BRUSDT on 2026-11-21, which hit the +20%
-take profit.
+take profit. To refresh the read-out for LMC+ after a candle sync, run, from `research/capitulation_ls`:
+`forward_signals.py day5`, `lmc_forward.py day5` (spot L, M, C) and `p2_forward.py` (L on
+perp-only coins; it fetches their November candles from the Binance archive and would need its
+month range widened for later windows).
 
 ## What changed against the earlier capitulation studies
 
