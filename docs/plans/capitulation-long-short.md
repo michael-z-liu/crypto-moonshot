@@ -626,6 +626,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   coins without a USDT pair at the time (`h3_*`, `results/explore/other_quotes.md`), aiming at new
   flush days in 2022-24. Running too: post-delisting perps (`p3_*`).
 
+- 11:00Z post-delisting perps (`p3_*`, `results/explore/post_delist.md`): only 18 perps really kept
+  trading after spot delisting; 8 L trades +9.6%, no new flush days, LMC+ unchanged. A live
+  scanner over every active perp covers them anyway.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**

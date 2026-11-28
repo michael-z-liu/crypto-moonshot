@@ -171,6 +171,8 @@ Checks (`results/explore/p2_robust.md`, `p2_forward.md`, `p2_prespot.md`):
 - Without each year's best long flush day, LMC+'s worst year falls to +21% (2022), the same as
   LMC: before 2024 there were too few perp-only coins to add days. In 2026 it still makes +87%
   without its best long day (LMC +32%) (`results/explore/lmcplus_bestday.md`).
+- Perps that kept trading after their coin's spot delisting (`results/explore/post_delist.md`):
+  only 18 real windows, 8 trades (+9.6%), no new flush days; LMC+ unchanged.
 - By perp age at entry the edge is flat (+12.1% under 30 days, +14.6%, +13.7%, +12.3% over 180
   days): it is not a new-listing effect.
 - Coins whose perp traded before their spot listing add 36 trades in that window (+16.1% a trade)
