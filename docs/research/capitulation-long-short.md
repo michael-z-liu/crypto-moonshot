@@ -128,6 +128,19 @@ exactly), so no perp-only coin was ever in a training set.
 | LMC + L on perp-only coins | 485 | +11.5% | +62% | +81% | +152% | +790% | +111% |
 | same, cost doubled | 485 | +11.4% | +62% | +81% | +150% | +783% | +109% |
 
+Checks (`results/explore/p2_robust.md`, `p2_forward.md`, `p2_prespot.md`):
+
+- Flush days resampled: per-trade mean of perp-only L +13.1% (95% interval +8.9..+15.1%), all L
+  +12.9% (+6.9..+16.6%). Book bootstrap (L days resampled within each year): median worst year
+  +48% for LMC+ against +34% for LMC; 5th percentile +2% for both.
+- $50k start: 2026 +50% -> +110%; $250k: worst year +53% -> +55%. Entries one 5m candle late:
+  worst year +41% (LMC) / +42% (LMC+). With F added (LMCF+): 2026 +103% -> +184%.
+- Forward window 2026-11-02..27: one perp-only L signal (BRUSDT, 2026-11-21, pct 0.9959) hit the
+  +20% take profit (net +19.7%). Spot had no signal that day. One trade proves little, and the
+  perp-only extension was chosen after the pre-registration.
+- Coins whose perp traded before their spot listing add 36 trades in that window (+16.1% a trade)
+  but only 2 new flush days; LMC+ 2023 +81% -> +92%, 2024 +152% -> +181%.
+
 The crash short does not carry over: on perp-only coins it loses 1.0% a trade (flat calibration,
 the short pays funding), and in the book it fills hundreds of slots (2026 drawdown -63%).
 The pre-registered pick stays LMC; "LMC+" is the same long rule on a wider universe, chosen after

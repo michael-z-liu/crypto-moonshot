@@ -556,6 +556,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   USDT; the builder keeps >= 5k), walk-forward folds 2022-26, costs 0.4/1/2% (`q1_*`,
   `results/explore/illiquid.md`); deadline 08:45Z.
 
+- 05:25Z perp-only follow-ups (`p2_*`): LMC+ robust (bootstrap median worst year +48% vs +34% for
+  LMC; $50k/$250k and one-candle-late hold; LMCF+ 2026 +184%). Forward Nov 2026: one perp-only L
+  trade (BRUSDT 11-21) hit +20%. Pre-spot perp window: 36 trades +16.1%, 2 new days.
+  Recommendation for live: run L on every USD-M perp without a live spot market.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**

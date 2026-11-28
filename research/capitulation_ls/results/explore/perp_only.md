@@ -237,3 +237,200 @@ Calibration (signal = 1 - pct; equal-count bins):
   the 0.3% cost; the 2x-cost row shows that cost is not what drives the result.
 - **Data end.** Data runs to 2026-10-31 (the archive's monthly files). The fold models are new
   files in `.cache/forward_model/day5_2023..2025` (the master may keep or delete them).
+
+## Follow-ups
+
+Scripts: `p2_lib.py`, `p2_robust.py`, `p2_forward.py`, `p2_prespot.py`. Raw outputs are in
+`p2_robust.md`, `p2_forward.md` and `p2_prespot.md`; the tables are repeated below. LMC+ = LMC + L
+on perp-only coins.
+
+### Summary
+
+- **LMC+ holds up in every robustness test.**
+  - The book is never worse than LMC. In 400 paired day-block bootstrap draws (L flush days
+    resampled within each year), LMC+'s worst year is below LMC's in only 3% of draws. The
+    median worst year is +48% against +34%, and the 5th percentile is +2% for both.
+  - L-perp-only's per-trade mean has a 95% CI of +0.089 .. +0.151 with days resampled. That is
+    tighter than spot L's +0.063 .. +0.169, because it has 42 days against 25.
+  - The gain survives larger books. 2026 return LMC → LMC+: $10k +51% → +111%, $50k +50% →
+    +110%, $250k +53% → +87%.
+  - It survives entries one 5m candle late: worst year LMC +41% → LMC+ +42%, 2026 +50% → +68%,
+    and L-perp-only's own mean is unchanged at +0.132.
+  - It also helps LMCF: 2025 +801% → +1034%, 2026 +103% → +184% (drawdown -19% → -12%).
+- **Forward window (2026-11-02 .. 11-27): one L trade on a perp-only coin, won.** BRUSDT,
+  2026-11-21 03:35 UTC, pct 0.9959, ret_4h -20%. It hit the +20% take profit (net +0.197) with a
+  worst move of -8.8% on the way. That day spot's best score was 0.990, so the spot sleeve had no
+  trade. The coin is thin: qv_base $13.7k per 5m, about $4M a day, so the stake cap is about $20k.
+- **Pre-spot window: few but strong extra trades.** 49 coins had a perp at least 8 days before
+  their spot listing. Their pre-spot windows give 36 L trades in 2023-25, mean net **+0.161**, TP
+  rate 83%, on 14 days. Only 2 of those days are new; the rest coincide with spot L or
+  perp-only L flush days. Adding them to LMC+ lifts 2023 from +81% to +92% and 2024 from +152% to
+  +181%, and leaves the other years unchanged.
+- **Recommendation:** run L on all USD-M perps without a live spot market: perp-only coins, plus
+  spot-listed coins before their spot listing. Everything else stays the same.
+
+### F1. Robustness of LMC+
+
+Per-trade mean, day-block bootstrap (4,000 draws):
+
+| trades | n | days | mean net | 95% CI (days resampled) |
+|---|---|---|---|---|
+| L-perp-only | 328 | 42 | 0.131 | +0.089 .. +0.151 |
+| spot L | 1883 | 25 | 0.129 | +0.063 .. +0.169 |
+| all L (spot + perp-only) | 2211 | 50 | 0.129 | +0.069 .. +0.166 |
+
+Book with the L entry days of each year resampled (400 paired draws; M and C fixed):
+
+| book | bp (actual) | bp 5-95% | worst yr (actual) | worst yr 5% / 50% | P(worst yr < 0) | 2022 median (5%) | 2023 median (5%) | 2024 median (5%) | 2025 median (5%) | 2026 median (5%) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| LMC | 1158 | 1070 .. 1209 | +51% | +2% / +34% | 0.045 | +49% (+2%) | +62% (+40%) | +111% (+75%) | +542% (+450%) | +48% (+22%) |
+| LMC+ | 1145 | 1069 .. 1193 | +62% | +2% / +48% | 0.045 | +49% (+2%) | +62% (+40%) | +101% (+65%) | +677% (+569%) | +96% (+59%) |
+
+Worst year LMC+ minus LMC over the same draws: median +1 pts, 5% +0 pts, share of draws where LMC+ is worse 0.03.
+
+Starting equity (each year restarts at this amount; stake <= 0.5% of the coin's daily volume):
+
+| book | trades | bp | 2022 | 2023 | 2024 | 2025 | 2026 | min yr |
+|---|---|---|---|---|---|---|---|---|
+| LMC $10k | 430 | 1158 | +62% (dd -10) | +81% (dd -7) | +156% (dd -16) | +625% (dd -17) | +51% (dd -11) | +51% |
+| LMC+ $10k | 485 | 1145 | +62% (dd -10) | +81% (dd -7) | +152% (dd -16) | +790% (dd -17) | +111% (dd -10) | +62% |
+| LMC $50k | 430 | 1158 | +61% (dd -10) | +82% (dd -7) | +156% (dd -16) | +504% (dd -16) | +50% (dd -11) | +50% |
+| LMC+ $50k | 485 | 1145 | +62% (dd -10) | +82% (dd -7) | +151% (dd -16) | +606% (dd -16) | +110% (dd -10) | +62% |
+| LMC $250k | 430 | 1158 | +55% (dd -10) | +62% (dd -7) | +123% (dd -16) | +300% (dd -15) | +53% (dd -10) | +53% |
+| LMC+ $250k | 485 | 1145 | +55% (dd -10) | +62% (dd -7) | +122% (dd -16) | +358% (dd -15) | +87% (dd -10) | +55% |
+
+Entries one 5m candle late (L, L-perp-only, C):
+
+| book | trades | bp | 2022 | 2023 | 2024 | 2025 | 2026 | min yr |
+|---|---|---|---|---|---|---|---|---|
+| LMC, on time | 430 | 1158 | +62% (dd -10) | +81% (dd -7) | +156% (dd -16) | +625% (dd -17) | +51% (dd -11) | +51% |
+| LMC+, on time | 485 | 1145 | +62% (dd -10) | +81% (dd -7) | +152% (dd -16) | +790% (dd -17) | +111% (dd -10) | +62% |
+| LMC, 1 candle late | 426 | 1027 | +41% (dd -10) | +67% (dd -6) | +111% (dd -16) | +546% (dd -16) | +50% (dd -12) | +41% |
+| LMC+, 1 candle late | 478 | 962 | +42% (dd -10) | +69% (dd -6) | +103% (dd -16) | +616% (dd -16) | +68% (dd -12) | +42% |
+
+L-perp-only alone: on time n 328, mean net +0.1312; 1 candle late n 408, mean net +0.1322, TP rate 0.71.
+
+LMCF (x8_lib.sleeves()) with L-perp-only:
+
+| book | trades | bp | 2022 | 2023 | 2024 | 2025 | 2026 | min yr |
+|---|---|---|---|---|---|---|---|---|
+| LMCF | 539 | 1107 | +101% (dd -10) | +104% (dd -6) | +142% (dd -20) | +801% (dd -32) | +103% (dd -19) | +101% |
+| LMCF + L-perp-only | 589 | 1117 | +102% (dd -10) | +104% (dd -6) | +140% (dd -20) | +1034% (dd -32) | +184% (dd -12) | +102% |
+
+### F2. Forward window 2026-11-02 .. data end, perp-only coins
+
+Data end (latest BTC/ETH spot candle, as forward_signals.py): 2026-11-27 13:50 UTC. Perp candles fetched to 2026-11-27 23:55. 198 perp-only coins traded in the window; 11,675 liquid spikes (11,389 with an active perp), scored with the saved day5 2026 fold.
+
+pct >= 0.99: 14; pct >= 0.995: 2; L signals (pct >= 0.995 and active perp): 2.
+
+Top 10 scores:
+
+| symbol | open_time | pct | ret_4h | btc_ret_4h | qv_base | perp |
+|---|---|---|---|---|---|---|
+| BRUSDT | 2026-11-21 03:35:00+00:00 | 0.9959 | -0.2033 | -0.0324 | 13743.7529 | True |
+| BRUSDT | 2026-11-21 03:40:00+00:00 | 0.9957 | -0.2097 | -0.0376 | 13743.7529 | True |
+| DOSUSDT | 2026-11-21 04:00:00+00:00 | 0.9949 | -0.1785 | -0.0462 | 46087.2051 | True |
+| BRUSDT | 2026-11-21 03:50:00+00:00 | 0.9949 | -0.2420 | -0.0392 | 13743.7529 | True |
+| BRUSDT | 2026-11-21 03:30:00+00:00 | 0.9941 | -0.1498 | -0.0329 | 13743.7529 | True |
+| AKEUSDT | 2026-11-20 15:50:00+00:00 | 0.9938 | -0.0824 | -0.0356 | 241562.2422 | True |
+| AKEUSDT | 2026-11-20 15:45:00+00:00 | 0.9930 | -0.0823 | -0.0323 | 241562.2422 | True |
+| BRUSDT | 2026-11-21 03:45:00+00:00 | 0.9925 | -0.2129 | -0.0330 | 13743.7529 | True |
+| AKEUSDT | 2026-11-20 15:40:00+00:00 | 0.9924 | -0.1183 | -0.0302 | 241562.2422 | True |
+| DOSUSDT | 2026-11-21 03:40:00+00:00 | 0.9924 | -0.1394 | -0.0376 | 43907.0078 | True |
+
+L signals and outcomes so far:
+
+| symbol | open_time | pct | ret_4h | net | mfe | adv | status |
+|---|---|---|---|---|---|---|---|
+| BRUSDT | 2026-11-21 03:35:00+00:00 | 0.9959 | -0.2033 | 0.1970 | 0.2006 | 0.0883 | closed: TP |
+
+### F3. The pre-spot window (perp listed before spot)
+
+49 coins had a perp at least 8 days before their spot listing (by spot listing year):
+
+| y | coins | median_lead_days | coin_days |
+|---|---|---|---|
+| 2023 | 2 | 116.3 | 233.0 |
+| 2024 | 4 | 90.4 | 388.0 |
+| 2025 | 31 | 29.1 | 2945.0 |
+| 2026 | 12 | 33.1 | 1473.0 |
+
+19,430 liquid perp spikes in their pre-spot windows from 2022 (scored by the walk-forward fold of their year):
+
+| year | spikes | coins | active | q995 | q995_days |
+|---|---|---|---|---|---|
+| 2023 | 1540 | 4 | 1.000 | 6 | 4 |
+| 2024 | 2593 | 12 | 1.000 | 31 | 9 |
+| 2025 | 12808 | 36 | 0.988 | 31 | 2 |
+| 2026 | 2489 | 12 | 0.991 | 0 | 0 |
+
+L trades in the pre-spot window (perp long, 1x, TP 20%, 72h, cost 0.3% + funding, one per coin):
+
+| year | n | coins | days | mean_net | tp_rate |
+|---|---|---|---|---|---|
+| 2023 | 5 | 3 | 4 | 0.160 | 0.800 |
+| 2024 | 19 | 6 | 8 | 0.145 | 0.789 |
+| 2025 | 12 | 9 | 2 | 0.186 | 0.917 |
+
+All: n 36, mean net +0.1608, TP rate 0.83, 14 days; 2 of the 15 signal days are not spot-L or perp-only-L days (2023-11-09, 2024-07-05); trades on them: n 2, mean net +0.1968.
+
+| symbol | open_time | pct | ret_4h | net | exit_kind |
+|---|---|---|---|---|---|
+| BLURUSDT | 2023-06-10 04:20:00+00:00 | 0.996 | -0.237 | 0.013 | time |
+| BLURUSDT | 2023-08-17 21:40:00+00:00 | 0.999 | -0.337 | 0.197 | tp |
+| BLURUSDT | 2023-08-17 21:45:00+00:00 | 0.996 | -0.201 | 0.197 | tp |
+| BIGTIMEUSDT | 2023-11-09 16:10:00+00:00 | 0.995 | -0.164 | 0.197 | tp |
+| 1000BONKUSDT | 2023-12-11 02:10:00+00:00 | 0.995 | -0.156 | 0.197 | tp |
+| BIGTIMEUSDT | 2024-01-03 12:05:00+00:00 | 1.000 | -0.416 | 0.197 | tp |
+| PYTHUSDT | 2024-01-03 12:05:00+00:00 | 1.000 | -0.378 | 0.197 | tp |
+| BIGTIMEUSDT | 2024-01-03 12:10:00+00:00 | 0.999 | -0.286 | 0.031 | time |
+| PYTHUSDT | 2024-01-03 12:10:00+00:00 | 0.998 | -0.222 | -0.002 | time |
+| BIGTIMEUSDT | 2024-03-05 19:55:00+00:00 | 0.997 | -0.134 | 0.191 | tp |
+| BIGTIMEUSDT | 2024-04-12 18:30:00+00:00 | 0.997 | -0.247 | -0.175 | time |
+| ONDOUSDT | 2024-04-12 18:30:00+00:00 | 0.997 | -0.177 | 0.197 | tp |
+| TONUSDT | 2024-04-12 18:30:00+00:00 | 0.995 | -0.152 | 0.196 | tp |
+| TURBOUSDT | 2024-06-07 18:00:00+00:00 | 0.997 | -0.177 | 0.196 | tp |
+| BIGTIMEUSDT | 2024-06-07 18:00:00+00:00 | 0.996 | -0.176 | -0.044 | time |
+| BIGTIMEUSDT | 2024-06-18 01:40:00+00:00 | 0.996 | -0.197 | 0.197 | tp |
+| BIGTIMEUSDT | 2024-07-05 02:55:00+00:00 | 0.995 | -0.199 | 0.197 | tp |
+| TURBOUSDT | 2024-08-05 06:20:00+00:00 | 0.997 | -0.132 | 0.197 | tp |
+| ONDOUSDT | 2024-08-05 06:20:00+00:00 | 0.997 | -0.144 | 0.197 | tp |
+| TONUSDT | 2024-08-05 06:20:00+00:00 | 0.996 | -0.115 | 0.197 | tp |
+| BIGTIMEUSDT | 2024-08-05 06:20:00+00:00 | 0.996 | -0.093 | 0.197 | tp |
+| BIGTIMEUSDT | 2024-12-09 21:00:00+00:00 | 0.999 | -0.289 | 0.197 | tp |
+| MORPHOUSDT | 2024-12-09 21:00:00+00:00 | 0.998 | -0.190 | 0.197 | tp |
+| ONDOUSDT | 2024-12-09 21:00:00+00:00 | 0.997 | -0.185 | 0.198 | tp |
+| BIGTIMEUSDT | 2025-02-03 01:50:00+00:00 | 0.997 | -0.165 | 0.197 | tp |
+| ONDOUSDT | 2025-02-03 01:50:00+00:00 | 0.996 | -0.133 | 0.199 | tp |
+| VIRTUALUSDT | 2025-02-03 01:55:00+00:00 | 0.996 | -0.158 | 0.197 | tp |
+| MORPHOUSDT | 2025-02-03 02:05:00+00:00 | 0.996 | -0.201 | 0.197 | tp |
+| AEROUSDT | 2025-02-03 02:05:00+00:00 | 0.996 | -0.181 | 0.206 | tp |
+| AEROUSDT | 2025-10-10 21:10:00+00:00 | 0.999 | -0.272 | 0.197 | tp |
+| FUSDT | 2025-10-10 21:10:00+00:00 | 0.997 | -0.176 | 0.197 | tp |
+| HYPEUSDT | 2025-10-10 21:10:00+00:00 | 0.996 | -0.160 | 0.197 | tp |
+| SAPIENUSDT | 2025-10-10 21:10:00+00:00 | 0.995 | -0.164 | 0.052 | time |
+| BANKUSDT | 2025-10-10 21:20:00+00:00 | 1.000 | -0.355 | 0.197 | tp |
+| BANKUSDT | 2025-10-10 21:25:00+00:00 | 0.999 | -0.225 | 0.197 | tp |
+| FUSDT | 2025-10-10 21:35:00+00:00 | 0.998 | -0.272 | 0.197 | tp |
+
+Book (10 slots, $10k each year):
+
+| book | trades | bp | 2022 | 2023 | 2024 | 2025 | 2026 | min yr |
+|---|---|---|---|---|---|---|---|---|
+| LMC+ | 485 | 1145 | +62% (dd -10) | +81% (dd -7) | +152% (dd -16) | +790% (dd -17) | +111% (dd -10) | +62% |
+| LMC+ + pre-spot L | 493 | 1163 | +62% (dd -10) | +92% (dd -7) | +181% (dd -16) | +790% (dd -17) | +111% (dd -10) | +62% |
+
+Notes on the follow-ups:
+- **Bootstrap method.** For each draw, the L entry days of each year (spot L and perp-only L
+  together) are resampled with replacement. A day drawn k times enters its trades at k stakes,
+  limited by cash and the liquidity cap. M and C stay as they are. LMC and LMC+ use the same draws.
+- **One candle late.** L-perp-only takes 408 trades instead of 328. Entering one candle later
+  shortens the median hold (13.9h against 19.5h, because more trades reach the take profit
+  early), so the coin is free again sooner and more of the clustered candidates get taken.
+- **Forward.** Spikes and scores use `forward_signals.py`'s method: the saved day5 2026 fold,
+  market channels from `paper.market_series` over the shared store, data end = the latest
+  BTC/ETH spot candle. perp_1h ends in October, so the November perp activity gate was computed
+  from the fetched 5m candles.
+- **Pre-spot.** The spot listing time is the first 5m candle in the shared store or the archive
+  store. Windows before 2022 have no walk-forward fold and are not scored. All 2026 pre-spot
+  windows (12 coins) gave no signal.
