@@ -160,6 +160,10 @@ Neither does the funding-gated pump short (`results/explore/f_perp_only.md`): on
 it loses 5.2% a trade because 19% of trades hit the +100% liquidation (5% on spot listed coins),
 on real moves rather than wicks, and the funding gate filters nothing there (funding is >= 0 on
 79% of those pumps). Only the long carries over to perp-only coins.
+Going long those pumps instead (`results/explore/perp_only_pump_longs.md`) is positive in 69 of
+72 settings (+4.7% a trade with a +100% take profit and 72h), but it is a lottery (median trade
+-14%, day-bootstrap intervals include zero) on two years of data; a lead to paper-trade, not an
+improvement.
 
 The crash short does not carry over: on perp-only coins it loses 1.0% a trade (flat calibration,
 the short pays funding), and in the book it fills hundreds of slots (2026 drawdown -63%).

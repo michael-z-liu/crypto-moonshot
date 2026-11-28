@@ -582,6 +582,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   of perp-only pumps have funding >= 0); LMC+ with it: worst year -20%. Shorts stay on spot-
   listed coins; only the long carries over to perp-only coins.
 
+- 05:35Z LONG pumps on perp-only coins (`x15_*`, `results/explore/perp_only_pump_longs.md`): lead,
+  not confirmed. 69/72 configs positive (all pumps TP 100% 72h +474 bp, funding<0 TP 100% stop
+  30% +682 bp) but day-bootstrap CIs include 0, median trade -14%, only 2025-26. LMC+ with the
+  funding<0 version: 2025 +1096%, 2026 +227%, DD -18% (post hoc). Paper-trade candidate.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
