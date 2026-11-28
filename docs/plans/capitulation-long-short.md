@@ -622,6 +622,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   +1433 bp, CI +1114..+1660; book 2017 +87% / 2018 +146% / 2019 +19%. Concentrated in the
   2017-12..2018-01 mania (without it +856 bp at 1.2%, CI +220..+1461). Conversion checked (+40 bp).
 
+- 10:57Z launched (running): L on 2020-26 spot pairs quoted in BUSD/BTC/FDUSD/USDC/TUSD/ETH/BNB for
+  coins without a USDT pair at the time (`h3_*`, `results/explore/other_quotes.md`), aiming at new
+  flush days in 2022-24. Running too: post-delisting perps (`p3_*`).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
