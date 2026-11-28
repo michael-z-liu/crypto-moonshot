@@ -512,7 +512,7 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
 - 00:45Z-05:10Z usage limit: all five explorers stopped; resumed at 05:10Z via SendMessage
   (holdout, second pump, calendar/baskets, perp-only, book depth). Hand-off unchanged (09:46Z).
 
-- 05:20Z calendar and baskets (`x8_*`, `results/explore/calendar.md`, `baskets.md`): all fail.
+- 05:12Z calendar and baskets (`x8_*`, `results/explore/calendar.md`, `baskets.md`): all fail.
   Calendar: 1 of 88 sleeve x bucket tests passes in both periods (C just before a funding
   settlement, 17 trades; ~0.1 expected), not confirmed on wider crash pools; at most an execution
   rule (open C after a settlement). Pump basket shorts: all 80 configs negative (liquidations
@@ -523,19 +523,19 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   percentiles and features, execution order, book accounting, survivorship, selection count);
   `a1_*`, `results/why/audit.md`. Its findings go into the report's caveats.
 
-- 05:30Z HOLDOUT 2017-19 (`h1_*`, `results/explore/holdout_2018.md`): L's pre-registered rule
+- 05:14Z HOLDOUT 2017-19 (`h1_*`, `results/explore/holdout_2018.md`): L's pre-registered rule
   holds on never-seen data: 41 trades, 18 flush days, +954 bp (2022-26 +1291), 88% wins, day
   bootstrap CI +620..+1379 bp, hockey stick present, CNN beats simple rules (+566 / -37 bp). Book
   only +10..+16% a year (few USDT pairs, few flush days). Added to the report summary (item 7).
 
-- 05:45Z PERP-ONLY COINS (`p1_*`, `results/explore/perp_only.md`): L as a 1x perp long on the 200
+- 05:19Z PERP-ONLY COINS (`p1_*`, `results/explore/perp_only.md`): L as a 1x perp long on the 200
   coin perps without spot, scored by day5 walk-forward folds (2023-25 retrained, exact parity):
   328 trades, +13.1% net (cost 0.3% + funding), 86% wins, hockey stick present, every year
   positive; adds 24 flush days in 2025-26. LMC + L-perp-only: +1145 bp/trade, years +62/+81/
   +152/+790/+111%, worst year +51% -> +62%, DD unchanged; 2x cost +109% in 2026. Same rule, new
   universe, but chosen after the pre-registration: report it as "LMC+" alongside LMC. C on
   perp-only coins fails (-1.0%, flat calibration, funding eats it).
-- 05:45Z second pumps and listing months 2-3 (`x7_*`, `results/explore/second_pump.md`,
+- 05:19Z second pumps and listing months 2-3 (`x7_*`, `results/explore/second_pump.md`,
   `listing_month2.md`): fail. Second pumps are worse to short than first pumps (F-def gated
   +3.7% vs +8.0%), longs lose everywhere. Listing features carry no signal after day 30; shorting
   all listings at day 60 for 30 days +10.0% but DD -31% in LMC (the longer-M-hold lead was
@@ -546,7 +546,7 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   one candle late, LMCF+), the Nov 2026 forward window on perp-only coins, and the pre-spot perp
   window of later spot listings. Still running: book depth (`x12_*`), audit (`a1_*`).
 
-- 06:05Z order-book depth (`x12_*`, `results/explore/book_depth.md`): not confirmed. Within a
+- 05:23Z order-book depth (`x12_*`, `results/explore/book_depth.md`): not confirmed. Within a
   day L's candidates arrive on one or two 5m bars and the CNN already ranks them (within-day IC
   +0.23/+0.29); depth reaches -0.12 (-0.07 net of the CNN). Thin asks explain all 7 F stop-outs,
   but the gate drops 59% of F (dropped trades +696 bp); for M it removes the best trades. Every
