@@ -602,6 +602,12 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   listing price at 72h) are fading pumps: picks +32% in 2021-24 -> -20% in 2025-26, carried by 3
   runners (GMT, C98, TIA). A long on M's strong listings mirrors M (corr -0.99): no squeeze edge.
 
+- 10:10Z PAUSED by the user ("pause work for now, I will ask you to resume later"). Heartbeat
+  deleted. State: every explorer committed except the BTC-pair holdout (`h2_*`), which stopped
+  at a usage limit while writing `h2_fetch.py` (untracked partial `h2_*.py` files; resume it or
+  relaunch from the 06:00Z entry). Still to do at hand-off: full check, report status line,
+  memory note, PR (never merge).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
