@@ -505,6 +505,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   worst year drops +51% -> +34..+39%. Adverse selection: unfilled candidates were the better
   trades (8% dips in 2022-24: +238 bp at market vs +932 bp for the rest); only 2025 gains.
 
+- 00:35Z launched (running): perp order-book depth (archive bookDepth, 2023+) as an entry
+  feature for L/F/M/C (`x12_*`, `results/explore/book_depth.md`, data OWN/bookdepth/). The
+  archive's liquidationSnapshot set is empty, so forced-liquidation data is not available.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
