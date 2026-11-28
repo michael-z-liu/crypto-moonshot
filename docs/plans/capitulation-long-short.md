@@ -509,6 +509,9 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   feature for L/F/M/C (`x12_*`, `results/explore/book_depth.md`, data OWN/bookdepth/). The
   archive's liquidationSnapshot set is empty, so forced-liquidation data is not available.
 
+- 00:45Z-05:10Z usage limit: all five explorers stopped; resumed at 05:10Z via SendMessage
+  (holdout, second pump, calendar/baskets, perp-only, book depth). Hand-off unchanged (09:46Z).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
