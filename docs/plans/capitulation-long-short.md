@@ -592,6 +592,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   band +12.4%/trade at 0.4% cost, +10.8% at 2%; hockey stick present) but adds only 2 new flush
   days in five years (0 in 2026); in the book it displaces larger liquid stakes. Not adopted.
 
+- 05:37Z running: listing-day and strong-listing longs (`x16_*`, `results/explore/listing_longs.md`,
+  deadline 08:30Z); the 2017-19 holdout on BTC-quoted pairs converted to USDT (`h2_*`,
+  `results/explore/holdout_btc_pairs.md`, deadline 08:45Z). Report, README and scoreboard
+  refreshed; full check passes (ruff, mypy, 524 tests).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
