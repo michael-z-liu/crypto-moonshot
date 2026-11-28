@@ -66,16 +66,28 @@ both directions (longs after dumps, shorts on USD-M perpetuals after rallies). P
 | Longs one candle (5 min) late | +10.7% a trade, worst year +42% |
 | Entry 1-2 minutes after the assumed open (1m candles) | costs at most ~0.3% a trade |
 | Other walk-forward score sets for L (volscale5, path_all5, 10 seeds) | +10.9..+11.7% a trade, worst year +29..+52% |
-| Settings chosen on 2022-24 only, read on 2025-26 | 2025 +544%, 2026 +89% (+8.6% / +5.5% a trade) |
+| Settings chosen on 2022-24 only, read on 2025-26 | 2025 +371%, 2026 +54% (+7.5% / +3.8% a trade); corrected by the audit (the first run used the 72h weak-listing filter with a 24h entry, a look-ahead that showed +544% / +89%) |
 | 400 random configurations from plausible ranges | 96% positive every year; median +10.0% a trade, median worst year +41%; both targets in 14% |
 | Without each year's best flush day for L | +10.6% a trade, worst year +21% |
 | Without each year's top 3 listing shorts | +10.0% a trade, worst year +32% |
 | Starting each year with $50k / $250k | worst year +50% / +53% (2025's compounding meets the volume cap) |
 | 7-day block bootstrap of daily returns | one-year return p5 +26%, median +129%; P(>= +50%) 86% (68% without 2025) |
-| Deflated Sharpe ratio | 0.98 (1,000 trials) / 0.90 (5,000); annualised Sharpe 2.16 |
+| Deflated Sharpe ratio | 0.98 (1,000 trials) / 0.90 (5,000); annualised Sharpe 2.16. Assumes a 0.48 Sharpe spread across trials (near-copies of the winner); with a spread of 0.75 it is 0.60 / 0.25 |
+| Drawdown marked to market hourly (audit) | worst -18.6% (2025) instead of -16.7% on closed trades; 2026 -17.2% instead of -11.4%; all open positions at their worst at once: -26% |
+| Take profit only when price trades 1% through it (audit) | +11.4% a trade, worst year +51% |
 
 The per-trade target is typical of the whole region; +50% every year is the binding target and
 depends on catching the one or two biggest flush days of a year.
+
+**Audit** (`results/why/audit.md`, `a1_audit.py`, `a1_e45_fix.py`). An independent check of the
+code found no look-ahead or execution bug in the headline book: the CNN percentiles are taken
+against each fold's training scores, features use only closed bars, the adverse extreme is
+counted first within a bar, costs and funding have the right sign, and delisted coins (LUNA's
+-100% long) are in. It found one look-ahead in the frozen-settings check above (now corrected),
+drawdowns measured on closed trades only (marked to market they are 2-6 points deeper), eight
+trades crossing a year end credited to their entry year, and a latent merge of two perp symbol
+pairs (BOB, CAT) that affects no current trade. The honest guides to size are the corrected
+frozen-settings read (+7.5% / +3.8% a trade in 2025 / 2026) and the 2017-19 holdout (+9.5%).
 
 ## Holdout on 2017-19 (`results/explore/holdout_2018.md`)
 

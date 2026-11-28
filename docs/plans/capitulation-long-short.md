@@ -564,6 +564,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
 - 05:25Z launched (running): F and P pump shorts on perp-only coins and the pre-spot window,
   fixed F rule (`f1_*`, `results/explore/f_perp_only.md`); deadline 08:45Z.
 
+- 05:26Z audit (`a1_*`, `results/why/audit.md`): headline LMC reproduced, no inflating bug. Fixed:
+  E45 frozen check had a look-ahead (72h weak filter with a 24h entry): 2025/26 +544/+89% ->
+  +371/+54%. MTM drawdown -18.6% (vs -16.7%), 2026 -17.2%. DSR depends on the 0.48 trial
+  spread (0.75 -> 0.60/0.25). Report robustness table and caveats updated.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
