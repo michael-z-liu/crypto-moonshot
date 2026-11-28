@@ -466,7 +466,9 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
 
 - 00:20Z squeeze longs: LONG pumps when funding < 0 (mirror of F): about
   zero (r4 >= 0.2, rate < 0, 72h +2 bp; r4 >= 0.4 -184 bp; best ~+100 bp with years +58%..-60%).
-  Negative-funding pumps look two-sided; investigator launched (`why/squeeze_longs.md`, `w11_`).
+  Why (`why/squeeze_longs.md`): not bimodal; negative-funding pumps fade (median 72h price -9%,
+  squeezes 8% as at positive funding); the long collects +326 bp of funding that just offsets the
+  fade; the long/short gap is the funding. No entry feature separates squeezes out of sample.
 
 - 00:28Z crowding and capitulation longs: over all L candidates, crowded shorts at entry bounce
   harder (funding tercile low/mid/high +1512/+1366/+903 bp; ls_acc +1511/+1385/+950; OI rising
