@@ -573,6 +573,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   Same rows: perp +1259 vs spot +1258 bp; lower cost and funding received offset by deeper perp
   wicks on 2025-10-10. Spot stays the venue where it exists.
 
+- 05:32Z LMC+ without each year's best long day(s) (`x14_lmcplus_bestday.py`): worst year +21%
+  (2022) for both LMC and LMC+; 2026 without the best day LMC+ +87% vs LMC +32%. Perp-only coins
+  add independent flush days only from 2024.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
