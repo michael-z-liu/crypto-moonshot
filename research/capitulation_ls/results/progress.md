@@ -35,7 +35,7 @@ Targets: average trade >= +10%, every year >= +50%. Backtest 2022-26, per-year $
 | Pump shorts | plain, stops, delays, models, OI/LS/funding predictors, low CNN score, second pumps, baskets, perp-only coins | cost waterfall on perps (gap, liquidation, funding); stops sell retraces; perp-only coins squeeze 4x as often |
 | Leverage | 2x/3x alts and majors, stops | one wick day (2025-10-10); survivable leverage 0.99x |
 | Long-sleeve variants | trade-aligned target, GBM, transformer/TCN/GRU, ensembles, exits, top-K, pyramiding, vol sizing, BTC hedge, cascade timing, early-slot cap, limit entries, crowding, order-book depth, perp venue, less liquid coins | the day explains most of the outcome; the CNN already ranks within a day; extra coins help only if they add flush days |
-| Listing variants | all perps, young coins, triggers, delays, late perps, regime filter, longer holds, months 2-3 | edge is the spot-listing event; front-loaded decay |
+| Listing variants | all perps, young coins, triggers, delays, late perps, regime filter, longer holds, months 2-3, listing-day and strong-listing longs | edge is the spot-listing event; front-loaded decay; first candles are near the top |
 | Crash shorts | exits, 31 entry features, perp-only coins | a few large continuations carry it; nothing at entry predicts them |
 | Book level | sleeve momentum, loss brake, calendar effects | exposure, one squeeze cluster, chance |
 | New families | quiet breakouts, lag catch-up, premium extremes, contagion, large-cap reversal, flush-loser baskets | flat calibration or overlap with L |
