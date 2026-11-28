@@ -411,6 +411,11 @@ the first month, listing features carry no signal; only a generic slow decline r
 every listing at day 60 for 30 days: +10% a trade, but drawdown -31% in the book). The pump short
 works only on the 5m volume-spike rows: hourly "+40% in 4h" pumps that are not spike rows lose.
 
+**Pairs in other quotes, 2020-26** (`explore/other_quotes.md`). Unlike 2017-19, coins quoted
+only in BUSD, BTC or other currencies add no flush days after 2020: every flush already has USDT
+candidates, and from 2024 every coin lists with a USDT pair. 2022-26 gains two trades on a day
+already traded (2022 +62% -> +66%).
+
 **Listing longs** (`explore/listing_longs.md`). Buying new spot listings loses in every
 setting (-1% to -15% a trade): the first candles are near the top, the other side of the listing
 short's edge. Listings still above their listing price after 72 hours are fading pumps, not

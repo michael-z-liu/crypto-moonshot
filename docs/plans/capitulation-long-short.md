@@ -630,6 +630,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   trading after spot delisting; 8 L trades +9.6%, no new flush days, LMC+ unchanged. A live
   scanner over every active perp covers them anyway.
 
+- 11:11Z other quote pairs 2020-26 (`h3_*`, `results/explore/other_quotes.md`): fail as a lever. 2022-26:
+  2 trades (FTX day, already traded), no new flush days; from 2024 every coin lists with a USDT
+  pair. 2020-21 (2022 fold backwards): 51 trades +17.1% but only 2 new days. Unlike 2017-19,
+  USDT pairs already cover every flush.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
