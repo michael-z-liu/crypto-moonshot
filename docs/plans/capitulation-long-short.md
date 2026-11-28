@@ -446,6 +446,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   2022 negative; TP 10-15% +100..+180; trailing -57..+68 vs +436 bp). Investigator launched
   (`why/c_exits.md`, `w10_`).
 
+- 00:40Z F tail (`results/explore/f_tail.md`, 15 pre-declared gates): no crowding gate improves F.
+  ls_acc >= 1.0 halves stopped (4.9% -> 2.4%) but removes 43% of trades and lowers the LMC+F book
+  (worst year +101% -> +75%); chosen on 2022-24, neither gate beats the base in 2025-26. The crowded
+  tercile has both the most stops and the highest E[o]: squeeze risk is paid for in the body.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
