@@ -1,0 +1,495 @@
+# Capitulation long/short: searching for a much more profitable version
+
+Unattended search, started 2026-11-27, for changes to the capitulation strategy that reach an
+**average trade of +10% or more** and **+50% or more a year** for a $10k-50k account, trading
+both directions (longs after dumps, shorts on USD-M perpetuals after rallies). Plan and run log:
+`docs/plans/capitulation-long-short.md`. Code: `research/capitulation_ls/` (`README.md` maps every
+script: experiments `e01_`..`e51_`, failure investigations `w1_`..`w12_`, explorers `x1_`..`x17_`,
+diagnostics `d01_`/`d02_` and `diag.py`, the 2017-19 holdouts `h1_`/`h2_`, other quote pairs
+`h3_`, perp-only coins `p1_`/`p2_`/`p3_`/`f1_`, less liquid spikes `q1_`, the audit `a1_`; shared
+code `sim.py`, `e25_combined.py`, `wf.py`, `dsr.py`, `fetch_futures.py`, `build_*.py`,
+`nn_seq.py`).
+
+> Status: final for this search (2026-11-28). The pre-registered forward read-out
+> (2026-11-02..27) found no trades for LMC and one winning trade for the perp-only extension:
+> see [Forward read-out](#forward-read-out).
+
+## Summary
+
+1. **Both targets are reached in the 2022-26 backtest by a three-sleeve book, without
+   leverage.** "LMC" shares 10 equal slots between:
+   - **L, capitulation longs** (spot): the day-weighted walk-forward CNN of the #10 study at its
+     top 0.5% (`day5` pct >= 0.995), take profit +20%, time exit 72 hours;
+   - **M, weak-listing shorts** (perp, isolated 1x): new Binance spot listings that trade at or
+     below their listing price 72 hours after listing; take profit 50%, stop 50%, 30 days;
+   - **C, idiosyncratic crash shorts** (perp, isolated 1x): a coin down 15%+ in 4 hours while BTC
+     moved less than 1% and the CNN expects no bounce (pct <= 0.5); 24 hours.
+
+   | LMC, 10 slots, $10k each year | 2022 | 2023 | 2024 | 2025 | 2026 (to Nov) |
+   | --- | --- | --- | --- | --- | --- |
+   | Return | +62% | +81% | +156% | +625% | +51% |
+   | Max drawdown | -10% | -7% | -16% | -17% | -11% |
+
+   +11.6% a trade on 430 trades; double costs +11.3%; longs one candle late +10.7%.
+2. **Longer holds are the single biggest change.** Prior studies held 1-2 hours for +0.5-1.5% a
+   trade. The same CNN signal held up to 72 hours with a +20% take profit makes +10.6% a trade
+   (every year positive, drawdown -14%), and +7-11% across all 13 walk-forward score sets.
+3. **Shorting pumps is real but squeezes cap it.** On spot prices, shorting +40% pumps looked
+   like +10% a trade; on perp prices with honest tails (isolated 1x liquidation at +100%) it is
+   +3% a trade, a waterfall of the perp-spot gap, liquidation, funding and cost (see
+   [Why it did not work](#why-it-did-not-work)). 6% of pump shorts see the price double within
+   72 hours, and squeezes are barely predictable. It only works when BTC has not fallen over the
+   past week (+6.5% a trade, every year positive).
+4. **Leverage does not survive flash crashes.** 2x on longs, even on majors, is wiped out by the
+   2025-10-10 wicks. The targets are met at 1x gross; longs belong on spot.
+5. **On the forecaster's per-coin fidelity:** within a day, the CNN's forecast band ranks coins'
+   realised 8h moves at IC 0.22 (trailing volatility alone 0.21; the model adds a partial 0.13);
+   its 10-90% band holds 73% of outcomes (too narrow; widen 1.2x for 80%). A transformer ranks
+   pumps better within a day (IC 0.34 vs 0.25 for trees), but better ranking did not turn into
+   better books, because books are decided by tails and by which days trade.
+6. **Caveats.** Every sleeve and setting was chosen on 2020-26 data that earlier studies had also
+   seen. The deflated Sharpe ratio is 0.90-0.98 (5,000 / 1,000 trials), assuming trials differ
+   little (see the audit). The long sleeve's evidence rests on about 25 flush days; 2025
+   dominates the book (listing shorts). Settings chosen on 2022-24 alone made +7.5% / +3.8% a
+   trade in 2025 / 2026. Forward data is the real test, but see the holdout (item 7).
+7. **The long sleeve holds on data nobody tuned on (2017-08..2019-12).** The pre-registered L
+   rule, scored by the same model on Binance spot data no earlier study had used, made +9.5% a
+   trade (41 trades on 18 flush days, 88% winners, day-bootstrap 95% CI +6.2..+13.8%), about
+   three quarters of its 2022-26 size, with the same hockey-stick calibration. Its book made only
+   +10..+16% a year, because there were few USDT pairs and few flush days then. Adding the
+   BTC-quoted pairs of that era (converted to USDT) gives 181 trades on 44 flush days at +14.3% a
+   trade (95% CI +11.1..+16.6%; +13.6% at wide costs) and books of +87% / +146% / +19% in 2017 /
+   2018 / 2019, most of it from the 2017-18 altcoin top and crash. Evidence for the signal; it
+   says nothing about the short sleeves.
+8. **Perp-only coins add flush days to the long sleeve ("LMC+", chosen after the pick).** The same
+   L rule, applied as a 1x perp long to the 200 coins that trade only as perps and scored by
+   walk-forward folds, made +13.1% a trade after costs and funding (328 trades, 86% winners). It
+   adds 24 flush days in 2025-26. LMC with these trades: +11.5% a trade, years +62 / +81 / +152 /
+   +790 / +111%, worst year +62% (LMC +51%), drawdowns unchanged. With every setting frozen on 2022-24, it
+   lifts 2026 from +54% to +128% (per trade +5.6%, below the target).
+
+## Robustness checks on LMC
+
+| Check | Result |
+| --- | --- |
+| Double costs | +11.3% a trade, worst year +48% |
+| Longs one candle (5 min) late | +10.7% a trade, worst year +42% |
+| Entry 1-2 minutes after the assumed open (1m candles) | costs at most ~0.3% a trade |
+| Other walk-forward score sets for L (volscale5, path_all5, 10 seeds) | +10.9..+11.7% a trade, worst year +29..+52% |
+| Settings chosen on 2022-24 only, read on 2025-26 | 2025 +371%, 2026 +54% (+7.5% / +3.8% a trade); corrected by the audit (the first run used the 72h weak-listing filter with a 24h entry, a look-ahead that showed +544% / +89%) |
+| Same, with the perp-only long at the frozen long settings (`explore/frozen_lmcplus.md`) | 2025 +498%, 2026 +128% (+5.6% a trade in 2025-26) |
+| 400 random configurations from plausible ranges | 96% positive every year; median +10.0% a trade, median worst year +41%; both targets in 14% |
+| Without each year's best flush day for L | +10.6% a trade, worst year +21% |
+| Without each year's top 3 listing shorts | +10.0% a trade, worst year +32% |
+| Starting each year with $50k / $250k | worst year +50% / +53% (2025's compounding meets the volume cap) |
+| 7-day block bootstrap of daily returns | one-year return p5 +26%, median +129%; P(>= +50%) 86% (68% without 2025) |
+| Deflated Sharpe ratio | 0.98 (1,000 trials) / 0.90 (5,000); annualised Sharpe 2.16. Assumes a 0.48 Sharpe spread across trials (near-copies of the winner); with a spread of 0.75 it is 0.60 / 0.25 |
+| Drawdown marked to market hourly (audit) | worst -18.6% (2025) instead of -16.7% on closed trades; 2026 -17.2% instead of -11.4%; all open positions at their worst at once: -26% |
+| Take profit only when price trades 1% through it (audit) | +11.4% a trade, worst year +51% |
+
+The per-trade target is typical of the whole region; +50% every year is the binding target and
+depends on catching the one or two biggest flush days of a year.
+
+**Audit** (`results/why/audit.md`, `a1_audit.py`, `a1_e45_fix.py`). An independent check of the
+code found no look-ahead or execution bug in the headline book: the CNN percentiles are taken
+against each fold's training scores, features use only closed bars, the adverse extreme is
+counted first within a bar, costs and funding have the right sign, and delisted coins (LUNA's
+-100% long) are in. It found one look-ahead in the frozen-settings check above (now corrected),
+drawdowns measured on closed trades only (marked to market they are 2-6 points deeper), eight
+trades crossing a year end credited to their entry year, and a latent merge of two perp symbol
+pairs (BOB, CAT) that affects no current trade. The honest guides to size are the corrected
+frozen-settings read (+7.5% / +3.8% a trade in 2025 / 2026) and the 2017-19 holdout (+9.5%).
+
+## Holdout on 2017-19 (`results/explore/holdout_2018.md`)
+
+Spot 5m candles for every USDT pair from August 2017 to December 2019 (89 pairs, including
+delisted ones) were downloaded from the Binance archive and turned into spikes with the
+builders' own functions (exact parity on January 2020). They were scored with the saved day5
+2026 fold, with pct taken against its 2020-25 reference scores as in the forward scorer. A
+retrained 2022 fold (which reproduces day5's 2022 walk-forward scores exactly) was used as a
+check.
+
+| L, pct >= 0.995, TP 20%, 72h | trades | flush days | mean | winners | take profit hit |
+| --- | --- | --- | --- | --- | --- |
+| Holdout 2017-19 | 41 | 18 | +9.5% | 88% | 37% |
+| Backtest 2022-26 | 1,883 | 25 | +12.9% | 85% | 65% |
+
+- 16 of 18 flush days were positive; by year: 2017 +14.1% (7 trades), 2018 +14.7% (10),
+  2019 +6.1% (24, mostly large coins with smaller bounces).
+- Calibration by signal bin, 2017-19 vs 2022-26: 0.95-0.976 +0.6% vs +0.9%; 0.976-0.984 +1.3%
+  vs +3.6%; 0.984-0.9955 +5.1% vs +7.4%; >= 0.9955 +10.7% vs +13.5%. The hockey stick is there.
+- The CNN beats simple rules on the same exits: any spike after a 20% fall in 24h +5.7%, every
+  liquid spike -0.4%. Neighbours: pct 0.99 +6.7% (72 trades), 0.998 +17.8% (10).
+- Book (10 slots, $10k a year): +10% (2017, five months), +16% (2018), +13% (2019), drawdowns
+  about 1%. Too few events for the +50% target in that era.
+- **BTC-quoted pairs** (`results/explore/holdout_btc_pairs.md`): most alts then traded only
+  against BTC. 151 such pairs (spikes kept only while the coin had no USDT pair), candles converted
+  to USDT with BTCUSDT: L made +15.7% a trade (140 trades, 38 flush days, 26 not in the USDT
+  holdout, 91% winners; +14.9% at 1.2% cost including the BTCUSDT legs), with a steeper hockey
+  stick (Spearman +0.35). The conversion is checked on coins that had both quotes (+10.5% native vs
+  +10.9% converted on the would-be trades). 74% of these trades fall in 2017-12..2018-01; without
+  those two months: 36 trades, +8.6% at 1.2% cost (CI +2.2..+14.6%). Combined USDT + BTC pairs:
+  181 trades, 44 days, +14.3% (CI +11.1..+16.6%); 10-slot book +87% (2017, five months), +146%
+  (2018), +19% (2019).
+- Caveats: small sample (12 trades on 2019-09-24); 2017-18 spreads were probably wider than the
+  0.4% cost; the 2026 fold is applied backwards in time (the retrained 2022 fold is stricter:
+  4 trades, all reached +20%). Archive fixes: candles offset after the February 2018 outage
+  were floored to the 5m grid, and 15 spikes with broken inputs right after it were excluded.
+
+## Perp-only coins (`results/explore/perp_only.md`)
+
+Binance lists about 200 coin perps (delisted ones included; stock, ETF, commodity and index perps
+excluded) whose coin has no spot market. Their 5m perp candles went through the spike builder
+(bit-identical to the spot caches on coins that have both) and each year was scored by that
+year's day5 walk-forward fold (2023-25 retrained here, reproducing the stored percentiles
+exactly), so no perp-only coin was ever in a training set.
+
+| L on perp-only coins, perp long 1x | 2022 | 2023 | 2024 | 2025 | 2026 |
+| --- | --- | --- | --- | --- | --- |
+| trades | 1 | 3 | 78 | 185 | 61 |
+| mean net | +19.7% | +17.8% | +11.2% | +14.8% | +10.1% |
+
+- Hockey stick as on spot: +0.9% / +0.2% / +4.3% / +13.7% for pct 0.950-0.976 / 0.976-0.984 /
+  0.984-0.9955 / >= 0.9955. 42 entry days, 86% positive. Without 2025-10-10 (126 trades): +12.3%.
+- Flush days added: 7 in 2025 and 17 in 2026; trades on those days are weaker (+7.9%, n=42).
+  Before 2024 there were too few perp-only coins to matter.
+
+| 10 slots, $10k each year | trades | per trade | 2022 | 2023 | 2024 | 2025 | 2026 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| LMC | 430 | +11.6% | +62% | +81% | +156% | +625% | +51% |
+| LMC + L on perp-only coins | 485 | +11.5% | +62% | +81% | +152% | +790% | +111% |
+| same, cost doubled | 485 | +11.4% | +62% | +81% | +150% | +783% | +109% |
+
+Checks (`results/explore/p2_robust.md`, `p2_forward.md`, `p2_prespot.md`):
+
+- Flush days resampled: per-trade mean of perp-only L +13.1% (95% interval +8.9..+15.1%), all L
+  +12.9% (+6.9..+16.6%). Book bootstrap (L days resampled within each year): median worst year
+  +48% for LMC+ against +34% for LMC; 5th percentile +2% for both.
+- $50k start: 2026 +50% -> +110%; $250k: worst year +53% -> +55%. Entries one 5m candle late:
+  worst year +41% (LMC) / +42% (LMC+). With F added (LMCF+): 2026 +103% -> +184%.
+- Forward window 2026-11-02..27: one perp-only L signal (BRUSDT, 2026-11-21, pct 0.9959) hit the
+  +20% take profit (net +19.7%). Spot had no signal that day. One trade proves little, and the
+  perp-only extension was chosen after the pre-registration.
+- Without each year's best long flush day, LMC+'s worst year falls to +21% (2022), the same as
+  LMC: before 2024 there were too few perp-only coins to add days. In 2026 it still makes +87%
+  without its best long day (LMC +32%) (`results/explore/lmcplus_bestday.md`).
+- Perps that kept trading after their coin's spot delisting (`results/explore/post_delist.md`):
+  only 18 real windows, 8 trades (+9.6%), no new flush days; LMC+ unchanged.
+- By perp age at entry the edge is flat (+12.1% under 30 days, +14.6%, +13.7%, +12.3% over 180
+  days): it is not a new-listing effect.
+- Coins whose perp traded before their spot listing add 36 trades in that window (+16.1% a trade)
+  but only 2 new flush days; LMC+ 2023 +81% -> +92%, 2024 +152% -> +181%.
+
+Neither does the funding-gated pump short (`results/explore/f_perp_only.md`): on perp-only coins
+it loses 5.2% a trade because 19% of trades hit the +100% liquidation (5% on spot listed coins),
+on real moves rather than wicks, and the funding gate filters nothing there (funding is >= 0 on
+79% of those pumps). Only the long carries over to perp-only coins.
+Going long those pumps instead (`results/explore/perp_only_pump_longs.md`) is positive in 69 of
+72 settings (+4.7% a trade with a +100% take profit and 72h), but it is a lottery (median trade
+-14%, day-bootstrap intervals include zero) on two years of data, and its best book version
+lost on the pre-spot coins (8 trades, -9.1%); a lead to paper-trade at most, not an improvement.
+
+The crash short does not carry over: on perp-only coins it loses 1.0% a trade (flat calibration,
+the short pays funding), and in the book it fills hundreds of slots (2026 drawdown -63%).
+The pre-registered pick stays LMC; "LMC+" is the same long rule on a wider universe, chosen after
+seeing these results.
+
+## Forward read-out
+
+The pick was written into the plan before any forward outcome was computed. The day5 2026 fold
+was saved (`save_day_model.py`, reproducing day5's 2026 scores exactly) and every liquid spike
+from 2026-11-02 to 11-27 was scored (`forward_signals.py day5`). `lmc_forward.py day5`: **no
+trades.** The highest long score was 0.990 (no flush), no crash met the crash-short rule, and all
+18 new spot listings were tokenised stocks or ETFs without perps. BTC did fall about 15% in three
+days around 2026-11-14/15, but as a slow slide without 5m capitulation spikes, so the long sleeve
+stayed out by design. The window can neither confirm nor reject LMC; the paper trade going
+forward is the test (rerun the two scripts after a sync). The perp-only extension (see the
+previous section) had one signal in the same window, BRUSDT on 2026-11-21, which hit the +20%
+take profit. To refresh the read-out for LMC+ after a candle sync, run, from `research/capitulation_ls`:
+`forward_signals.py day5`, `lmc_forward.py day5` (spot L, M, C) and `p2_forward.py` (L on
+perp-only coins; it fetches their November candles from the Binance archive and would need its
+month range widened for later windows).
+
+## What changed against the earlier capitulation studies
+
+| Change | Effect |
+| --- | --- |
+| Hold 72h with a +20% take profit instead of 1-2h | +1% -> +10.6% a trade for the top 0.5% |
+| Shorts on perps (funding, liquidation, perp prices) | a second and third sleeve; spot proxies overstate shorts |
+| Survivorship-free universe, perp availability check (traded volume in the last 2 hours) | removes frozen and delisted perps |
+| Per-year $10k books with a liquidity cap (0.5% of 24h volume) | yearly returns that do not depend on earlier compounding |
+| Worst concurrent adverse move check | shows why >1x gross is unsafe |
+
+## Findings by sleeve
+
+### L: capitulation longs (E20-E24, E29-E33, E38)
+
+- Region, not a point: pct 0.995-0.997, take profit 15-30%, hold 24-72h, 10 slots: +9..+16% a
+  trade, every year positive. Walk-forward choice of these settings is noisy (one to three
+  earlier years), but 112 of 200 configurations are positive in every year.
+- In the 10-slot book 81% of the 162 trades win and 60% reach the take profit (85% / 65% over all
+  1,883 candidates); the worst are systemic collapses (LUNA -100%, FTT -70%) and the 2024-04-12
+  cascade. 1,803 of 1,883 candidate trades fall on 11 broad flush days.
+- Did not help: a CNN trained on the realistic TP20/72h target (+5.2% vs +10.6%), a GBM or
+  transformer on that target (they learn which years are good, not which coins), ensembles,
+  10 seeds instead of 5, the 2h head, per-day top-K selection, a second position per coin,
+  fading the bounce after the take profit, leverage. Trailing stops, other take profits and
+  forecast-based exits were not better, but with ~23 independent flush days none of the exit
+  variants is statistically distinguishable from the +20% take profit (see `results/why/`).
+
+**Network architectures with the same day-weighted training on all 1.85M spikes (E50, 3 seeds
+each; CNN 5 seeds):**
+
+| Network | L at pct >= 0.995 | LMC a trade | LMC worst year |
+| --- | --- | --- | --- |
+| CNN (day5, the pick) | +10.6% | +11.6% | +51% |
+| Patch transformer | +10.3% | +11.7% | +53% |
+| Dilated TCN | +9.6% | +11.6% | +53% |
+| Conv + GRU | +9.1% | +11.0% | +31% |
+
+Newer networks match the CNN at best: the bounce signal looks limited by the data, not the model.
+
+### M: weak-listing shorts (E12, E13, E18, E27, E28, E36)
+
+- New Binance spot listings with a perp fall: shorting 72 hours after listing for 30 days makes
+  +14% a trade; restricting to listings at or below their listing price makes +20%, better in
+  every year 2021-26.
+- Shorting every new perp (perp-only listings included) is weak (+1.5-3.5%) and noisy.
+
+### C: idiosyncratic crash shorts (E42)
+
+- A coin crashing alone (BTC calm) keeps falling when the CNN expects no bounce: +4.4% a trade
+  over 24 hours, every year positive. Sensitive to the BTC-calm threshold (2% is weaker).
+- A third of its trades are coins Binance later delisted (+8.5% a trade against +2.6%): part of
+  the edge is selling after delisting announcements.
+
+### P: pump shorts (E01-E19, E34, E37)
+
+- Realistic reference (r4 >= 40%, perp, isolated 1x, 72h, 10 slots): +3.1% a trade, +7..+26% a
+  year. With BTC 7d > -3%: +6.5% a trade. Stops at 50% hurt; delayed entry costs edge; open
+  interest, long/short ratios and funding do not predict squeezes.
+- A book with P (LQM) also meets both targets (+11.4% a trade, every year >= +53%) but with a
+  -36% drawdown against LMC's -17%.
+- **Funding filter (found after the pre-registration, from the "why" investigation).** Shorting
+  big pumps (r4 >= 40%) only when the last settled funding rate is >= 0, i.e. shorts are not
+  already crowded and paying, makes +9.5% a trade with every year positive (DD -26%); pumps
+  entered at negative funding lose (-2.0%). It holds for r4 40-60% and 24h/72h holds, not for
+  smaller pumps, and 2024 is weak. Added to LMC ("LMCF", 10 slots): +11.2% a trade, every year
+  >= +95%, but DD -32% (squeezes). In-sample only, like everything before the forward test.
+  Its limits (`why/funding_filter_limits.md`): for 40%+ pumps the funding sign carries price
+  information (+11 points gross, CI above 0); for smaller pumps it only saves the funding cost.
+  In 2024 funding was rarely negative, so the filter barely filtered and a late-2024 liquidation
+  tail decided the year.
+
+### New families explored in parallel (all fail)
+
+Quiet-period breakouts (the quiet signal anti-selects), alt catch-up after BTC moves (the lag
+signal adds nothing; alts bounce after BTC drops), perp premium/basis extremes (premium shorts
+lose; discount longs +2.8% a trade, overlapping capitulation longs), contagion shorts on peers of a
+crashing coin (no ecosystem signal; repricing happens before entry), weekly large-cap reversal (no
+horizon reverses; large caps move together). Notes in `results/explore/` and `results/why/`.
+
+### Other ideas that did not work
+
+Shorting every new perp listing; weekly shorts of young coins; shorts or longs against extreme
+funding; open interest, long/short ratios and funding as squeeze predictors; pump shorts picked
+by a low CNN score; capping or re-weighting sleeves; BTC-trend filters on listing shorts; longer
+listing holds inside the book.
+
+## Numerical diagnostics
+
+Every strategy was scored on common scales (`diag.py`; `results/diag/README.md`): signal 0..1,
+outcome -1..+1 (-1 = stake lost), progress to the take profit and to the stop, and one failure mode
+per trade. The scorecards (`results/diag/scorecards.md`, `failed_scorecards.md`) rank the causes
+of failure across everything tried:
+
+1. **The signal carries no information** (flat or inverted calibration): pump size, young-coin
+   decay, quiet breakouts, contagion, lag catch-up.
+2. **The edge lives only in the extreme tail of the signal** (the long sleeve's hockey stick:
+   outcome ~0 below CNN pct 0.976, +0.132 above 0.9955; lowering the threshold to 0.98 cuts the
+   take-profit share from 65% to 28%).
+3. **The stop/liquidation tail on shorts** (pump shorts: 7% of trades stopped carry -0.075 against
+   an E[o] of +0.025).
+4. **Correlated flush-day risk invisible per trade** (leverage looks better per trade, but 95% of
+   trades sit on 11 days).
+5. **Never-went and giveback on weak calm-market shorts** (crash shorts: 27% never went, 67% of
+   the best move given back).
+
+## Why it did not work
+
+Each failure was investigated separately (notes in `research/capitulation_ls/results/why/`,
+scripts `w1_`..`w12_`; explorers' own "Why it failed" sections in `results/explore/`). The common thread: the edges here are event-driven and rest on few
+independent days, so any rule that needs fine distinctions inside those days drowns in noise.
+
+**Pump shorts** (`why/pump_shorts.md`). Perps do *not* squeeze more than spot (doublings 6.2% vs
+6.0% of trades, 23 of 24 shared). The drop from +11% (spot, losses floored) to +3% (perp, honest
+tails) is a cost waterfall: perp-vs-spot gap -3.9 points (a third of it one frozen, delisting perp,
+ALPACA), liquidation at +100% -1.4 (17% of doublings later retrace below entry), funding -2.4
+(shorts pay heavily in squeezes; entries at negative funding rose from 14% of pumps in 2024 to 60%
+in 2026), cost -0.3. Stops sell the retraces the trade lives on: 75% of trades that touch +50%
+against end better than -50%. Models mostly rank pump size, which drives both the reversion and the
+squeezes, so ranking skill does not survive the tails. Deduplicated to one entry per pump, the
+"2025-26 edge" is about zero; the one real squeeze signal (crowded shorts, a low long/short account
+ratio) is too weak to trade.
+
+**Leverage** (`why/leverage.md`). The edge and the tail are the same trades: the signal picks the
+coins with the deepest wicks, and the wick is what the +20% take profit later collects. At 1x the
+wick costs nothing (79% of trades that went 33%+ against finished profitable); with leverage it is
+paid first. 2025-10-10 produced 58% of 2025's candidates and 159 of the 187 with a 33%+ adverse
+move; the wicks were real (414 pairs, median -66% on 1m, close -21% an hour later; 12 of 19 majors
+wicked 50%+). The slots filled with the first spikes, before the low. The largest leverage that
+avoided liquidation over 2022-26 was 0.99x.
+
+**Long-sleeve variants** (`why/long_variants.md`). On crash rows the day explains 56% of the
+TP20/72h outcome but only 17% of the 1h outcome, so models trained on the realistic target learn
+regimes, not coins (yearly IC up to 0.57, within-day 0.06-0.12). The TP20-target CNN is fine on the
+CNN's own days (+11.6%) but trades 48 extra losing days. All five day-weighted networks share one
+within-day IC (0.12-0.13; their ensemble 0.124), about 1.6% of within-day variance: the 8h of
+candles hold no more coin-level information. Exit variants are not distinguishable with ~23
+independent flush days.
+
+**Listing variants** (`why/listings.md`). The edge belongs to the Binance *spot* listing: perp-only
+coins have a fifth of the volume and barely decline (median 30d -6% vs -22%). The weak filter mostly
+cuts the squeeze tail (stop-outs 15% vs 38%) and partly bets on a falling market. Decay is smooth
+and front-loaded (median -18% at 3 days, -51% at 30 days), so the 72h entry peak is mostly noise on
+that decline. 2025's many weak listings are mostly perp coverage: 97% of 2025 spot listings had a
+perp at listing vs 6-32% in 2021-23.
+
+**Regime and other ideas** (`why/regime_other.md`). Extreme funding persists because it follows the
+price trend (funding collected is outweighed by price). Moderate BTC drawdowns are neither bounce
+nor continuation; only the four -20% events won. The 2026-11-14 slide was a real 5m flush on the
+majors but scored just below the entry bar and its bounce faded. The BTC-calm sensitivity of the
+crash short rests on 25 trades with three tail losses. Majors do not bounce less (the +4.6% vs +10%
+gap compared different rules). Squeezes are coin-specific jumps, not time clusters, so slot caps
+cannot cut them; the one lead is a delisting-notice feed.
+
+**Cascade timing** (`why/cascade_wait.md`). Skipping the first minutes of each signal episode
+fails because there are only 28 episodes in five years and 16 last under 20 minutes; its apparent
+gain is 2025-10-10 alone. The time to the low ranges from 4 to 642 minutes, so there is no clock to
+wait for. Capping the slots the first minutes may take fails too (`why/early_slot_cap.md`): the
+first 15 minutes of episodes hold 60% of the long sleeve's net, and 11 of 13 capped episodes have
+no later signals to fill the freed slots.
+
+**Crash-short exits and short-side tail controls** (`why/c_exits.md`, `explore/m_tail.md`,
+`explore/f_tail.md`). The crash short's high giveback is noise around each trade's peak, not a
+fade: take profits and trailing stops cap the ~30 winners that carry it. Listing shorts' 15%
+stop tail could not be cut without lowering expectancy (only a wider stop breaks even), and no
+crowding gate improves the funding-filtered pump short: the crowded trades carry both the stops
+and the best returns. Sizing by crowding trades drawdown for return (a risk dial).
+
+**Large-cap reversal** (`why/largecap_reversal.md`). Weekly reversal among 30 large coins fails
+because there is no stable reversal at any horizon (1-28 days): cross-sectional spread is ample
+(~9% a week), but ranks barely predict (IC -0.03, unstable), the market factor explains 52-73% of
+daily variance, and the losers book is just the market (beta ~1).
+
+**Crash-short entry features** (`explore/c_entry.md`). None of 31 price, volume, funding,
+open-interest or crowding features ranks crash shorts consistently (161 trades on 144 days, |IC|
+<= 0.13 and orderings flip between 2022-24 and 2025-26). The sleeve's net comes from a few large
+continuations that nothing at entry predicts; gates only drop trades.
+
+**Book-level sizing** (`explore/meta_sizing.md`). Sizing sleeves by their trailing results only
+adds or removes exposure. Pausing a sleeve for a few days after one of its trades loses 30% or
+more cuts LMCF's drawdown from -32% to -16..-24% at every setting tried, but all of that comes
+from one 2025 cluster of pump-short squeezes (4 trades, -46% on average); in 2022-24 the paused
+trades were winners. It is a reasonable live risk setting, not a demonstrated edge.
+
+**Limit entries for longs** (`explore/limit_entry.md`). Resting a buy 2-10% below the signal
+price earns more per filled trade, but the coins that never dip that far were the better trades
+(adverse selection). Outside the 2025 cascades, the fills are the coins that kept falling, and
+the worst book year falls from +51% to about +35%.
+
+**Calendar effects and baskets** (`explore/calendar.md`, `explore/baskets.md`). No weekday,
+hour, month-end or funding-cycle bucket holds in both 2022-24 and 2025-26 beyond chance (1 of 88;
+the sleeves rest on too few days to see effects under 15-20 points a trade). Shorting the day's
+top gainers as a basket loses in all 80 settings: the squeeze tail stays, and the pump short's
+edge comes from entering minutes after a 4h spike, not from the size of the pump. Buying the
+biggest losers on BTC flush days earns +5% a trade at best, and only on the days the CNN already
+picks.
+
+**Second pumps and later listing months** (`explore/second_pump.md`,
+`explore/listing_month2.md`). A coin's second pump within two weeks is worse to short than its
+first (+3.7% vs +8.0% a trade with the funding gate; more squeezes), and buying it loses. After
+the first month, listing features carry no signal; only a generic slow decline remains (short
+every listing at day 60 for 30 days: +10% a trade, but drawdown -31% in the book). The pump short
+works only on the 5m volume-spike rows: hourly "+40% in 4h" pumps that are not spike rows lose.
+
+**Pairs in other quotes, 2020-26** (`explore/other_quotes.md`). Unlike 2017-19, coins quoted
+only in BUSD, BTC or other currencies add no flush days after 2020: every flush already has USDT
+candidates, and from 2024 every coin lists with a USDT pair. 2022-26 gains two trades on a day
+already traded (2022 +62% -> +66%).
+
+**Listing longs** (`explore/listing_longs.md`). Buying new spot listings loses in every
+setting (-1% to -15% a trade): the first candles are near the top, the other side of the listing
+short's edge. Listings still above their listing price after 72 hours are fading pumps, not
+squeezes to ride: the in-sample picks made +32% a trade in 2021-24 on three runners (GMT, C98,
+TIA) and -20% in 2025-26. A long on the listings the short skips mirrors the short (correlation
+-0.99), so there is no edge in the squeezes that stop it out.
+
+**Less liquid spikes** (`explore/illiquid.md`). The long rule works on spikes of thinner coins
+too (+12.4% a trade at 0.4% cost, +10.8% at 2%, the same hockey stick), but they fire on the same
+flush days as the liquid coins: two new days in five years. In the book they displace larger
+liquid stakes, so returns do not rise. More coins help only when they add days (perp-only coins
+did in 2025-26).
+
+**Order-book depth** (`explore/book_depth.md`, Binance perp depth snapshots from 2023). Depth
+at entry does not rank long candidates better than the CNN, which already decides among a flush
+day's near-simultaneous candidates (within-day IC +0.23..+0.29 against -0.12 for the best depth
+feature). Every pump-short stop-out had thin asks, but gating on that drops 59% of the pump
+shorts, which still earn +7% a trade; for listing shorts the gate removes the best trades. As
+with crowding, the tail and the edge sit in the same trades.
+
+**Squeeze longs** (`why/squeeze_longs.md`). Going long pumps when funding is negative (the
+mirror of the funding-gated short) makes about zero: negative-funding pumps still fade (median
+72h price -9%) and squeeze no more often than others (8%); the long collects about +3.3% of
+funding, which only offsets the fade. No entry feature separates the squeezes out of sample.
+
+**Crowding and capitulation longs** (`why/crowding_longs.md`). Over all long candidates, coins
+with crowded shorts (low funding, low long/short ratio) bounce harder (+15.1% vs +9.0% a trade
+by funding tercile), but the 10-slot book gains nothing. Crowding is a property of the day (55%
+of the funding variance is between days) and the effect rests on about 16 independent flush
+days; within a day the information coefficient is about zero. Slot priority only chooses among
+same-day candidates, where crowding carries no information, and hard filters just leave slots
+empty on the days that matter.
+
+## Data added (Binance only, `fetch_futures.py`)
+
+USD-M perpetual funding rates (2.85M rows, 919 symbols), 1h perp klines (16.5M rows), 5m perp
+klines for 450 perps with pump events, futures metrics (open interest, top-trader and account
+long/short ratios, taker ratio; 6.3M 5m rows on event days), spot 5m candles synced to
+2026-11-27; later: spot 5m candles for 89 USDT pairs from 2017-08 to 2019-12 (holdout, 1.1 GB),
+5m perp candles for the 200 perp-only coins (0.6 GB), perp order-book depth snapshots on candidate
+days from 2023 (80 MB), the 2017-19 BTC-quoted pairs (1.3 GB) and the 2020-26 other-quote pairs
+(1.6 GB). About 11 GB of the 20 GB allowed, all in the shared data folder
+(`cache/capitulation_ls/`); about 3 GB of it (`explore/`) are caches the scripts rebuild.
+
+## Caveats
+
+- **The 72h listing entry is a sharp peak.** With the listing short entered at 24/48/96/120h
+  instead, LMC makes +9.7..+10.3% a trade with a worst year of +24..+32%; only 72h gives +51%.
+  Treat ~+10% a trade and a worst year near +30% as the fair expectation, not +51%.
+- **In-sample choices.** Sleeves, filters (weak listing, BTC calm, BTC 7d) and settings were all
+  found on 2020-26. 2025-26 had already been opened by three earlier studies.
+- **Few independent events.** The long sleeve trades on 5-7 days a year.
+- **Execution.** Entries at the next 5m open; one candle late costs the long sleeve ~1% a trade.
+  Shorts assume perps are borrowable and the isolated-margin liquidation at +100% fills there.
+- **2025 dominates.** LMC's 2025 (+625%) comes mostly from listing shorts in a year of many weak
+  listings; 2026 (to November) is +51%.
+- **Drawdowns are understated on closed trades.** Marked to market hourly the worst is -18.6%
+  (2026 -17.2%); with every open position at its worst at the same time, -26%.
+- **Fair expectation.** About +8-10% a trade (the holdout's +9.5% for the long sleeve, +7.5% /
+  +3.8% for settings frozen on 2022-24) and +50% a year only in years with enough flush days,
+  which the perp-only extension makes more likely from 2024 on.
+
+## Recommendations
+
+1. Paper-trade LMC forward (testnet for the perp shorts) before funding; compare fills with the
+   5m opens assumed here.
+2. Keep gross exposure at 1x; no per-position leverage.
+3. If anything is built first, build the long sleeve (L) on spot and the weak-listing short (M):
+   they carry most of the edge with the least tail risk.
+4. Run the long sleeve on every coin Binance offers: spot where a spot market exists, and a 1x
+   perp long on USD-M perps without a live spot market (perp-only coins and the weeks before a
+   spot listing). It is the same rule and model; it adds flush days, which are what the +50% a
+   year target depends on.
+5. Optional live risk setting: pause the pump-short sleeve for a few days after one of its trades
+   loses 30% or more (it cut the one 2025 squeeze cluster; not a proven edge).

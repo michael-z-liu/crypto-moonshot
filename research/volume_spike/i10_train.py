@@ -140,6 +140,11 @@ class I10Cfg:
         return str(d)
 
 
+# Optional (off by default): called as SAVE_HOOK(label, seed, net, None) after each seed's fit and
+# as SAVE_HOOK(label, None, None, sorted_h1_reference) after each fold, so a caller can save a
+# fold's weights and reference scores for forward scoring (research/capitulation_ls).
+SAVE_HOOK = None
+
 PATH_ALL = m12.VARIANTS["path_all"]
 I10: dict[str, I10Cfg] = {
     "base3": I10Cfg(
@@ -526,12 +531,16 @@ def run(
             outs_test.append(m12.predict(net, fd, cfg, test))
             outs_ref.append(m12.predict(net, fd, cfg, ref))
             timing.append({"fold": label, "seed": seed, "minutes": (time.time() - t0) / 60})
+            if SAVE_HOOK is not None:
+                SAVE_HOOK(label, seed, net, None)
             del net
         # seed mean of the raw outputs first, as m12
         o_test, o_ref = np.mean(outs_test, 0), np.mean(outs_ref, 0)
         p_test, p_ref = to_path(o_test, test, vol), to_path(o_ref, ref, vol)
         path[test] = p_test.astype(np.float16)
         h_test, h_ref = heads(p_test), heads(p_ref)
+        if SAVE_HOOK is not None:
+            SAVE_HOOK(label, None, None, np.sort(h_ref["h1"]))
         for h in HEADS:
             raw[h][test] = h_test[h]
             pct[h][test] = np.searchsorted(np.sort(h_ref[h]), h_test[h]) / len(h_ref[h])
