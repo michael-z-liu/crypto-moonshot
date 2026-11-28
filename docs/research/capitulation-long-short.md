@@ -260,6 +260,11 @@ more cuts LMCF's drawdown from -32% to -16..-24% at every setting tried, but all
 from one 2025 cluster of pump-short squeezes (4 trades, -46% on average); in 2022-24 the paused
 trades were winners. It is a reasonable live risk setting, not a demonstrated edge.
 
+**Limit entries for longs** (`explore/limit_entry.md`). Resting a buy 2-10% below the signal
+price earns more per filled trade, but the coins that never dip that far were the better trades
+(adverse selection). Outside the 2025 cascades, the fills are the coins that kept falling, and
+the worst book year falls from +51% to about +35%.
+
 **Squeeze longs** (`why/squeeze_longs.md`). Going long pumps when funding is negative (the
 mirror of the funding-gated short) makes about zero: negative-funding pumps still fade (median
 72h price -9%) and squeeze no more often than others (8%); the long collects about +3.3% of

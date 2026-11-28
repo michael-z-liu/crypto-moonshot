@@ -500,6 +500,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   on one 2025 F squeeze cluster (4 trades, -46%); in 2022-24 the skipped trades were winners.
   Kept as an optional live risk setting, not an improvement. Bug found: book() reads w=0 as 1.
 
+- 00:34Z limit entries for L (`x11_limit_entry.py`, `results/explore/limit_entry.md`): fail. Buy
+  limits 2-10% below the signal price raise per-trade net (+1311 -> up to +1606 bp) but the LMC
+  worst year drops +51% -> +34..+39%. Adverse selection: unfilled candidates were the better
+  trades (8% dips in 2022-24: +238 bp at market vs +932 bp for the rest); only 2025 gains.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
