@@ -156,6 +156,11 @@ Checks (`results/explore/p2_robust.md`, `p2_forward.md`, `p2_prespot.md`):
 - Coins whose perp traded before their spot listing add 36 trades in that window (+16.1% a trade)
   but only 2 new flush days; LMC+ 2023 +81% -> +92%, 2024 +152% -> +181%.
 
+Neither does the funding-gated pump short (`results/explore/f_perp_only.md`): on perp-only coins
+it loses 5.2% a trade because 19% of trades hit the +100% liquidation (5% on spot listed coins),
+on real moves rather than wicks, and the funding gate filters nothing there (funding is >= 0 on
+79% of those pumps). Only the long carries over to perp-only coins.
+
 The crash short does not carry over: on perp-only coins it loses 1.0% a trade (flat calibration,
 the short pays funding), and in the book it fills hundreds of slots (2026 drawdown -63%).
 The pre-registered pick stays LMC; "LMC+" is the same long rule on a wider universe, chosen after

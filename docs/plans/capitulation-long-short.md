@@ -577,6 +577,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   (2022) for both LMC and LMC+; 2026 without the best day LMC+ +87% vs LMC +32%. Perp-only coins
   add independent flush days only from 2024.
 
+- 05:33Z F/P pump shorts on perp-only coins (`f1_*`, `results/explore/f_perp_only.md`): fail.
+  F -5.2%/trade (313, 19% hit the +100% stop vs 5% on spot); the funding gate does nothing (79%
+  of perp-only pumps have funding >= 0); LMC+ with it: worst year -20%. Shorts stay on spot-
+  listed coins; only the long carries over to perp-only coins.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
