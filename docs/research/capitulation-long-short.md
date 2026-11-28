@@ -43,7 +43,7 @@ both directions (longs after dumps, shorts on USD-M perpetuals after rallies). P
    pumps better within a day (IC 0.34 vs 0.25 for trees), but better ranking did not turn into
    better books, because books are decided by tails and by which days trade.
 6. **Caveats.** Every sleeve and setting was chosen on 2020-26 data that earlier studies had also
-   seen. The deflated Sharpe ratio is 0.90-0.98 (5,000 / 1,000 trials). The long sleeve's
+   seen. The deflated Sharpe ratio is 0.90-0.98 (5,000 / 1,000 trials), assuming trials differ little (see the audit). The long sleeve's
    evidence rests on about 25 flush days; 2025 dominates the book (listing shorts). Forward data
    is the real test, but see the holdout (item 7).
 7. **The long sleeve holds on data nobody tuned on (2017-08..2019-12).** The pre-registered L

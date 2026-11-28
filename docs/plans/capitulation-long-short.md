@@ -248,7 +248,7 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   speak to the short sleeves.
 - 14:50Z (real time; earlier entries' times ran ahead of the clock) E45, choice on 2022-24 only:
   L q 0.99 / TP 10% / 72h, C r4 <= -10% / calm 1% / CNN <= 0.5 / 72h, M delay 24h / 30 days /
-  TP 50% / stop 50%, 8 slots. Read after the choice: 2025 +544% (+857 bp, DD -29%), 2026 +89%
+  TP 50% / stop 50%, 8 slots. Read after the choice [look-ahead, corrected at the audit to +371% / +54%]: 2025 +544% (+857 bp, DD -29%), 2026 +89%
   (+545 bp, DD -26%). The annual target holds; the per-trade target does not (the 2022-24 choice
   prefers more, smaller trades). The weak-listing filter itself was fixed with 2025 in view.
 - 14:55Z capacity: LMC from $50k each year: +61/+82/+156/+504/+50% (only 2025's compounding meets
