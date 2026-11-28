@@ -494,7 +494,7 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   (`p1_*`, `results/explore/perp_only.md`, data in OWN/futures/perp5m/). More flush-day events
   is the lever the diagnostics point to; models were exhausted (CNN/transformer/TCN/GRU/GBM).
 
-- 00:45Z book-level sizing (`x10_meta.py`, `results/explore/meta_sizing.md`): sleeve momentum
+- 00:32Z book-level sizing (`x10_meta.py`, `results/explore/meta_sizing.md`): sleeve momentum
   only adds exposure (2024 worse, DD worse). A loss brake (skip a sleeve for 3-14 days after
   its trade closes <= -30%) cuts LMCF DD -32% -> -16..-24% in all 18 neighbours, but it rests
   on one 2025 F squeeze cluster (4 trades, -46%); in 2022-24 the skipped trades were winners.
