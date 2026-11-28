@@ -546,6 +546,12 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   one candle late, LMCF+), the Nov 2026 forward window on perp-only coins, and the pre-spot perp
   window of later spot listings. Still running: book depth (`x12_*`), audit (`a1_*`).
 
+- 06:05Z order-book depth (`x12_*`, `results/explore/book_depth.md`): not confirmed. Within a
+  day L's candidates arrive on one or two 5m bars and the CNN already ranks them (within-day IC
+  +0.23/+0.29); depth reaches -0.12 (-0.07 net of the CNN). Thin asks explain all 7 F stop-outs,
+  but the gate drops 59% of F (dropped trades +696 bp); for M it removes the best trades. Every
+  short gate lowers the worst year (LMCF 103 -> 31..57%).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**

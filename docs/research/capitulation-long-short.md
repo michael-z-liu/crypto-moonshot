@@ -347,6 +347,13 @@ the first month, listing features carry no signal; only a generic slow decline r
 every listing at day 60 for 30 days: +10% a trade, but drawdown -31% in the book). The pump short
 works only on the 5m volume-spike rows: hourly "+40% in 4h" pumps that are not spike rows lose.
 
+**Order-book depth** (`explore/book_depth.md`, Binance perp depth snapshots from 2023). Depth
+at entry does not rank long candidates better than the CNN, which already decides among a flush
+day's near-simultaneous candidates (within-day IC +0.23..+0.29 against -0.12 for the best depth
+feature). Every pump-short stop-out had thin asks, but gating on that drops 59% of the pump
+shorts, which still earn +7% a trade; for listing shorts the gate removes the best trades. As
+with crowding, the tail and the edge sit in the same trades.
+
 **Squeeze longs** (`why/squeeze_longs.md`). Going long pumps when funding is negative (the
 mirror of the funding-gated short) makes about zero: negative-funding pumps still fade (median
 72h price -9%) and squeeze no more often than others (8%); the long collects about +3.3% of
