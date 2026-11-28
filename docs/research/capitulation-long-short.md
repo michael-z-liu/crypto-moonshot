@@ -155,7 +155,8 @@ trades.** The highest long score was 0.990 (no flush), no crash met the crash-sh
 18 new spot listings were tokenised stocks or ETFs without perps. BTC did fall about 15% in three
 days around 2026-11-14/15, but as a slow slide without 5m capitulation spikes, so the long sleeve
 stayed out by design. The window can neither confirm nor reject LMC; the paper trade going
-forward is the test (rerun the two scripts after a sync).
+forward is the test (rerun the two scripts after a sync). The perp-only extension (see below) had one signal in the
+same window, BRUSDT on 2026-11-21, which hit the +20% take profit.
 
 ## What changed against the earlier capitulation studies
 
@@ -407,3 +408,9 @@ long/short ratios, taker ratio; 6.3M 5m rows on event days), spot 5m candles syn
 2. Keep gross exposure at 1x; no per-position leverage.
 3. If anything is built first, build the long sleeve (L) on spot and the weak-listing short (M):
    they carry most of the edge with the least tail risk.
+4. Run the long sleeve on every coin Binance offers: spot where a spot market exists, and a 1x
+   perp long on USD-M perps without a live spot market (perp-only coins and the weeks before a
+   spot listing). It is the same rule and model; it adds flush days, which are what the +50% a
+   year target depends on.
+5. Optional live risk setting: pause the pump-short sleeve for a few days after one of its trades
+   loses 30% or more (it cut the one 2025 squeeze cluster; not a proven edge).
