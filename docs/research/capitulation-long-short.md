@@ -254,6 +254,12 @@ open-interest or crowding features ranks crash shorts consistently (161 trades o
 <= 0.13 and orderings flip between 2022-24 and 2025-26). The sleeve's net comes from a few large
 continuations that nothing at entry predicts; gates only drop trades.
 
+**Book-level sizing** (`explore/meta_sizing.md`). Sizing sleeves by their trailing results only
+adds or removes exposure. Pausing a sleeve for a few days after one of its trades loses 30% or
+more cuts LMCF's drawdown from -32% to -16..-24% at every setting tried, but all of that comes
+from one 2025 cluster of pump-short squeezes (4 trades, -46% on average); in 2022-24 the paused
+trades were winners. It is a reasonable live risk setting, not a demonstrated edge.
+
 **Squeeze longs** (`why/squeeze_longs.md`). Going long pumps when funding is negative (the
 mirror of the funding-gated short) makes about zero: negative-funding pumps still fade (median
 72h price -9%) and squeeze no more often than others (8%); the long collects about +3.3% of

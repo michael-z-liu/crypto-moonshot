@@ -478,21 +478,27 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   days, ~16 independent days); within-day IC ~0 (rate +0.06, ls_acc -0.05), so priority has
   nothing to rank and filters only empty slots on the big days.
 
-- 00:35Z wave 3 launched (running): (1) TRUE HOLDOUT of L on 2017-08..2019-12 spot data never
+- 00:26Z wave 3 launched (running): (1) TRUE HOLDOUT of L on 2017-08..2019-12 spot data never
   seen by any study (`h1_*`, `results/explore/holdout_2018.md`, raw data under OWN/holdout/);
   (2) second-pump chains and listing months 2-3 (`x7_*`, `results/explore/second_pump.md`,
   `listing_month2.md`); (3) calendar effects and pump/loser baskets (`x8_*`,
   `results/explore/calendar.md`, `baskets.md`). Explorers write their own "Why it failed"
   section; if a run died with no output, relaunch from this description.
 
-- 00:50Z C entry features (`x9_c_entry.py`, `results/explore/c_entry.md`): fails. 31 features
+- 00:29Z C entry features (`x9_c_entry.py`, `results/explore/c_entry.md`): fails. 31 features
   on 161 candidates (144 days, 47 before 2025): no tercile ordering holds in both periods, |IC|
   <= 0.13 (noise 0.08). Gates raise LMC bp per trade (+1158 -> up to +1409) only by dropping C's
   below-average trades, while lowering yearly returns. C stays as pre-registered.
 
-- 00:58Z launched (running): perp-only coins (no spot market) for L as perp longs and for C
+- 00:30Z launched (running): perp-only coins (no spot market) for L as perp longs and for C
   (`p1_*`, `results/explore/perp_only.md`, data in OWN/futures/perp5m/). More flush-day events
   is the lever the diagnostics point to; models were exhausted (CNN/transformer/TCN/GRU/GBM).
+
+- 00:45Z book-level sizing (`x10_meta.py`, `results/explore/meta_sizing.md`): sleeve momentum
+  only adds exposure (2024 worse, DD worse). A loss brake (skip a sleeve for 3-14 days after
+  its trade closes <= -30%) cuts LMCF DD -32% -> -16..-24% in all 18 neighbours, but it rests
+  on one 2025 F squeeze cluster (4 trades, -46%); in 2022-24 the skipped trades were winners.
+  Kept as an optional live risk setting, not an improvement. Bug found: book() reads w=0 as 1.
 
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
