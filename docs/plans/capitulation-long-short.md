@@ -512,6 +512,13 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
 - 00:45Z-05:10Z usage limit: all five explorers stopped; resumed at 05:10Z via SendMessage
   (holdout, second pump, calendar/baskets, perp-only, book depth). Hand-off unchanged (09:46Z).
 
+- 05:20Z calendar and baskets (`x8_*`, `results/explore/calendar.md`, `baskets.md`): all fail.
+  Calendar: 1 of 88 sleeve x bucket tests passes in both periods (C just before a funding
+  settlement, 17 trades; ~0.1 expected), not confirmed on wider crash pools; at most an execution
+  rule (open C after a settlement). Pump basket shorts: all 80 configs negative (liquidations
+  0.5-9.5% of names; F's edge is the minutes-after-spike entry, not pump size). Flush-loser
+  basket longs: best +5.2%/trade; positive only on the 9 days L already trades.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**

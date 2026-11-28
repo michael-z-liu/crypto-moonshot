@@ -265,6 +265,14 @@ price earns more per filled trade, but the coins that never dip that far were th
 (adverse selection). Outside the 2025 cascades, the fills are the coins that kept falling, and
 the worst book year falls from +51% to about +35%.
 
+**Calendar effects and baskets** (`explore/calendar.md`, `explore/baskets.md`). No weekday,
+hour, month-end or funding-cycle bucket holds in both 2022-24 and 2025-26 beyond chance (1 of 88;
+the sleeves rest on too few days to see effects under 15-20 points a trade). Shorting the day's
+top gainers as a basket loses in all 80 settings: the squeeze tail stays, and the pump short's
+edge comes from entering minutes after a 4h spike, not from the size of the pump. Buying the
+biggest losers on BTC flush days earns +5% a trade at best, and only on the days the CNN already
+picks.
+
 **Squeeze longs** (`why/squeeze_longs.md`). Going long pumps when funding is negative (the
 mirror of the funding-gated short) makes about zero: negative-funding pumps still fade (median
 72h price -9%) and squeeze no more often than others (8%); the long collects about +3.3% of
