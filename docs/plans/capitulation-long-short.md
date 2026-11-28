@@ -1,11 +1,11 @@
 # Capitulation long/short: search for a much more profitable version
 
-- **Status:** building
+- **Status:** review
 - **Branch:** `feat/capitulation-long-short`
 - **PR:**
 - **Started:** 2026-11-27T13:46Z. Keep searching until at least **2026-11-28T09:46Z** (20 h)
   before hand-off; budget about 25 h (five usage windows).
-- **Updated:** 2026-11-27T14:56Z
+- **Updated:** 2026-11-28T11:11Z
 
 ## Goal
 

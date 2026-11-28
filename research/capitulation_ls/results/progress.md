@@ -1,8 +1,8 @@
-# Search scoreboard (updated 2026-11-28 05:37 UTC)
+# Search scoreboard (final, 2026-11-28 11:11 UTC)
 
-Started 2026-11-27 13:46 UTC; hand-off not before 2026-11-28 09:46 UTC. 120 commits on
-`feat/capitulation-long-short`: 51 experiments, 12 "why it failed" investigations, 15 explorers,
-a 2017-19 holdout, a perp-only extension and an independent audit (`README.md` maps them).
+Started 2026-11-27 13:46 UTC; hand-off not before 2026-11-28 09:46 UTC. 133 commits on
+`feat/capitulation-long-short`: 51 experiments, 12 "why it failed" investigations, 17 explorers,
+2017-19 holdouts (USDT and BTC pairs), a perp-only extension and an independent audit (`README.md` maps them).
 
 Targets: average trade >= +10%, every year >= +50%. Backtest 2022-26, per-year $10k books, 1x.
 
@@ -23,8 +23,8 @@ Targets: average trade >= +10%, every year >= +50%. Backtest 2022-26, per-year $
 
 | Test | Result |
 | --- | --- |
-| L on 2017-08..2019-12 (data no study had seen) | +9.5% a trade, 41 trades, 18 flush days, 88% winners; book only +10..+16% a year (few pairs and flush days then) |
-| Settings frozen on 2022-24, read on 2025-26 (corrected by the audit) | 2025 +371%, 2026 +54% (+7.5% / +3.8% a trade) |
+| L on 2017-08..2019-12 (data no study had seen) | USDT pairs: +9.5% a trade, 41 trades, 18 flush days. With BTC-quoted pairs: 181 trades, 44 flush days, +14.3% (CI +11.1..+16.6%); book +87% / +146% / +19% (mostly the 2017-18 mania) |
+| Settings frozen on 2022-24, read on 2025-26 (corrected by the audit) | LMC 2025 +371%, 2026 +54% (+7.5% / +3.8% a trade); LMC+ +498% / +128% |
 | Forward 2026-11-02..27 | LMC: 0 trades. Perp-only L: 1 trade (BRUSDT 11-21), +19.7% |
 | Audit | no inflating bug in the headline; one look-ahead in the frozen check (fixed); drawdowns 2-6 points deeper marked to market |
 
@@ -34,7 +34,7 @@ Targets: average trade >= +10%, every year >= +50%. Backtest 2022-26, per-year $
 | --- | --- | --- |
 | Pump shorts | plain, stops, delays, models, OI/LS/funding predictors, low CNN score, second pumps, baskets, perp-only coins | cost waterfall on perps (gap, liquidation, funding); stops sell retraces; perp-only coins squeeze 4x as often |
 | Leverage | 2x/3x alts and majors, stops | one wick day (2025-10-10); survivable leverage 0.99x |
-| Long-sleeve variants | trade-aligned target, GBM, transformer/TCN/GRU, ensembles, exits, top-K, pyramiding, vol sizing, BTC hedge, cascade timing, early-slot cap, limit entries, crowding, order-book depth, perp venue, less liquid coins | the day explains most of the outcome; the CNN already ranks within a day; extra coins help only if they add flush days |
+| Long-sleeve variants | trade-aligned target, GBM, transformer/TCN/GRU, ensembles, exits, top-K, pyramiding, vol sizing, BTC hedge, cascade timing, early-slot cap, limit entries, crowding, order-book depth, perp venue, less liquid coins, other quote pairs 2020-26, post-delisting perps | the day explains most of the outcome; the CNN already ranks within a day; extra coins help only if they add flush days |
 | Listing variants | all perps, young coins, triggers, delays, late perps, regime filter, longer holds, months 2-3, listing-day and strong-listing longs | edge is the spot-listing event; front-loaded decay; first candles are near the top |
 | Crash shorts | exits, 31 entry features, perp-only coins | a few large continuations carry it; nothing at entry predicts them |
 | Book level | sleeve momentum, loss brake, calendar effects | exposure, one squeeze cluster, chance |

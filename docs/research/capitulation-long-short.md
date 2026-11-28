@@ -5,12 +5,14 @@ Unattended search, started 2026-11-27, for changes to the capitulation strategy 
 both directions (longs after dumps, shorts on USD-M perpetuals after rallies). Plan and run log:
 `docs/plans/capitulation-long-short.md`. Code: `research/capitulation_ls/` (`README.md` maps every
 script: experiments `e01_`..`e51_`, failure investigations `w1_`..`w12_`, explorers `x1_`..`x17_`,
-diagnostics `d01_`/`d02_` and `diag.py`, the 2017-19 holdout `h1_`, perp-only coins `p1_`/`p2_`/
-`f1_`, less liquid spikes `q1_`, the audit `a1_`; shared code `sim.py`, `e25_combined.py`, `wf.py`,
-`dsr.py`, `fetch_futures.py`, `build_*.py`, `nn_seq.py`).
+diagnostics `d01_`/`d02_` and `diag.py`, the 2017-19 holdouts `h1_`/`h2_`, other quote pairs
+`h3_`, perp-only coins `p1_`/`p2_`/`p3_`/`f1_`, less liquid spikes `q1_`, the audit `a1_`; shared
+code `sim.py`, `e25_combined.py`, `wf.py`, `dsr.py`, `fetch_futures.py`, `build_*.py`,
+`nn_seq.py`).
 
-> Status: written mid-search and updated as it continues. The pre-registered forward read-out
-> (2026-11-02..27) found no trades: see [Forward read-out](#forward-read-out).
+> Status: final for this search (2026-11-28). The pre-registered forward read-out
+> (2026-11-02..27) found no trades for LMC and one winning trade for the perp-only extension:
+> see [Forward read-out](#forward-read-out).
 
 ## Summary
 
