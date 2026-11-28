@@ -519,6 +519,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   0.5-9.5% of names; F's edge is the minutes-after-spike entry, not pump size). Flush-loser
   basket longs: best +5.2%/trade; positive only on the 9 days L already trades.
 
+- 05:13Z launched (running): red-team audit of LMC/LMCF before hand-off (look-ahead in the CNN
+  percentiles and features, execution order, book accounting, survivorship, selection count);
+  `a1_*`, `results/why/audit.md`. Its findings go into the report's caveats.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
