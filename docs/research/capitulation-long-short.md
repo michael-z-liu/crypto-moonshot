@@ -52,6 +52,11 @@ both directions (longs after dumps, shorts on USD-M perpetuals after rallies). P
    three quarters of its 2022-26 size, with the same hockey-stick calibration. Its book made only
    +10..+16% a year, because there were few USDT pairs and few flush days then. This is evidence
    for the signal, not for the +50% a year target, and says nothing about the short sleeves.
+8. **Perp-only coins add flush days to the long sleeve ("LMC+", chosen after the pick).** The same
+   L rule, applied as a 1x perp long to the 200 coins that trade only as perps and scored by
+   walk-forward folds, made +13.1% a trade after costs and funding (328 trades, 86% winners). It
+   adds 24 flush days in 2025-26. LMC with these trades: +11.5% a trade, years +62 / +81 / +152 /
+   +790 / +111%, worst year +62% (LMC +51%), drawdowns unchanged.
 
 ## Robustness checks on LMC
 
@@ -98,6 +103,35 @@ check.
   0.4% cost; the 2026 fold is applied backwards in time (the retrained 2022 fold is stricter:
   4 trades, all reached +20%). Archive fixes: candles offset after the February 2018 outage
   were floored to the 5m grid, and 15 spikes with broken inputs right after it were excluded.
+
+## Perp-only coins (`results/explore/perp_only.md`)
+
+Binance lists about 200 coin perps (delisted ones included; stock, ETF, commodity and index perps
+excluded) whose coin has no spot market. Their 5m perp candles went through the spike builder
+(bit-identical to the spot caches on coins that have both) and each year was scored by that
+year's day5 walk-forward fold (2023-25 retrained here, reproducing the stored percentiles
+exactly), so no perp-only coin was ever in a training set.
+
+| L on perp-only coins, perp long 1x | 2022 | 2023 | 2024 | 2025 | 2026 |
+| --- | --- | --- | --- | --- | --- |
+| trades | 1 | 3 | 78 | 185 | 61 |
+| mean net | +19.7% | +17.8% | +11.2% | +14.8% | +10.1% |
+
+- Hockey stick as on spot: +0.9% / +0.2% / +4.3% / +13.7% for pct 0.950-0.976 / 0.976-0.984 /
+  0.984-0.9955 / >= 0.9955. 42 entry days, 86% positive. Without 2025-10-10 (126 trades): +12.3%.
+- Flush days added: 7 in 2025 and 17 in 2026; trades on those days are weaker (+7.9%, n=42).
+  Before 2024 there were too few perp-only coins to matter.
+
+| 10 slots, $10k each year | trades | per trade | 2022 | 2023 | 2024 | 2025 | 2026 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| LMC | 430 | +11.6% | +62% | +81% | +156% | +625% | +51% |
+| LMC + L on perp-only coins | 485 | +11.5% | +62% | +81% | +152% | +790% | +111% |
+| same, cost doubled | 485 | +11.4% | +62% | +81% | +150% | +783% | +109% |
+
+The crash short does not carry over: on perp-only coins it loses 1.0% a trade (flat calibration,
+the short pays funding), and in the book it fills hundreds of slots (2026 drawdown -63%).
+The pre-registered pick stays LMC; "LMC+" is the same long rule on a wider universe, chosen after
+seeing these results.
 
 ## Forward read-out
 
@@ -305,6 +339,13 @@ top gainers as a basket loses in all 80 settings: the squeeze tail stays, and th
 edge comes from entering minutes after a 4h spike, not from the size of the pump. Buying the
 biggest losers on BTC flush days earns +5% a trade at best, and only on the days the CNN already
 picks.
+
+**Second pumps and later listing months** (`explore/second_pump.md`,
+`explore/listing_month2.md`). A coin's second pump within two weeks is worse to short than its
+first (+3.7% vs +8.0% a trade with the funding gate; more squeezes), and buying it loses. After
+the first month, listing features carry no signal; only a generic slow decline remains (short
+every listing at day 60 for 30 days: +10% a trade, but drawdown -31% in the book). The pump short
+works only on the 5m volume-spike rows: hourly "+40% in 4h" pumps that are not spike rows lose.
 
 **Squeeze longs** (`why/squeeze_longs.md`). Going long pumps when funding is negative (the
 mirror of the funding-gated short) makes about zero: negative-funding pumps still fade (median

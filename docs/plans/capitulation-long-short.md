@@ -528,6 +528,20 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   bootstrap CI +620..+1379 bp, hockey stick present, CNN beats simple rules (+566 / -37 bp). Book
   only +10..+16% a year (few USDT pairs, few flush days). Added to the report summary (item 7).
 
+- 05:45Z PERP-ONLY COINS (`p1_*`, `results/explore/perp_only.md`): L as a 1x perp long on the 200
+  coin perps without spot, scored by day5 walk-forward folds (2023-25 retrained, exact parity):
+  328 trades, +13.1% net (cost 0.3% + funding), 86% wins, hockey stick present, every year
+  positive; adds 24 flush days in 2025-26. LMC + L-perp-only: +1145 bp/trade, years +62/+81/
+  +152/+790/+111%, worst year +51% -> +62%, DD unchanged; 2x cost +109% in 2026. Same rule, new
+  universe, but chosen after the pre-registration: report it as "LMC+" alongside LMC. C on
+  perp-only coins fails (-1.0%, flat calibration, funding eats it).
+- 05:45Z second pumps and listing months 2-3 (`x7_*`, `results/explore/second_pump.md`,
+  `listing_month2.md`): fail. Second pumps are worse to short than first pumps (F-def gated
+  +3.7% vs +8.0%), longs lose everywhere. Listing features carry no signal after day 30; shorting
+  all listings at day 60 for 30 days +10.0% but DD -31% in LMC (the longer-M-hold lead was
+  already tested at 17:18Z). Side finding: F's edge needs the 5m spike rows; hourly 4h +40%
+  pumps that are not F rows lose (-2.4%).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
