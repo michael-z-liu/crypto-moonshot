@@ -464,6 +464,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   carry the sleeve (top 10% = 109% of net); freed slots only become same-event re-entries (churn);
   2022's short-hold losses are one LUNA +232% spike. Improvement must come from entry or sizing.
 
+- 01:20Z (local note: 00:20Z UTC) squeeze longs: LONG pumps when funding < 0 (mirror of F): about
+  zero (r4 >= 0.2, rate < 0, 72h +2 bp; r4 >= 0.4 -184 bp; best ~+100 bp with years +58%..-60%).
+  Negative-funding pumps look two-sided; investigator launched (`why/squeeze_longs.md`, `w11_`).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
