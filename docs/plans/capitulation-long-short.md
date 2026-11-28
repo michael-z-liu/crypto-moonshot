@@ -542,6 +542,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   already tested at 17:18Z). Side finding: F's edge needs the 5m spike rows; hourly 4h +40%
   pumps that are not F rows lose (-2.4%).
 
+- 05:15Z running: perp-only follow-ups (`p2_*`): LMC+ robustness (day bootstrap, $50k/$250k,
+  one candle late, LMCF+), the Nov 2026 forward window on perp-only coins, and the pre-spot perp
+  window of later spot listings. Still running: book depth (`x12_*`), audit (`a1_*`).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
