@@ -3,8 +3,11 @@
 Unattended search, started 2026-11-27, for changes to the capitulation strategy that reach an
 **average trade of +10% or more** and **+50% or more a year** for a $10k-50k account, trading
 both directions (longs after dumps, shorts on USD-M perpetuals after rallies). Plan and run log:
-`docs/plans/capitulation-long-short.md`. Code: `research/capitulation_ls/` (`e01_` .. `e43_`,
-`sim.py`, `wf.py`, `dsr.py`, `fetch_futures.py`, `build_*.py`, `nn_seq.py`).
+`docs/plans/capitulation-long-short.md`. Code: `research/capitulation_ls/` (`README.md` maps every
+script: experiments `e01_`..`e51_`, failure investigations `w1_`..`w12_`, explorers `x1_`..`x15_`,
+diagnostics `d01_`/`d02_` and `diag.py`, the 2017-19 holdout `h1_`, perp-only coins `p1_`/`p2_`/
+`f1_`, less liquid spikes `q1_`, the audit `a1_`; shared code `sim.py`, `e25_combined.py`, `wf.py`,
+`dsr.py`, `fetch_futures.py`, `build_*.py`, `nn_seq.py`).
 
 > Status: written mid-search and updated as it continues. The pre-registered forward read-out
 > (2026-11-02..27) found no trades: see [Forward read-out](#forward-read-out).
@@ -43,9 +46,10 @@ both directions (longs after dumps, shorts on USD-M perpetuals after rallies). P
    pumps better within a day (IC 0.34 vs 0.25 for trees), but better ranking did not turn into
    better books, because books are decided by tails and by which days trade.
 6. **Caveats.** Every sleeve and setting was chosen on 2020-26 data that earlier studies had also
-   seen. The deflated Sharpe ratio is 0.90-0.98 (5,000 / 1,000 trials), assuming trials differ little (see the audit). The long sleeve's
-   evidence rests on about 25 flush days; 2025 dominates the book (listing shorts). Forward data
-   is the real test, but see the holdout (item 7).
+   seen. The deflated Sharpe ratio is 0.90-0.98 (5,000 / 1,000 trials), assuming trials differ
+   little (see the audit). The long sleeve's evidence rests on about 25 flush days; 2025
+   dominates the book (listing shorts). Settings chosen on 2022-24 alone made +7.5% / +3.8% a
+   trade in 2025 / 2026. Forward data is the real test, but see the holdout (item 7).
 7. **The long sleeve holds on data nobody tuned on (2017-08..2019-12).** The pre-registered L
    rule, scored by the same model on Binance spot data no earlier study had used, made +9.5% a
    trade (41 trades on 18 flush days, 88% winners, day-bootstrap 95% CI +6.2..+13.8%), about
@@ -179,8 +183,9 @@ trades.** The highest long score was 0.990 (no flush), no crash met the crash-sh
 18 new spot listings were tokenised stocks or ETFs without perps. BTC did fall about 15% in three
 days around 2026-11-14/15, but as a slow slide without 5m capitulation spikes, so the long sleeve
 stayed out by design. The window can neither confirm nor reject LMC; the paper trade going
-forward is the test (rerun the two scripts after a sync). The perp-only extension (see below) had one signal in the
-same window, BRUSDT on 2026-11-21, which hit the +20% take profit.
+forward is the test (rerun the two scripts after a sync). The perp-only extension (see the
+previous section) had one signal in the same window, BRUSDT on 2026-11-21, which hit the +20%
+take profit.
 
 ## What changed against the earlier capitulation studies
 
@@ -290,7 +295,7 @@ of failure across everything tried:
 ## Why it did not work
 
 Each failure was investigated separately (notes in `research/capitulation_ls/results/why/`,
-scripts `w1_`..`w6_`). The common thread: the edges here are event-driven and rest on few
+scripts `w1_`..`w12_`; explorers' own "Why it failed" sections in `results/explore/`). The common thread: the edges here are event-driven and rest on few
 independent days, so any rule that needs fine distinctions inside those days drowns in noise.
 
 **Pump shorts** (`why/pump_shorts.md`). Perps do *not* squeeze more than spot (doublings 6.2% vs
@@ -416,7 +421,9 @@ empty on the days that matter.
 USD-M perpetual funding rates (2.85M rows, 919 symbols), 1h perp klines (16.5M rows), 5m perp
 klines for 450 perps with pump events, futures metrics (open interest, top-trader and account
 long/short ratios, taker ratio; 6.3M 5m rows on event days), spot 5m candles synced to
-2026-11-27. About 3 GB of the 20 GB allowed.
+2026-11-27; later: spot 5m candles for 89 USDT pairs from 2017-08 to 2019-12 (holdout, 1.1 GB),
+5m perp candles for the 200 perp-only coins (0.6 GB), perp order-book depth snapshots on candidate
+days from 2023 (80 MB). About 6 GB of the 20 GB allowed, all in the shared data folder.
 
 ## Caveats
 
@@ -430,6 +437,11 @@ long/short ratios, taker ratio; 6.3M 5m rows on event days), spot 5m candles syn
   Shorts assume perps are borrowable and the isolated-margin liquidation at +100% fills there.
 - **2025 dominates.** LMC's 2025 (+625%) comes mostly from listing shorts in a year of many weak
   listings; 2026 (to November) is +51%.
+- **Drawdowns are understated on closed trades.** Marked to market hourly the worst is -18.6%
+  (2026 -17.2%); with every open position at its worst at the same time, -26%.
+- **Fair expectation.** About +8-10% a trade (the holdout's +9.5% for the long sleeve, +7.5% /
+  +3.8% for settings frozen on 2022-24) and +50% a year only in years with enough flush days,
+  which the perp-only extension makes more likely from 2024 on.
 
 ## Recommendations
 
