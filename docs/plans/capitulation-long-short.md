@@ -478,6 +478,13 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   days, ~16 independent days); within-day IC ~0 (rate +0.06, ls_acc -0.05), so priority has
   nothing to rank and filters only empty slots on the big days.
 
+- 00:35Z wave 3 launched (running): (1) TRUE HOLDOUT of L on 2017-08..2019-12 spot data never
+  seen by any study (`h1_*`, `results/explore/holdout_2018.md`, raw data under OWN/holdout/);
+  (2) second-pump chains and listing months 2-3 (`x7_*`, `results/explore/second_pump.md`,
+  `listing_month2.md`); (3) calendar effects and pump/loser baskets (`x8_*`,
+  `results/explore/calendar.md`, `baskets.md`). Explorers write their own "Why it failed"
+  section; if a run died with no output, relaunch from this description.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
