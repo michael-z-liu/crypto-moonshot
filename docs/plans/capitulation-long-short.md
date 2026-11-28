@@ -454,6 +454,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
 - 00:45Z crowding-weighted stakes for F in LMCF (half / quarter stake when ls_acc < 1.0 or 0.8):
   DD -32% -> -26..-28%, worst year +95% -> +85..+89%, same bp/trade: a risk dial, not an edge.
 
+- 00:50Z the funding gate generalises across overextension signals (short, perp, iso1x, 72h):
+  24h >= +60% +234 -> +796 bp; 24h >= +100% -329 -> +1278 bp (36 trades); 7d >= +100% +84 -> +403;
+  7d >= +200% -363 -> +566; 4h >= +40% +313 -> +953. Only the 4h version has no losing year (2024
+  loses elsewhere, as why/funding_filter_limits.md explains). The gate is a mechanism, not a fit.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
