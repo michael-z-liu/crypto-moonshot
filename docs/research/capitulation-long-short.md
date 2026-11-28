@@ -385,6 +385,12 @@ the first month, listing features carry no signal; only a generic slow decline r
 every listing at day 60 for 30 days: +10% a trade, but drawdown -31% in the book). The pump short
 works only on the 5m volume-spike rows: hourly "+40% in 4h" pumps that are not spike rows lose.
 
+**Less liquid spikes** (`explore/illiquid.md`). The long rule works on spikes of thinner coins
+too (+12.4% a trade at 0.4% cost, +10.8% at 2%, the same hockey stick), but they fire on the same
+flush days as the liquid coins: two new days in five years. In the book they displace larger
+liquid stakes, so returns do not rise. More coins help only when they add days (perp-only coins
+did in 2025-26).
+
 **Order-book depth** (`explore/book_depth.md`, Binance perp depth snapshots from 2023). Depth
 at entry does not rank long candidates better than the CNN, which already decides among a flush
 day's near-simultaneous candidates (within-day IC +0.23..+0.29 against -0.12 for the best depth
