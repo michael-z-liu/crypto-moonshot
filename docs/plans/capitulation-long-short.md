@@ -552,6 +552,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   but the gate drops 59% of F (dropped trades +696 bp); for M it removes the best trades. Every
   short gate lowers the worst year (LMCF 103 -> 31..57%).
 
+- 05:24Z launched (running): L on less liquid spikes (median 5m quote volume 1k-5k and 500-1k
+  USDT; the builder keeps >= 5k), walk-forward folds 2022-26, costs 0.4/1/2% (`q1_*`,
+  `results/explore/illiquid.md`); deadline 08:45Z.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
