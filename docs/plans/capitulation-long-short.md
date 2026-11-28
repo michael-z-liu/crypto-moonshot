@@ -485,6 +485,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   `results/explore/calendar.md`, `baskets.md`). Explorers write their own "Why it failed"
   section; if a run died with no output, relaunch from this description.
 
+- 00:50Z C entry features (`x9_c_entry.py`, `results/explore/c_entry.md`): fails. 31 features
+  on 161 candidates (144 days, 47 before 2025): no tercile ordering holds in both periods, |IC|
+  <= 0.13 (noise 0.08). Gates raise LMC bp per trade (+1158 -> up to +1409) only by dropping C's
+  below-average trades, while lowering yearly returns. C stays as pre-registered.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**

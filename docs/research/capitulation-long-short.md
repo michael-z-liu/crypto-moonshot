@@ -249,6 +249,11 @@ because there is no stable reversal at any horizon (1-28 days): cross-sectional 
 (~9% a week), but ranks barely predict (IC -0.03, unstable), the market factor explains 52-73% of
 daily variance, and the losers book is just the market (beta ~1).
 
+**Crash-short entry features** (`explore/c_entry.md`). None of 31 price, volume, funding,
+open-interest or crowding features ranks crash shorts consistently (161 trades on 144 days, |IC|
+<= 0.13 and orderings flip between 2022-24 and 2025-26). The sleeve's net comes from a few large
+continuations that nothing at entry predicts; gates only drop trades.
+
 **Squeeze longs** (`why/squeeze_longs.md`). Going long pumps when funding is negative (the
 mirror of the funding-gated short) makes about zero: negative-funding pumps still fade (median
 72h price -9%) and squeeze no more often than others (8%); the long collects about +3.3% of

@@ -51,3 +51,12 @@ uv run --group research python e05_short_grid.py   # any script: run from this f
 | e42 | idiosyncratic crash shorts |
 | e45 | settings frozen on 2022-24, read on 2025-26 |
 | e46 | share of random configurations that meet both targets |
+| e47 | extreme funding as a signal |
+| e48 | block bootstrap of the books |
+| e49 | late perp listings |
+| e50 | network architectures with day-weighted training |
+| e51 | large-cap weekly reversal |
+| d01, d02 | numerical diagnostics (`diag.py`): sleeve scorecards and calibration; failed variants (`results/diag/`) |
+| w1-w12 | "why it failed" investigations, one note each in `results/why/` (w1 pump shorts, w2 leverage, w3 long variants, w4 listings, w5 regime/other, w6 cascade wait, w7 early slot cap, w8 funding-filter limits, w9 large-cap reversal, w10 crash-short exits, w11 squeeze longs, w12 crowding and longs) |
+| x1-x9 | explorers, one note each in `results/explore/` (x1 perp premium, x2 quiet breakouts, x3 lag catch-up, x4 contagion, x5 listing-short tail, x6 pump-short tail, x7 second pumps and listing months 2-3, x8 calendar and baskets, x9 crash-short entry features) |
+| h1 | holdout: the long sleeve on 2017-08..2019-12 spot data (`results/explore/holdout_2018.md`) |
