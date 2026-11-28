@@ -1,37 +1,46 @@
-# Search scoreboard (updated 2026-11-27 22:30 UTC)
+# Search scoreboard (updated 2026-11-28 05:37 UTC)
 
-Started 13:46 UTC; hand-off not before 2026-11-28 09:46 UTC. 49 experiment scripts, 9 "why it
-failed" investigations, 67 commits on `feat/capitulation-long-short`.
+Started 2026-11-27 13:46 UTC; hand-off not before 2026-11-28 09:46 UTC. 120 commits on
+`feat/capitulation-long-short`: 51 experiments, 12 "why it failed" investigations, 15 explorers,
+a 2017-19 holdout, a perp-only extension and an independent audit (`README.md` maps them).
 
 Targets: average trade >= +10%, every year >= +50%. Backtest 2022-26, per-year $10k books, 1x.
 
-## Works (in-sample)
+## Works
 
-| Strategy | Avg trade | Worst year | Max DD | Status |
+| Strategy | Avg trade | Worst year | Max DD (closed / marked) | Status |
 | --- | --- | --- | --- | --- |
-| **LMC** = L + M + C, 10 slots | **+11.6%** | **+51%** (~+30% at neighbouring settings) | -17% | pre-registered pick |
-| LMCF = LMC + F, 10 slots | +11.2% | +95% | -32% | found after pick (in-sample) |
+| **LMC** = L + M + C, 10 slots | **+11.6%** | **+51%** (~+30% at neighbouring listing delays) | -17% / -19% | pre-registered pick (in-sample) |
+| **LMC+** = LMC + L on perp-only coins | +11.5% | +62% (2026 +111%) | -17% | found after the pick; walk-forward scores |
+| LMCF = LMC + F | +11.2% | +95% | -32% | found after the pick (in-sample) |
 | L: capitulation longs (CNN top 0.5%, TP 20%, 72h, spot) | +10.6% | +15% | -14% | sleeve |
+| L on perp-only coins (perp long 1x) | +13.1% | every year > 0 | | sleeve extension |
 | M: weak spot-listing shorts (perp, 30d) | +20.0% | +7% | -24% | sleeve |
 | C: idiosyncratic crash shorts (perp, 24h) | +4.4% | +5% | -21% | sleeve |
-| F: pump shorts, r4 >= 40%, funding >= 0 (perp, 72h) | +9.5% | +5% | -26% | sleeve (new, 22:50) |
+| F: pump shorts, r4 >= 40%, funding >= 0 (perp, 72h) | +9.5% | +5% | -26% | sleeve |
 
-## Tried and did not work (each explained in `results/why/`)
+## Out-of-sample evidence
+
+| Test | Result |
+| --- | --- |
+| L on 2017-08..2019-12 (data no study had seen) | +9.5% a trade, 41 trades, 18 flush days, 88% winners; book only +10..+16% a year (few pairs and flush days then) |
+| Settings frozen on 2022-24, read on 2025-26 (corrected by the audit) | 2025 +371%, 2026 +54% (+7.5% / +3.8% a trade) |
+| Forward 2026-11-02..27 | LMC: 0 trades. Perp-only L: 1 trade (BRUSDT 11-21), +19.7% |
+| Audit | no inflating bug in the headline; one look-ahead in the frozen check (fixed); drawdowns 2-6 points deeper marked to market |
+
+## Tried and did not work (each explained in `results/why/` or `results/explore/`)
 
 | Area | Ideas | Why (short) |
 | --- | --- | --- |
-| Pump shorts | plain, stops, delays, models, OI/LS/funding predictors, low CNN score | cost waterfall on perps (gap, liquidation, funding); stops sell retraces; models rank pump size |
+| Pump shorts | plain, stops, delays, models, OI/LS/funding predictors, low CNN score, second pumps, baskets, perp-only coins | cost waterfall on perps (gap, liquidation, funding); stops sell retraces; perp-only coins squeeze 4x as often |
 | Leverage | 2x/3x alts and majors, stops | one wick day (2025-10-10); survivable leverage 0.99x |
-| Long-sleeve variants | trade-aligned target, GBM, transformer/TCN/GRU, 10 seeds, ensembles, exits, top-K, pyramiding, vol sizing, BTC hedge, cascade timing, early-slot cap | day explains 56% of the outcome; one shared coin-level ceiling; ~23 flush days |
-| Listing variants | all perps, young coins, triggers, delays, late perps, regime filter, longer holds | edge is the spot-listing event; front-loaded decay; 72h peak mostly noise |
-| Regime / other | funding extremes, market basket after BTC drops, majors, sleeve caps/weights, weekday | crowded funding trends; moderate drops keep falling; squeezes coin-specific |
+| Long-sleeve variants | trade-aligned target, GBM, transformer/TCN/GRU, ensembles, exits, top-K, pyramiding, vol sizing, BTC hedge, cascade timing, early-slot cap, limit entries, crowding, order-book depth, perp venue, less liquid coins | the day explains most of the outcome; the CNN already ranks within a day; extra coins help only if they add flush days |
+| Listing variants | all perps, young coins, triggers, delays, late perps, regime filter, longer holds, months 2-3 | edge is the spot-listing event; front-loaded decay |
+| Crash shorts | exits, 31 entry features, perp-only coins | a few large continuations carry it; nothing at entry predicts them |
+| Book level | sleeve momentum, loss brake, calendar effects | exposure, one squeeze cluster, chance |
+| New families | quiet breakouts, lag catch-up, premium extremes, contagion, large-cap reversal, flush-loser baskets | flat calibration or overlap with L |
 
-## Forward (unseen) test
+## Leads (not confirmed)
 
-2026-11-02..27: 0 trades for LMC (no flush, no lone crash, no new crypto listings). Rerun
-`forward_signals.py day5` then `lmc_forward.py day5` after a candle sync.
-
-## How the search is running
-
-Work happens in bursts: on each 20-minute heartbeat, when a background training job finishes,
-or when an investigator sub-agent reports. Between those, nothing runs.
+- Long pumps on perp-only coins: +4.7% a trade, positive in 69 of 72 settings, but a lottery (median -14%), two years only, and the best version lost on the pre-spot coins.
+- Pause pump shorts for a few days after a 30% loss: cut LMCF's drawdown -32% -> -16..-24%, all from one 2025 cluster.
