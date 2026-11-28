@@ -440,6 +440,12 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   Explorer contagion shorts (`results/explore/contagion.md`, 4,680 configs): fails; flat
   calibration, repricing happens before the next-hour entry; peers of big crashes bounce.
 
+- 00:20Z diagnostics-driven wave: agents for M's stop tail (`x5_`, `results/explore/m_tail.md`)
+  and F's squeeze tail via crowding gates (`x6_`, `results/explore/f_tail.md`) launched. C exits
+  (despite giveback 0.67): every variant is worse than the 24h time exit (4-12h +176..+222 bp with
+  2022 negative; TP 10-15% +100..+180; trailing -57..+68 vs +436 bp). Investigator launched
+  (`why/c_exits.md`, `w10_`).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
