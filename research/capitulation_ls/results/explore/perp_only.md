@@ -434,3 +434,9 @@ Notes on the follow-ups:
 - **Pre-spot.** The spot listing time is the first 5m candle in the shared store or the archive
   store. Windows before 2022 have no walk-forward fold and are not scored. All 2026 pre-spot
   windows (12 coins) gave no signal.
+
+### Check by perp age at entry (master, 2026-11-28)
+
+L on perp-only coins by how long the perp had traded at entry (first 5m candle in the archive):
+0-30 days 40 trades +12.1% (TP 65%, 16 days); 30-90 days 78, +14.6% (77%); 90-180 days 72,
++13.7% (71%); over 180 days 138, +12.3% (59%). The edge is not a new-listing effect.
