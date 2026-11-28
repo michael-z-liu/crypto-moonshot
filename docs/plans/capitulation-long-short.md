@@ -423,6 +423,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   pump size, stopped trades -0.075 vs E[o] +0.025. F: gate halves the tail. C: 27% never went,
   giveback 67%, top decile worse. Explorer quiet breakouts: fails (signal anti-selects; 576 cells).
 
+- 00:20Z explorer lag catch-up (`results/explore/lag_catchup.md`, 5,760 configs): fails. Lag
+  signal adds nothing (diag: thr 0 vs 0.8 identical, Spearman 0.015); best up-move long +4.35%,
+  2025 -13%; down-move shorts lose (alts bounce after BTC drops). Diag: 30-33% never went,
+  giveback 0.66. diag.py fixed to treat NaN tp/stop as none.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
@@ -450,8 +455,7 @@ A. Diagnostics (user 23:20Z) [sleeves done 23:40Z; next: score explorer trade fi
    Apply to L, M, C, F, P myself (`d01_scorecards.py` -> `results/diag/`), then hand the failed
    groups to sub-agents with diag.py as the standard. Status is recorded in the run log.
 Running at 23:45Z (if a resume finds their outputs, review, lint, commit, and score with diag.py):
-   explorer premium extremes (`x1_*`, `results/explore/premium.md`), explorer lag catch-up
-   (`x3_*`, `results/explore/lag_catchup.md`), explorer contagion shorts (`x4_*`,
+   explorer premium extremes (`x1_*`, `results/explore/premium.md`), explorer contagion shorts (`x4_*`,
    `results/explore/contagion.md`), failed-variant diagnostics (`d02_*`,
    `results/diag/failed_scorecards.md`). If a run died with no output, relaunch it from its brief
    (same names). Done: quiet breakouts (fails; committed).

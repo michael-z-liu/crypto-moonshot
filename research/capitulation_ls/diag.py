@@ -33,8 +33,9 @@ MODES = ("tp_win", "time_win", "near_miss", "never_went", "went_against", "stopp
 
 def annotate(t: pl.DataFrame) -> pl.DataFrame:
     """Add the common scales and the failure mode to a trade frame."""
-    tp = pl.col("tp").fill_null(REF_TP).cast(pl.Float64)
-    stop = pl.col("stop").fill_null(1.0).cast(pl.Float64)
+    # NaN and null both mean "none" (polars orders NaN above every number).
+    tp = pl.col("tp").cast(pl.Float64).fill_nan(None).fill_null(REF_TP)
+    stop = pl.col("stop").cast(pl.Float64).fill_nan(None).fill_null(1.0)
     t = t.with_columns(
         o=pl.col("net").clip(-1.0, 1.0),
         tp_progress=(pl.col("mfe") / tp).clip(0.0, 1.0),
