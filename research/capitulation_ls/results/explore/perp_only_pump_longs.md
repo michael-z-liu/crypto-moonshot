@@ -107,3 +107,10 @@
 2. Lottery payoff: the per-trade mean has a day-bootstrap interval that includes zero, and the
    median trade loses 14%. Below the +10% per trade target in every configuration (best +6.8%).
 3. It competes with the long and listing sleeves for slots in 2024 (2024 +152% -> +130..+138%).
+
+## Independent check: coins whose perp traded before their spot listing (pre-spot window)
+
+The two configurations above, unchanged, on the pre-spot pool (`p2_prespot.py`, 182 pumps with
+ret_4h >= 40%, one position per coin): all pumps, TP 100%, 72h: 14 trades, +2.8% mean, median
+-7.0%, day-bootstrap CI -14..+22%; funding < 0, TP 100%, stop 30%: 8 trades, -9.1%. Too few to
+confirm or reject, but the funding < 0 version, the attractive one in the book, does not repeat.

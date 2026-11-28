@@ -586,6 +586,7 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   not confirmed. 69/72 configs positive (all pumps TP 100% 72h +474 bp, funding<0 TP 100% stop
   30% +682 bp) but day-bootstrap CIs include 0, median trade -14%, only 2025-26. LMC+ with the
   funding<0 version: 2025 +1096%, 2026 +227%, DD -18% (post hoc). Paper-trade candidate.
+  Pre-spot check (unchanged configs): all pumps 14 trades +2.8%; funding<0 8 trades -9.1%.
 
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
