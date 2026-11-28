@@ -4,7 +4,7 @@ Unattended search, started 2026-11-27, for changes to the capitulation strategy 
 **average trade of +10% or more** and **+50% or more a year** for a $10k-50k account, trading
 both directions (longs after dumps, shorts on USD-M perpetuals after rallies). Plan and run log:
 `docs/plans/capitulation-long-short.md`. Code: `research/capitulation_ls/` (`README.md` maps every
-script: experiments `e01_`..`e51_`, failure investigations `w1_`..`w12_`, explorers `x1_`..`x16_`,
+script: experiments `e01_`..`e51_`, failure investigations `w1_`..`w12_`, explorers `x1_`..`x17_`,
 diagnostics `d01_`/`d02_` and `diag.py`, the 2017-19 holdout `h1_`, perp-only coins `p1_`/`p2_`/
 `f1_`, less liquid spikes `q1_`, the audit `a1_`; shared code `sim.py`, `e25_combined.py`, `wf.py`,
 `dsr.py`, `fetch_futures.py`, `build_*.py`, `nn_seq.py`).
@@ -60,7 +60,8 @@ diagnostics `d01_`/`d02_` and `diag.py`, the 2017-19 holdout `h1_`, perp-only co
    L rule, applied as a 1x perp long to the 200 coins that trade only as perps and scored by
    walk-forward folds, made +13.1% a trade after costs and funding (328 trades, 86% winners). It
    adds 24 flush days in 2025-26. LMC with these trades: +11.5% a trade, years +62 / +81 / +152 /
-   +790 / +111%, worst year +62% (LMC +51%), drawdowns unchanged.
+   +790 / +111%, worst year +62% (LMC +51%), drawdowns unchanged. With every setting frozen on 2022-24, it
+   lifts 2026 from +54% to +128% (per trade +5.6%, below the target).
 
 ## Robustness checks on LMC
 
@@ -71,6 +72,7 @@ diagnostics `d01_`/`d02_` and `diag.py`, the 2017-19 holdout `h1_`, perp-only co
 | Entry 1-2 minutes after the assumed open (1m candles) | costs at most ~0.3% a trade |
 | Other walk-forward score sets for L (volscale5, path_all5, 10 seeds) | +10.9..+11.7% a trade, worst year +29..+52% |
 | Settings chosen on 2022-24 only, read on 2025-26 | 2025 +371%, 2026 +54% (+7.5% / +3.8% a trade); corrected by the audit (the first run used the 72h weak-listing filter with a 24h entry, a look-ahead that showed +544% / +89%) |
+| Same, with the perp-only long at the frozen long settings (`explore/frozen_lmcplus.md`) | 2025 +498%, 2026 +128% (+5.6% a trade in 2025-26) |
 | 400 random configurations from plausible ranges | 96% positive every year; median +10.0% a trade, median worst year +41%; both targets in 14% |
 | Without each year's best flush day for L | +10.6% a trade, worst year +21% |
 | Without each year's top 3 listing shorts | +10.0% a trade, worst year +32% |

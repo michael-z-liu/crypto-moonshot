@@ -611,6 +611,9 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
 - 10:54Z RESUMED by the user: continue everything, no heartbeat (the user restarts manually if the
   quota runs out). BTC-pair holdout resumed. Hand-off (check, report, PR) after it reports.
 
+- 10:55Z frozen settings + perp-only long (`x17_frozen_lmcplus.py`): with all settings chosen on
+  2022-24, LMC+ 2025 +498% / 2026 +128% vs LMC +371% / +54%; per trade 2025-26 +5.6% vs +6.3%.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
