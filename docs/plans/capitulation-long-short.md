@@ -490,6 +490,10 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   <= 0.13 (noise 0.08). Gates raise LMC bp per trade (+1158 -> up to +1409) only by dropping C's
   below-average trades, while lowering yearly returns. C stays as pre-registered.
 
+- 00:58Z launched (running): perp-only coins (no spot market) for L as perp longs and for C
+  (`p1_*`, `results/explore/perp_only.md`, data in OWN/futures/perp5m/). More flush-day events
+  is the lever the diagnostics point to; models were exhausted (CNN/transformer/TCN/GRU/GBM).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
