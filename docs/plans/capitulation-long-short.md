@@ -459,6 +459,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   7d >= +200% -363 -> +566; 4h >= +40% +313 -> +953. Only the 4h version has no losing year (2024
   loses elsewhere, as why/funding_filter_limits.md explains). The gate is a mechanism, not a fit.
 
+- 00:55Z why C exits fail (`why/c_exits.md`): no average fade (median favourable close keeps rising
+  to +9.6% at 72h; giveback 0.67 is noise around each path's maximum); TPs cap the ~30 winners that
+  carry the sleeve (top 10% = 109% of net); freed slots only become same-event re-entries (churn);
+  2022's short-hold losses are one LUNA +232% spike. Improvement must come from entry or sizing.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**

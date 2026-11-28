@@ -237,6 +237,13 @@ wait for. Capping the slots the first minutes may take fails too (`why/early_slo
 first 15 minutes of episodes hold 60% of the long sleeve's net, and 11 of 13 capped episodes have
 no later signals to fill the freed slots.
 
+**Crash-short exits and short-side tail controls** (`why/c_exits.md`, `explore/m_tail.md`,
+`explore/f_tail.md`). The crash short's high giveback is noise around each trade's peak, not a
+fade: take profits and trailing stops cap the ~30 winners that carry it. Listing shorts' 15%
+stop tail could not be cut without lowering expectancy (only a wider stop breaks even), and no
+crowding gate improves the funding-filtered pump short: the crowded trades carry both the stops
+and the best returns. Sizing by crowding trades drawdown for return (a risk dial).
+
 **Large-cap reversal** (`why/largecap_reversal.md`). Weekly reversal among 30 large coins fails
 because there is no stable reversal at any horizon (1-28 days): cross-sectional spread is ample
 (~9% a week), but ranks barely predict (IC -0.03, unstable), the market factor explains 52-73% of

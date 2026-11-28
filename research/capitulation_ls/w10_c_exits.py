@@ -108,7 +108,10 @@ for lab, rule in {
 # chain analysis: re-entries in the same coin within 24h of the event's first entry
 print("--- chains (event = first entry + re-entries of the same coin inside 24h of it)")
 first24 = {
-    (a, r): n for a, r, n in zip(b24["symbol"].to_list(), b24["t"].to_list(), b24["net"].to_list(), strict=False)  # noqa: E501
+    (a, r): n
+    for a, r, n in zip(
+        b24["symbol"].to_list(), b24["t"].to_list(), b24["net"].to_list(), strict=False
+    )
 }
 for lab, rule in {
     "TP10 24h": Rule(hold_min=1440, tp=0.10, **base_r),
