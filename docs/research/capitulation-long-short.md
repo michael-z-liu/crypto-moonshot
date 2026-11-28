@@ -458,7 +458,9 @@ klines for 450 perps with pump events, futures metrics (open interest, top-trade
 long/short ratios, taker ratio; 6.3M 5m rows on event days), spot 5m candles synced to
 2026-11-27; later: spot 5m candles for 89 USDT pairs from 2017-08 to 2019-12 (holdout, 1.1 GB),
 5m perp candles for the 200 perp-only coins (0.6 GB), perp order-book depth snapshots on candidate
-days from 2023 (80 MB). About 6 GB of the 20 GB allowed, all in the shared data folder.
+days from 2023 (80 MB), the 2017-19 BTC-quoted pairs (1.3 GB) and the 2020-26 other-quote pairs
+(1.6 GB). About 11 GB of the 20 GB allowed, all in the shared data folder
+(`cache/capitulation_ls/`); about 3 GB of it (`explore/`) are caches the scripts rebuild.
 
 ## Caveats
 

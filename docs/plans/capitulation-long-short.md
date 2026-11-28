@@ -2,7 +2,7 @@
 
 - **Status:** review
 - **Branch:** `feat/capitulation-long-short`
-- **PR:**
+- **PR:** #26
 - **Started:** 2026-11-27T13:46Z. Keep searching until at least **2026-11-28T09:46Z** (20 h)
   before hand-off; budget about 25 h (five usage windows).
 - **Updated:** 2026-11-28T11:11Z
