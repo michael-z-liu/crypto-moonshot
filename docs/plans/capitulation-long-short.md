@@ -523,6 +523,11 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   percentiles and features, execution order, book accounting, survivorship, selection count);
   `a1_*`, `results/why/audit.md`. Its findings go into the report's caveats.
 
+- 05:30Z HOLDOUT 2017-19 (`h1_*`, `results/explore/holdout_2018.md`): L's pre-registered rule
+  holds on never-seen data: 41 trades, 18 flush days, +954 bp (2022-26 +1291), 88% wins, day
+  bootstrap CI +620..+1379 bp, hockey stick present, CNN beats simple rules (+566 / -37 bp). Book
+  only +10..+16% a year (few USDT pairs, few flush days). Added to the report summary (item 7).
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**

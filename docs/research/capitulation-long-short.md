@@ -44,8 +44,14 @@ both directions (longs after dumps, shorts on USD-M perpetuals after rallies). P
    better books, because books are decided by tails and by which days trade.
 6. **Caveats.** Every sleeve and setting was chosen on 2020-26 data that earlier studies had also
    seen. The deflated Sharpe ratio is 0.90-0.98 (5,000 / 1,000 trials). The long sleeve's
-   evidence rests on about 25 flush days; 2025 dominates the book (listing shorts). Only forward
-   data can confirm any of this.
+   evidence rests on about 25 flush days; 2025 dominates the book (listing shorts). Forward data
+   is the real test, but see the holdout (item 7).
+7. **The long sleeve holds on data nobody tuned on (2017-08..2019-12).** The pre-registered L
+   rule, scored by the same model on Binance spot data no earlier study had used, made +9.5% a
+   trade (41 trades on 18 flush days, 88% winners, day-bootstrap 95% CI +6.2..+13.8%), about
+   three quarters of its 2022-26 size, with the same hockey-stick calibration. Its book made only
+   +10..+16% a year, because there were few USDT pairs and few flush days then. This is evidence
+   for the signal, not for the +50% a year target, and says nothing about the short sleeves.
 
 ## Robustness checks on LMC
 
@@ -65,6 +71,33 @@ both directions (longs after dumps, shorts on USD-M perpetuals after rallies). P
 
 The per-trade target is typical of the whole region; +50% every year is the binding target and
 depends on catching the one or two biggest flush days of a year.
+
+## Holdout on 2017-19 (`results/explore/holdout_2018.md`)
+
+Spot 5m candles for every USDT pair from August 2017 to December 2019 (89 pairs, including
+delisted ones) were downloaded from the Binance archive and turned into spikes with the
+builders' own functions (exact parity on January 2020). They were scored with the saved day5
+2026 fold, with pct taken against its 2020-25 reference scores as in the forward scorer. A
+retrained 2022 fold (which reproduces day5's 2022 walk-forward scores exactly) was used as a
+check.
+
+| L, pct >= 0.995, TP 20%, 72h | trades | flush days | mean | winners | take profit hit |
+| --- | --- | --- | --- | --- | --- |
+| Holdout 2017-19 | 41 | 18 | +9.5% | 88% | 37% |
+| Backtest 2022-26 | 1,883 | 25 | +12.9% | 85% | 65% |
+
+- 16 of 18 flush days were positive; by year: 2017 +14.1% (7 trades), 2018 +14.7% (10),
+  2019 +6.1% (24, mostly large coins with smaller bounces).
+- Calibration by signal bin, 2017-19 vs 2022-26: 0.95-0.976 +0.6% vs +0.9%; 0.976-0.984 +1.3%
+  vs +3.6%; 0.984-0.9955 +5.1% vs +7.4%; >= 0.9955 +10.7% vs +13.5%. The hockey stick is there.
+- The CNN beats simple rules on the same exits: any spike after a 20% fall in 24h +5.7%, every
+  liquid spike -0.4%. Neighbours: pct 0.99 +6.7% (72 trades), 0.998 +17.8% (10).
+- Book (10 slots, $10k a year): +10% (2017, five months), +16% (2018), +13% (2019), drawdowns
+  about 1%. Too few events for the +50% target in that era.
+- Caveats: small sample (12 trades on 2019-09-24); 2017-18 spreads were probably wider than the
+  0.4% cost; the 2026 fold is applied backwards in time (the retrained 2022 fold is stricter:
+  4 trades, all reached +20%). Archive fixes: candles offset after the February 2018 outage
+  were floored to the 5m grid, and 15 spikes with broken inputs right after it were excluded.
 
 ## Forward read-out
 
