@@ -148,12 +148,39 @@ Newer networks match the CNN at best: the bounce signal looks limited by the dat
   In 2024 funding was rarely negative, so the filter barely filtered and a late-2024 liquidation
   tail decided the year.
 
+### New families explored in parallel (all fail)
+
+Quiet-period breakouts (the quiet signal anti-selects), alt catch-up after BTC moves (the lag
+signal adds nothing; alts bounce after BTC drops), perp premium/basis extremes (premium shorts
+lose; discount longs +2.8% a trade, overlapping capitulation longs), contagion shorts on peers of a
+crashing coin (no ecosystem signal; repricing happens before entry), weekly large-cap reversal (no
+horizon reverses; large caps move together). Notes in `results/explore/` and `results/why/`.
+
 ### Other ideas that did not work
 
 Shorting every new perp listing; weekly shorts of young coins; shorts or longs against extreme
 funding; open interest, long/short ratios and funding as squeeze predictors; pump shorts picked
 by a low CNN score; capping or re-weighting sleeves; BTC-trend filters on listing shorts; longer
 listing holds inside the book.
+
+## Numerical diagnostics
+
+Every strategy was scored on common scales (`diag.py`; `results/diag/README.md`): signal 0..1,
+outcome -1..+1 (-1 = stake lost), progress to the take profit and to the stop, and one failure mode
+per trade. The scorecards (`results/diag/scorecards.md`, `failed_scorecards.md`) rank the causes
+of failure across everything tried:
+
+1. **The signal carries no information** (flat or inverted calibration): pump size, young-coin
+   decay, quiet breakouts, contagion, lag catch-up.
+2. **The edge lives only in the extreme tail of the signal** (the long sleeve's hockey stick:
+   outcome ~0 below CNN pct 0.976, +0.132 above 0.9955; lowering the threshold to 0.98 cuts the
+   take-profit share from 65% to 28%).
+3. **The stop/liquidation tail on shorts** (pump shorts: 7% of trades stopped carry -0.075 against
+   an E[o] of +0.025).
+4. **Correlated flush-day risk invisible per trade** (leverage looks better per trade, but 95% of
+   trades sit on 11 days).
+5. **Never-went and giveback on weak calm-market shorts** (crash shorts: 27% never went, 67% of
+   the best move given back).
 
 ## Why it did not work
 

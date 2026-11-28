@@ -428,6 +428,18 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   2025 -13%; down-move shorts lose (alts bounce after BTC drops). Diag: 30-33% never went,
   giveback 0.66. diag.py fixed to treat NaN tp/stop as none.
 
+- 00:35Z failed-variant diagnostics (`results/diag/failed_scorecards.md`, d02): ranking of
+  failure causes: (1) signal carries no information (flat/inverted calibration: pump size, young
+  coins, quiet breakouts, contagion); (2) edge only in the extreme signal tail (L hockey stick:
+  threshold 0.98 -> TP share 65% -> 28%); (3) stop/liquidation tail on shorts; (4) correlated
+  flush-day risk invisible per trade (leverage: per-trade E_o rises 0.129 -> 0.261 at 3x, but 95%
+  of trades sit on 11 days); (5) never-went/giveback on weak calm-market shorts. CNN variants
+  score like day5 per trade; they lose in the book by trading other days.
+- 00:35Z explorer premium/basis (`results/explore/premium.md`, 864 configs): premium shorts lose
+  (-0.4%); longs after a deep discount +2.8%/trade (overlap with capitulation longs; 2022/2026 ~0).
+  Explorer contagion shorts (`results/explore/contagion.md`, 4,680 configs): fails; flat
+  calibration, repricing happens before the next-hour entry; peers of big crashes bounce.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
@@ -454,7 +466,7 @@ A. Diagnostics (user 23:20Z) [sleeves done 23:40Z; next: score explorer trade fi
    (signal 0..1, outcome -1..+1, TP progress, stop progress, failure modes, signal calibration).
    Apply to L, M, C, F, P myself (`d01_scorecards.py` -> `results/diag/`), then hand the failed
    groups to sub-agents with diag.py as the standard. Status is recorded in the run log.
-Running at 23:45Z (if a resume finds their outputs, review, lint, commit, and score with diag.py):
+Done 00:35Z: all four agents below finished and were committed. (Earlier: running at 23:45Z):
    explorer premium extremes (`x1_*`, `results/explore/premium.md`), explorer contagion shorts (`x4_*`,
    `results/explore/contagion.md`), failed-variant diagnostics (`d02_*`,
    `results/diag/failed_scorecards.md`). If a run died with no output, relaunch it from its brief
