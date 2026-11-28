@@ -249,7 +249,7 @@ def fr(d):
     s = d["ret_4h"].rank() / d.height
     return d.select(
         signal=s,
-        threshold=pl.lit(float(univ.filter(pl.col("ret_4h") >= thr)["ret_4h"].rank().min())),
+        threshold=pl.lit(float((s.filter(d["ret_4h"] >= thr)).min() or 0.0)),
         net="net",
         mfe="mfe",
         mae="adv",

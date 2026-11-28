@@ -474,6 +474,9 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   harder (funding tercile low/mid/high +1512/+1366/+903 bp; ls_acc +1511/+1385/+950; OI rising
   +1496 vs falling +1025). In the 10-slot book nothing helps (priority +948..+961 bp, filters
   +967..+1106 vs base +1064, lower years). Investigator launched (`why/crowding_longs.md`, `w12_`).
+  Why (`why/crowding_longs.md`): crowding is a day property (55% of funding variance between
+  days, ~16 independent days); within-day IC ~0 (rate +0.06, ls_acc -0.05), so priority has
+  nothing to rank and filters only empty slots on the big days.
 
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 

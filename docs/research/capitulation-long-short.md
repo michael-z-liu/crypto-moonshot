@@ -249,6 +249,19 @@ because there is no stable reversal at any horizon (1-28 days): cross-sectional 
 (~9% a week), but ranks barely predict (IC -0.03, unstable), the market factor explains 52-73% of
 daily variance, and the losers book is just the market (beta ~1).
 
+**Squeeze longs** (`why/squeeze_longs.md`). Going long pumps when funding is negative (the
+mirror of the funding-gated short) makes about zero: negative-funding pumps still fade (median
+72h price -9%) and squeeze no more often than others (8%); the long collects about +3.3% of
+funding, which only offsets the fade. No entry feature separates the squeezes out of sample.
+
+**Crowding and capitulation longs** (`why/crowding_longs.md`). Over all long candidates, coins
+with crowded shorts (low funding, low long/short ratio) bounce harder (+15.1% vs +9.0% a trade
+by funding tercile), but the 10-slot book gains nothing. Crowding is a property of the day (55%
+of the funding variance is between days) and the effect rests on about 16 independent flush
+days; within a day the information coefficient is about zero. Slot priority only chooses among
+same-day candidates, where crowding carries no information, and hard filters just leave slots
+empty on the days that matter.
+
 ## Data added (Binance only, `fetch_futures.py`)
 
 USD-M perpetual funding rates (2.85M rows, 919 symbols), 1h perp klines (16.5M rows), 5m perp
