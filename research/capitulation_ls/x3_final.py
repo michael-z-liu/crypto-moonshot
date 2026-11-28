@@ -133,5 +133,7 @@ for mode in ("up_long", "down_short", "bounce_long"):
             combo,
             "events",
             ev_all.height,
-            "basket avg {:.2f}% (median {:.2f}%) | top10% lag basket {:.2f}%".format(ev_all["a"].mean() * 100, ev_all["a"].median() * 100, ev_top["a"].mean() * 100),  # noqa: E501
+            "basket avg {:.2f}% (median {:.2f}%) | top10% lag basket {:.2f}%".format(
+                ev_all["a"].mean() * 100, ev_all["a"].median() * 100, ev_top["a"].mean() * 100
+            ),
         )

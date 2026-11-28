@@ -451,6 +451,9 @@ clock; those entries all happened between 13:46Z and about 14:50Z. Later times a
   (worst year +101% -> +75%); chosen on 2022-24, neither gate beats the base in 2025-26. The crowded
   tercile has both the most stops and the highest E[o]: squeeze risk is paid for in the body.
 
+- 00:45Z crowding-weighted stakes for F in LMCF (half / quarter stake when ls_acc < 1.0 or 0.8):
+  DD -32% -> -26..-28%, worst year +95% -> +85..+89%, same bp/trade: a risk dial, not an edge.
+
 ## Pre-registered pick for the forward read-out (written 2026-11-27 15:20Z, before any forward outcome)
 
 **LMC, 10 equal slots of equity, gross 1.0, $10k book from 2026-11-02:**
